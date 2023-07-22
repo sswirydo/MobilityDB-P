@@ -4105,16 +4105,15 @@ do_to_timestamp(text *date_txt, text *fmt, Oid collid, bool std,
   /* Save parsed time-zone into tm->tm_zone if it was specified */
   if (tmfc.tzsign)
   {
-    char     *tz;
+    #define MAX_TZ_PARSE_LEN 7
+    char tz[MAX_TZ_PARSE_LEN];
 
     if (tmfc.tzh < 0 || tmfc.tzh > MAX_TZDISP_HOUR ||
       tmfc.tzm < 0 || tmfc.tzm >= MINS_PER_HOUR)
     {
       RETURN_ERROR(DateTimeParseError(DTERR_TZDISP_OVERFLOW, date_str, "timestamp"));
     }
-
-    tz = sprintf("%c%02d:%02d",
-            tmfc.tzsign > 0 ? '+' : '-', tmfc.tzh, tmfc.tzm);
+    sprintf(tz, "%c%02d:%02d", tmfc.tzsign > 0 ? '+' : '-', tmfc.tzh, tmfc.tzm);
 
     tm->tm_zone = tz;
   }
