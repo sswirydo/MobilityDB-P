@@ -62,9 +62,14 @@
 
 // #include <ctype.h>
 // #include <unistd.h>
-#include <math.h>
-#include <float.h>
+// #include <math.h>
+// #include <float.h>
 #include <limits.h>
+
+#include "utils/timestamp_def.h"
+#include "utils/datetime.h"
+#include "utils/date.h"
+#include "utils/float.h"
 
 #define DEFAULT_COLLATION_OID 100
 
@@ -86,20 +91,13 @@
 // #include "mb/pg_wchar.h"
 // #include "parser/scansup.h"
 // #include "utils/builtins.h"
-// #include "utils/date.h"
-// #include "utils/datetime.h"
-// #include "utils/float.h"
 // #include "utils/formatting.h"
 // #include "utils/int8.h"
 // #include "utils/memutils.h"
 // #include "utils/numeric.h"
 // #include "utils/pg_locale.h"
 
-#include "utils/timestamp_def.h"
-#include "utils/datetime.h"
-#include "utils/date.h"
-#include "utils/datetime.h"
-#include "utils/float.h"
+
 
 extern char *text2cstring(const text *textptr);
 extern text *cstring2text(const char *cstring);
@@ -3643,167 +3641,6 @@ pg_to_date(text *date_txt, text *fmt)
 
   return result;
 }
-
-/*
- * Convert the 'date_txt' input to a datetime type using argument 'fmt'
- * as a format string.  The collation 'collid' may be used for case-folding
- * rules in some cases.  'strict' specifies standard parsing mode.
- *
- * The actual data type (returned in 'typid', 'typmod') is determined by
- * the presence of date/time/zone components in the format string.
- *
- * When timezone component is present, the corresponding offset is
- * returned in '*tz'.
- *
- * If 'have_error' is NULL, then errors are thrown, else '*have_error' is set
- * and zero value is returned.
- */
-// Datum
-// parse_datetime(text *date_txt, text *fmt, Oid collid, bool strict,
-         // Oid *typid, int32 *typmod, int *tz,
-         // bool *have_error)
-// {
-  // struct pg_tm tm;
-  // fsec_t    fsec;
-  // int      fprec;
-  // uint32    flags;
-
-  // do_to_timestamp(date_txt, fmt, collid, strict,
-          // &tm, &fsec, &fprec, &flags, have_error);
-  // CHECK_ERROR;
-
-  // *typmod = fprec ? fprec : -1;  /* fractional part precision */
-
-  // if (flags & DCH_DATED)
-  // {
-    // if (flags & DCH_TIMED)
-    // {
-      // if (flags & DCH_ZONED)
-      // {
-        // TimestampTz result;
-
-        // if (tm.tm_zone)
-        // {
-          // int      dterr = DecodeTimezone(unconstify(char *, tm.tm_zone), tz);
-
-          // if (dterr)
-            // DateTimeParseError(dterr, text2cstring(date_txt), "timestamptz");
-        // }
-        // else
-        // {
-          // /*
-           // * Time zone is present in format string, but not in input
-           // * string.  Assuming do_to_timestamp() triggers no error
-           // * this should be possible only in non-strict case.
-           // */
-          // Assert(!strict);
-
-          // elog(ERROR, "missing time zone in input string for type timestamptz");
-        // }
-
-        // if (tm2timestamp(&tm, fsec, tz, &result) != 0)
-          // elog(ERROR, "timestamptz out of range");
-
-        // AdjustTimestampForTypmod(&result, *typmod);
-
-        // *typid = TIMESTAMPTZOID;
-        // return TimestampTzGetDatum(result);
-      // }
-      // else
-      // {
-        // Timestamp  result;
-
-        // if (tm2timestamp(&tm, fsec, NULL, &result) != 0)
-          // elog(ERROR, "timestamp out of range");
-
-        // AdjustTimestampForTypmod(&result, *typmod);
-
-        // *typid = TIMESTAMPOID;
-        // return TimestampGetDatum(result);
-      // }
-    // }
-    // else
-    // {
-      // if (flags & DCH_ZONED)
-      // {
-        // elog(ERROR, "datetime format is zoned but not timed");
-      // }
-      // else
-      // {
-        // DateADT    result;
-
-        // /* Prevent overflow in Julian-day routines */
-        // if (!IS_VALID_JULIAN(tm.tm_year, tm.tm_mon, tm.tm_mday))
-          // elog(ERROR, "date out of range: \"%s\"",
-                         // text2cstring(date_txt));
-
-        // result = date2j(tm.tm_year, tm.tm_mon, tm.tm_mday) -
-          // POSTGRES_EPOCH_JDATE;
-
-        // /* Now check for just-out-of-range dates */
-        // if (!IS_VALID_DATE(result))
-          // elog(ERROR, "date out of range: \"%s\"",
-                         // text2cstring(date_txt));
-
-        // *typid = DATEOID;
-        // return DateADTGetDatum(result);
-      // }
-    // }
-  // }
-  // else if (flags & DCH_TIMED)
-  // {
-    // if (flags & DCH_ZONED)
-    // {
-      // TimeTzADT  *result = palloc(sizeof(TimeTzADT));
-
-      // if (tm.tm_zone)
-      // {
-        // int      dterr = DecodeTimezone(unconstify(char *, tm.tm_zone), tz);
-
-        // if (dterr)
-          // DateTimeParseError(dterr, text2cstring(date_txt), "timetz");
-      // }
-      // else
-      // {
-        // /*
-         // * Time zone is present in format string, but not in input
-         // * string.  Assuming do_to_timestamp() triggers no error this
-         // * should be possible only in non-strict case.
-         // */
-        // Assert(!strict);
-
-        // elog(ERROR, "missing time zone in input string for type timetz");
-      // }
-
-      // if (tm2timetz(&tm, fsec, *tz, result) != 0)
-        // elog(ERROR, "timetz out of range");
-
-      // AdjustTimeForTypmod(&result->time, *typmod);
-
-      // *typid = TIMETZOID;
-      // return TimeTzADTPGetDatum(result);
-    // }
-    // else
-    // {
-      // TimeADT    result;
-
-      // if (tm2time(&tm, fsec, &result) != 0)
-        // elog(ERROR, "time out of range");
-
-      // AdjustTimeForTypmod(&result, *typmod);
-
-      // *typid = TIMEOID;
-      // return TimeADTGetDatum(result);
-    // }
-  // }
-  // else
-  // {
-    // elog(ERROR, "datetime format is not dated and not timed");
-  // }
-
-// on_error:
-  // return (Datum) 0;
-// }
 
 /*
  * do_to_timestamp: shared code for to_timestamp and to_date
