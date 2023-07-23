@@ -26,8 +26,12 @@ extern char *asc_tolower(const char *buff, size_t nbytes);
 extern char *asc_toupper(const char *buff, size_t nbytes);
 extern char *asc_initcap(const char *buff, size_t nbytes);
 
+extern text *pg_timestamp_to_char(Timestamp dt, text *fmt);
 extern text *pg_timestamptz_to_char(TimestampTz dt, text *fmt);
+extern text *pg_interval_to_char(Interval *it, text *fmt);
+
 extern Timestamp pg_to_timestamp(text *date_txt, text *fmt);
+extern DateADT pg_to_date(text *date_txt, text *fmt);
 
 // extern Datum parse_datetime(text *date_txt, text *fmt, Oid collid, bool strict,
 // 							Oid *typid, int32 *typmod, int *tz, bool *have_error);
