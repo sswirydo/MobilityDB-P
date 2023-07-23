@@ -1808,7 +1808,8 @@ from_char_parse_int_len(int *dest, const char **src, const int len, FormatNode *
    */
   copy = palloc(DCH_MAX_ITEM_SIZ + 1); 
 
-  used = (int) strncpy(copy, *src, len + 1);
+  StrNCpy(copy, *src, len + 1);
+  used = strlen(*src);
 
   if (S_FM(node->suffix) || is_next_separator(node))
   {
