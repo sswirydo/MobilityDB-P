@@ -3581,11 +3581,11 @@ pg_interval_to_char(Interval *it, text *fmt)
  * ( to_timestamp is reverse to_char() )
  * ---------------------
  */
-Timestamp
+TimestampTz
 pg_to_timestamp(text *date_txt, text *fmt)
 {
   Oid collid = DEFAULT_COLLATION_OID;
-  Timestamp  result;
+  TimestampTz  result;
   int      tz;
   struct pg_tm tm;
   fsec_t    fsec;

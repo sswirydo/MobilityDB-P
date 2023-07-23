@@ -30,7 +30,7 @@ extern text *pg_timestamp_to_char(Timestamp dt, text *fmt);
 extern text *pg_timestamptz_to_char(TimestampTz dt, text *fmt);
 extern text *pg_interval_to_char(Interval *it, text *fmt);
 
-extern Timestamp pg_to_timestamp(text *date_txt, text *fmt);
+extern TimestampTz pg_to_timestamp(text *date_txt, text *fmt);
 extern DateADT pg_to_date(text *date_txt, text *fmt);
 
 // extern Datum parse_datetime(text *date_txt, text *fmt, Oid collid, bool strict,
