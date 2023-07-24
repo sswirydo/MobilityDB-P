@@ -1635,8 +1635,8 @@ asc_toupper_z(const char *buff)
   do { \
     if (S_THth(_suf)) \
     { \
-      if (*(ptr)) (ptr) += strlen(ptr); \
-      if (*(ptr)) (ptr) += strlen(ptr); \
+      if (*(ptr)) (ptr) += sizeof(char); \
+      if (*(ptr)) (ptr) += sizeof(char); \
     } \
   } while (0)
 
@@ -2787,7 +2787,7 @@ DCH_from_char(FormatNode *node, const char *in, TmFromChar *out,
          * insist that the consumed character match the format's
          * character.
          */
-        s += strlen(s);
+        s += sizeof(char);
       }
       continue;
     }
@@ -2809,11 +2809,11 @@ DCH_from_char(FormatNode *node, const char *in, TmFromChar *out,
         if (extra_skip > 0)
           extra_skip--;
         else
-          s += strlen(s);
+          s += sizeof(char);
       }
       else
       {
-        int      chlen = strlen(s);
+        int      chlen = sizeof(char);
 
         /*
          * Standard mode requires strict match of format characters.
