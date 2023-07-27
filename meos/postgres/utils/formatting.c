@@ -1805,8 +1805,8 @@ from_char_parse_int_len(int *dest, const char **src, const int len, FormatNode *
    * and chars >n are not removed from str
    */
   copy = palloc(DCH_MAX_ITEM_SIZ + 1); 
-
-  StrNCpy(copy, *src, len + 1);
+  memcpy(copy, *src, len); 
+  copy[len] = '\0';
   used = strlen(*src);
 
   if (S_FM(node->suffix) || is_next_separator(node))
@@ -3350,7 +3350,8 @@ DCH_cache_getnew(const char *str, bool std)
       }
     }
     old->valid = false;
-    StrNCpy(old->str, str, DCH_CACHE_SIZE + 1);
+    memcpy(old->str, str, DCH_CACHE_SIZE);
+    old->str[DCH_CACHE_SIZE] = '\0';
     old->age = (++DCHCounter);
     /* caller is expected to fill format, then set valid */
     return old;
@@ -3361,7 +3362,8 @@ DCH_cache_getnew(const char *str, bool std)
     DCHCache[n_DCHCache] = ent = (DCHCacheEntry *)
       palloc(sizeof(DCHCacheEntry));
     ent->valid = false;
-    StrNCpy(ent->str, str, DCH_CACHE_SIZE + 1);
+    memcpy(ent->str, str, DCH_CACHE_SIZE);
+    ent->str[DCH_CACHE_SIZE] = '\0';
     ent->std = std;
     ent->age = (++DCHCounter);
     /* caller is expected to fill format, then set valid */
