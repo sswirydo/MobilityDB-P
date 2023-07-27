@@ -60,10 +60,6 @@
 
 #include "postgres.h"
 
-// #include <ctype.h>
-// #include <unistd.h>
-// #include <math.h>
-// #include <float.h>
 #include <limits.h>
 
 #include "utils/timestamp_def.h"
@@ -105,34 +101,6 @@ extern char *pnstrdup(const char *in, Size size);
 
 extern void MEOSAdjustTimestampForTypmod(Timestamp *time, int32 typmod);
 
-/*
- * StrNCpy
- *  Like standard library function strncpy(), except that result string
- *  is guaranteed to be null-terminated --- that is, at most N-1 bytes
- *  of the source string will be kept.
- *  Also, the macro returns no result (too hard to do that without
- *  evaluating the arguments multiple times, which seems worse).
- *
- *  BTW: when you need to copy a non-null-terminated string (like a text
- *  datum) and add a null, do not do it with StrNCpy(..., len+1).  That
- *  might seem to work, but it fetches one byte more than there is in the
- *  text object.  One fine day you'll have a SIGSEGV because there isn't
- *  another byte before the end of memory.  Don't laugh, we've had real
- *  live bug reports from real live users over exactly this mistake.
- *  Do it honestly with "memcpy(dst,src,len); dst[len] = '\0';", instead.
- */
-#define StrNCpy(dst,src,len) \
-  do \
-  { \
-    char * _dst = (dst); \
-    Size _len = (len); \
-    \
-    if (_len > 0) \
-    { \
-      strncpy(_dst, (src), _len); \
-      _dst[_len-1] = '\0'; \
-    } \
-  } while (0)
 
 /* ----------
  * Convenience macros for error handling
@@ -191,8 +159,6 @@ do { \
  * ----------
  */
 #define DCH_MAX_ITEM_SIZ     12  /* max localized day name    */
-#define NUM_MAX_ITEM_SIZ    8  /* roman number (RN has 15 chars)  */
-
 
 /* ----------
  * Format parser structs
@@ -361,62 +327,6 @@ static const char *const numth[] = {"st", "nd", "rd", "th", NULL};
 #define TH_UPPER    1
 #define TH_LOWER    2
 
-/* ----------
- * Number description struct
- * ----------
- */
-typedef struct
-{
-  int      pre,      /* (count) numbers before decimal */
-        post,      /* (count) numbers after decimal  */
-        lsign,      /* want locales sign      */
-        flag,      /* number parameters      */
-        pre_lsign_num,  /* tmp value for lsign      */
-        multi,      /* multiplier for 'V'      */
-        zero_start,    /* position of first zero    */
-        zero_end,    /* position of last zero    */
-        need_locale;  /* needs it locale      */
-} NUMDesc;
-
-/* ----------
- * Flags for NUMBER version
- * ----------
- */
-#define NUM_F_DECIMAL    (1 << 1)
-#define NUM_F_LDECIMAL    (1 << 2)
-#define NUM_F_ZERO      (1 << 3)
-#define NUM_F_BLANK      (1 << 4)
-#define NUM_F_FILLMODE    (1 << 5)
-#define NUM_F_LSIGN      (1 << 6)
-#define NUM_F_BRACKET    (1 << 7)
-#define NUM_F_MINUS      (1 << 8)
-#define NUM_F_PLUS      (1 << 9)
-#define NUM_F_ROMAN      (1 << 10)
-#define NUM_F_MULTI      (1 << 11)
-#define NUM_F_PLUS_POST    (1 << 12)
-#define NUM_F_MINUS_POST  (1 << 13)
-#define NUM_F_EEEE      (1 << 14)
-
-#define NUM_LSIGN_PRE  (-1)
-#define NUM_LSIGN_POST  1
-#define NUM_LSIGN_NONE  0
-
-/* ----------
- * Tests
- * ----------
- */
-#define IS_DECIMAL(_f)  ((_f)->flag & NUM_F_DECIMAL)
-#define IS_LDECIMAL(_f) ((_f)->flag & NUM_F_LDECIMAL)
-#define IS_ZERO(_f) ((_f)->flag & NUM_F_ZERO)
-#define IS_BLANK(_f)  ((_f)->flag & NUM_F_BLANK)
-#define IS_FILLMODE(_f) ((_f)->flag & NUM_F_FILLMODE)
-#define IS_BRACKET(_f)  ((_f)->flag & NUM_F_BRACKET)
-#define IS_MINUS(_f)  ((_f)->flag & NUM_F_MINUS)
-#define IS_LSIGN(_f)  ((_f)->flag & NUM_F_LSIGN)
-#define IS_PLUS(_f) ((_f)->flag & NUM_F_PLUS)
-#define IS_ROMAN(_f)  ((_f)->flag & NUM_F_ROMAN)
-#define IS_MULTI(_f)  ((_f)->flag & NUM_F_MULTI)
-#define IS_EEEE(_f)    ((_f)->flag & NUM_F_EEEE)
 
 /* ----------
  * Format picture cache
@@ -438,16 +348,11 @@ typedef struct
  */
 #define DCH_CACHE_OVERHEAD \
   MAXALIGN(sizeof(bool) + sizeof(int))
-#define NUM_CACHE_OVERHEAD \
-  MAXALIGN(sizeof(bool) + sizeof(int) + sizeof(NUMDesc))
 
 #define DCH_CACHE_SIZE \
   ((2048 - DCH_CACHE_OVERHEAD) / (sizeof(FormatNode) + sizeof(char)) - 1)
-#define NUM_CACHE_SIZE \
-  ((1024 - NUM_CACHE_OVERHEAD) / (sizeof(FormatNode) + sizeof(char)) - 1)
 
 #define DCH_CACHE_ENTRIES  20
-#define NUM_CACHE_ENTRIES  20
 
 typedef struct
 {
@@ -458,24 +363,12 @@ typedef struct
   int      age;
 } DCHCacheEntry;
 
-typedef struct
-{
-  FormatNode  format[NUM_CACHE_SIZE + 1];
-  char    str[NUM_CACHE_SIZE + 1];
-  bool    valid;
-  int      age;
-  NUMDesc    Num;
-} NUMCacheEntry;
 
 /* global cache for date/time format pictures */
 static DCHCacheEntry *DCHCache[DCH_CACHE_ENTRIES];
 static int  n_DCHCache = 0;    /* current number of entries */
 static int  DCHCounter = 0;    /* aging-event counter */
 
-/* global cache for number format pictures */
-static NUMCacheEntry *NUMCache[NUM_CACHE_ENTRIES];
-static int  n_NUMCache = 0;    /* current number of entries */
-static int  NUMCounter = 0;    /* aging-event counter */
 
 /* ----------
  * For char->date/time conversion
@@ -743,48 +636,6 @@ typedef enum
   _DCH_last_
 }      DCH_poz;
 
-typedef enum
-{
-  NUM_COMMA,
-  NUM_DEC,
-  NUM_0,
-  NUM_9,
-  NUM_B,
-  NUM_C,
-  NUM_D,
-  NUM_E,
-  NUM_FM,
-  NUM_G,
-  NUM_L,
-  NUM_MI,
-  NUM_PL,
-  NUM_PR,
-  NUM_RN,
-  NUM_SG,
-  NUM_SP,
-  NUM_S,
-  NUM_TH,
-  NUM_V,
-  NUM_b,
-  NUM_c,
-  NUM_d,
-  NUM_e,
-  NUM_fm,
-  NUM_g,
-  NUM_l,
-  NUM_mi,
-  NUM_pl,
-  NUM_pr,
-  NUM_rn,
-  NUM_sg,
-  NUM_sp,
-  NUM_s,
-  NUM_th,
-  NUM_v,
-
-  /* last */
-  _NUM_last_
-}      NUM_poz;
 
 /* ----------
  * KeyWords for DATE-TIME version
@@ -906,55 +757,6 @@ static const KeyWord DCH_keywords[] = {
   {NULL, 0, 0, 0, 0}
 };
 
-/* ----------
- * KeyWords for NUMBER version
- *
- * The is_digit and date_mode fields are not relevant here.
- * ----------
- */
-static const KeyWord NUM_keywords[] = {
-/*  name, len, id      is in Index */
-  {",", 1, NUM_COMMA},    /* , */
-  {".", 1, NUM_DEC},      /* . */
-  {"0", 1, NUM_0},      /* 0 */
-  {"9", 1, NUM_9},      /* 9 */
-  {"B", 1, NUM_B},      /* B */
-  {"C", 1, NUM_C},      /* C */
-  {"D", 1, NUM_D},      /* D */
-  {"EEEE", 4, NUM_E},      /* E */
-  {"FM", 2, NUM_FM},      /* F */
-  {"G", 1, NUM_G},      /* G */
-  {"L", 1, NUM_L},      /* L */
-  {"MI", 2, NUM_MI},      /* M */
-  {"PL", 2, NUM_PL},      /* P */
-  {"PR", 2, NUM_PR},
-  {"RN", 2, NUM_RN},      /* R */
-  {"SG", 2, NUM_SG},      /* S */
-  {"SP", 2, NUM_SP},
-  {"S", 1, NUM_S},
-  {"TH", 2, NUM_TH},      /* T */
-  {"V", 1, NUM_V},      /* V */
-  {"b", 1, NUM_B},      /* b */
-  {"c", 1, NUM_C},      /* c */
-  {"d", 1, NUM_D},      /* d */
-  {"eeee", 4, NUM_E},      /* e */
-  {"fm", 2, NUM_FM},      /* f */
-  {"g", 1, NUM_G},      /* g */
-  {"l", 1, NUM_L},      /* l */
-  {"mi", 2, NUM_MI},      /* m */
-  {"pl", 2, NUM_PL},      /* p */
-  {"pr", 2, NUM_PR},
-  {"rn", 2, NUM_rn},      /* r */
-  {"sg", 2, NUM_SG},      /* s */
-  {"sp", 2, NUM_SP},
-  {"s", 1, NUM_S},
-  {"th", 2, NUM_th},      /* t */
-  {"v", 1, NUM_V},      /* v */
-
-  /* last */
-  {NULL, 0, 0}
-};
-
 
 /* ----------
  * KeyWords index for DATE-TIME version
@@ -980,62 +782,6 @@ static const int DCH_index[KeyWord_INDEX_SIZE] = {
   /*---- chars over 126 are skipped ----*/
 };
 
-/* ----------
- * KeyWords index for NUMBER version
- * ----------
- */
-static const int NUM_index[KeyWord_INDEX_SIZE] = {
-/*
-0  1  2  3  4  5  6  7  8  9
-*/
-  /*---- first 0..31 chars are skipped ----*/
-
-  -1, -1, -1, -1, -1, -1, -1, -1,
-  -1, -1, -1, -1, NUM_COMMA, -1, NUM_DEC, -1, NUM_0, -1,
-  -1, -1, -1, -1, -1, -1, -1, NUM_9, -1, -1,
-  -1, -1, -1, -1, -1, -1, NUM_B, NUM_C, NUM_D, NUM_E,
-  NUM_FM, NUM_G, -1, -1, -1, -1, NUM_L, NUM_MI, -1, -1,
-  NUM_PL, -1, NUM_RN, NUM_SG, NUM_TH, -1, NUM_V, -1, -1, -1,
-  -1, -1, -1, -1, -1, -1, -1, -1, NUM_b, NUM_c,
-  NUM_d, NUM_e, NUM_fm, NUM_g, -1, -1, -1, -1, NUM_l, NUM_mi,
-  -1, -1, NUM_pl, -1, NUM_rn, NUM_sg, NUM_th, -1, NUM_v, -1,
-  -1, -1, -1, -1, -1, -1
-
-  /*---- chars over 126 are skipped ----*/
-};
-
-/* ----------
- * Number processor struct
- * ----------
- */
-typedef struct NUMProc
-{
-  bool    is_to_char;
-  NUMDesc    *Num;      /* number description    */
-
-  int      sign,      /* '-' or '+'      */
-        sign_wrote,    /* was sign write    */
-        num_count,    /* number of write digits  */
-        num_in,      /* is inside number    */
-        num_curr,    /* current position in number  */
-        out_pre_spaces, /* spaces before first digit  */
-
-        read_dec,    /* to_number - was read dec. point  */
-        read_post,    /* to_number - number of dec. digit */
-        read_pre;    /* to_number - number non-dec. digit */
-
-  char     *number,      /* string with number  */
-         *number_p,    /* pointer to current number position */
-         *inout,      /* in / out buffer  */
-         *inout_p,    /* pointer to current inout position */
-         *last_relevant,  /* last relevant number after decimal point */
-
-         *L_negative_sign,  /* Locale */
-         *L_positive_sign,
-         *decimal,
-         *L_thousands_sep,
-         *L_currency_symbol;
-} NUMProc;
 
 /* Return flags for DCH_from_char() */
 #define DCH_DATED  0x01
@@ -1050,9 +796,8 @@ static const KeyWord *index_seq_search(const char *str, const KeyWord *kw,
                      const int *index);
 static const KeySuffix *suff_search(const char *str, const KeySuffix *suf, int type);
 static bool is_separator_char(const char *str);
-static void NUMDesc_prepare(NUMDesc *num, FormatNode *n);
 static void parse_format(FormatNode *node, const char *str, const KeyWord *kw,
-             const KeySuffix *suf, const int *index, uint32 flags, NUMDesc *Num);
+             const KeySuffix *suf, const int *index, uint32 flags);
 
 static void DCH_to_char(FormatNode *node, bool is_interval,
             TmToChar *in, char *out, Oid collid);
@@ -1081,22 +826,9 @@ static int  from_char_seq_search(int *dest, const char **src,
 static void do_to_timestamp(text *date_txt, text *fmt, Oid collid, bool std,
               struct pg_tm *tm, fsec_t *fsec, int *fprec,
               uint32 *flags, bool *have_error);
-static char *fill_str(char *str, int c, int max);
-static FormatNode *NUM_cache(int len, NUMDesc *Num, text *pars_str, bool *shouldFree);
-static char *int_to_roman(int number);
-static void NUM_prepare_locale(NUMProc *Np);
-static char *get_last_relevant_decnum(char *num);
-static void NUM_numpart_from_char(NUMProc *Np, int id, int input_len);
-static void NUM_numpart_to_char(NUMProc *Np, int id);
-static char *NUM_processor(FormatNode *node, NUMDesc *Num, char *inout,
-               char *number, int input_len, int to_char_out_pre_spaces,
-               int sign, bool is_to_char, Oid collid);
 static DCHCacheEntry *DCH_cache_getnew(const char *str, bool std);
 static DCHCacheEntry *DCH_cache_search(const char *str, bool std);
 static DCHCacheEntry *DCH_cache_fetch(const char *str, bool std);
-static NUMCacheEntry *NUM_cache_getnew(const char *str);
-static NUMCacheEntry *NUM_cache_search(const char *str);
-static NUMCacheEntry *NUM_cache_fetch(const char *str);
 
 
 /* ----------
@@ -1155,148 +887,6 @@ is_separator_char(const char *str)
       !(*str >= '0' && *str <= '9'));
 }
 
-/* ----------
- * Prepare NUMDesc (number description struct) via FormatNode struct
- * ----------
- */
-static void
-NUMDesc_prepare(NUMDesc *num, FormatNode *n)
-{
-  if (n->type != NODE_TYPE_ACTION)
-    return;
-
-  if (IS_EEEE(num) && n->key->id != NUM_E)
-    elog(ERROR, "\"EEEE\" must be the last pattern used");
-
-  switch (n->key->id)
-  {
-    case NUM_9:
-      if (IS_BRACKET(num))
-        elog(ERROR, "\"9\" must be ahead of \"PR\"");
-      if (IS_MULTI(num))
-      {
-        ++num->multi;
-        break;
-      }
-      if (IS_DECIMAL(num))
-        ++num->post;
-      else
-        ++num->pre;
-      break;
-
-    case NUM_0:
-      if (IS_BRACKET(num))
-        elog(ERROR, "\"0\" must be ahead of \"PR\"");
-      if (!IS_ZERO(num) && !IS_DECIMAL(num))
-      {
-        num->flag |= NUM_F_ZERO;
-        num->zero_start = num->pre + 1;
-      }
-      if (!IS_DECIMAL(num))
-        ++num->pre;
-      else
-        ++num->post;
-
-      num->zero_end = num->pre + num->post;
-      break;
-
-    case NUM_B:
-      if (num->pre == 0 && num->post == 0 && (!IS_ZERO(num)))
-        num->flag |= NUM_F_BLANK;
-      break;
-
-    case NUM_D:
-      num->flag |= NUM_F_LDECIMAL;
-      num->need_locale = true;
-      /* FALLTHROUGH */
-    case NUM_DEC:
-      if (IS_DECIMAL(num))
-        elog(ERROR, "multiple decimal points");
-      if (IS_MULTI(num))
-        elog(ERROR, "cannot use \"V\" and decimal point together");
-      num->flag |= NUM_F_DECIMAL;
-      break;
-
-    case NUM_FM:
-      num->flag |= NUM_F_FILLMODE;
-      break;
-
-    case NUM_S:
-      if (IS_LSIGN(num))
-        elog(ERROR, "cannot use \"S\" twice");
-      if (IS_PLUS(num) || IS_MINUS(num) || IS_BRACKET(num))
-        elog(ERROR, "cannot use \"S\" and \"PL\"/\"MI\"/\"SG\"/\"PR\" together");
-      if (!IS_DECIMAL(num))
-      {
-        num->lsign = NUM_LSIGN_PRE;
-        num->pre_lsign_num = num->pre;
-        num->need_locale = true;
-        num->flag |= NUM_F_LSIGN;
-      }
-      else if (num->lsign == NUM_LSIGN_NONE)
-      {
-        num->lsign = NUM_LSIGN_POST;
-        num->need_locale = true;
-        num->flag |= NUM_F_LSIGN;
-      }
-      break;
-
-    case NUM_MI:
-      if (IS_LSIGN(num))
-        elog(ERROR, "cannot use \"S\" and \"MI\" together");
-      num->flag |= NUM_F_MINUS;
-      if (IS_DECIMAL(num))
-        num->flag |= NUM_F_MINUS_POST;
-      break;
-
-    case NUM_PL:
-      if (IS_LSIGN(num))
-        elog(ERROR, "cannot use \"S\" and \"PL\" together");
-      num->flag |= NUM_F_PLUS;
-      if (IS_DECIMAL(num))
-        num->flag |= NUM_F_PLUS_POST;
-      break;
-
-    case NUM_SG:
-      if (IS_LSIGN(num))
-        elog(ERROR, "cannot use \"S\" and \"SG\" together");
-      num->flag |= NUM_F_MINUS;
-      num->flag |= NUM_F_PLUS;
-      break;
-
-    case NUM_PR:
-      if (IS_LSIGN(num) || IS_PLUS(num) || IS_MINUS(num))
-        elog(ERROR, "cannot use \"PR\" and \"S\"/\"PL\"/\"MI\"/\"SG\" together");
-      num->flag |= NUM_F_BRACKET;
-      break;
-
-    case NUM_rn:
-    case NUM_RN:
-      num->flag |= NUM_F_ROMAN;
-      break;
-
-    case NUM_L:
-    case NUM_G:
-      num->need_locale = true;
-      break;
-
-    case NUM_V:
-      if (IS_DECIMAL(num))
-        elog(ERROR, "cannot use \"V\" and decimal point together");
-      num->flag |= NUM_F_MULTI;
-      break;
-
-    case NUM_E:
-      if (IS_EEEE(num))
-        elog(ERROR, "cannot use \"EEEE\" twice");
-      if (IS_BLANK(num) || IS_FILLMODE(num) || IS_LSIGN(num) ||
-        IS_BRACKET(num) || IS_MINUS(num) || IS_PLUS(num) ||
-        IS_ROMAN(num) || IS_MULTI(num))
-        elog(ERROR, "\"EEEE\" is incompatible with other formats");
-      num->flag |= NUM_F_EEEE;
-      break;
-  }
-}
 
 /* ----------
  * Format parser, search small keywords and keyword's suffixes, and make
@@ -1307,7 +897,7 @@ NUMDesc_prepare(NUMDesc *num, FormatNode *n)
  */
 static void
 parse_format(FormatNode *node, const char *str, const KeyWord *kw,
-       const KeySuffix *suf, const int *index, uint32 flags, NUMDesc *Num)
+       const KeySuffix *suf, const int *index, uint32 flags)
 {
   FormatNode *n;
 
@@ -1338,12 +928,6 @@ parse_format(FormatNode *node, const char *str, const KeyWord *kw,
       n->suffix = suffix;
       if (n->key->len)
         str += n->key->len;
-
-      /*
-       * NUM version: Prepare global NUMDesc struct
-       */
-      if (flags & NUM_FLAG)
-        NUMDesc_prepare(Num, n);
 
       /*
        * Postfix
@@ -3409,7 +2993,7 @@ DCH_cache_fetch(const char *str, bool std)
     ent = DCH_cache_getnew(str, std);
 
     parse_format(ent->format, str, DCH_keywords, DCH_suff, DCH_index,
-           DCH_FLAG | (std ? STD_FLAG : 0), NULL);
+           DCH_FLAG | (std ? STD_FLAG : 0));
 
     ent->valid = true;
   }
@@ -3454,7 +3038,7 @@ datetime_to_char_body(TmToChar *tmtc, text *fmt, bool is_interval, Oid collid)
     format = (FormatNode *) palloc((fmt_len + 1) * sizeof(FormatNode));
 
     parse_format(format, fmt_str, DCH_keywords,
-           DCH_suff, DCH_index, DCH_FLAG, NULL);
+           DCH_suff, DCH_index, DCH_FLAG);
   }
   else
   {
@@ -3706,7 +3290,7 @@ do_to_timestamp(text *date_txt, text *fmt, Oid collid, bool std,
       format = (FormatNode *) palloc((fmt_len + 1) * sizeof(FormatNode));
 
       parse_format(format, fmt_str, DCH_keywords, DCH_suff, DCH_index,
-             DCH_FLAG | (std ? STD_FLAG : 0), NULL);
+             DCH_FLAG | (std ? STD_FLAG : 0));
     }
     else
     {
