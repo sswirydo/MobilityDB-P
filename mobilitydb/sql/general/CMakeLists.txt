@@ -28,6 +28,7 @@ SET(LOCAL_FILES
   043_temporal_gist
   044_temporal_spgist
   999_oid_cache
+  801_periodic
   )
 
 foreach (f ${LOCAL_FILES})

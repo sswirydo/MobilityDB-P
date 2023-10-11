@@ -30,6 +30,7 @@ add_library(general OBJECT
   type_out.c
   type_parser.c
   type_util.c
+  periodic.c
 )
 
 add_library(general_meos OBJECT

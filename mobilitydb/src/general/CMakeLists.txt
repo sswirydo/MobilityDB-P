@@ -40,4 +40,5 @@ add_library(pg_general OBJECT
   type_in.c
   type_out.c
   type_util.c
+  periodic.c
 )
