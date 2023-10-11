@@ -78,13 +78,14 @@
     return result;
   }
 
-  char *
-  pg_interval_out(const Interval *span)
-  {
-    Datum arg1 = IntervalPGetDatum(span);
-    char *result = DatumGetCString(call_function1(interval_out, arg1));
-    return result;
-  }
+  // Is defiend in pg_types now. <3
+  // char *
+  // pg_interval_out(const Interval *span)
+  // {
+  //   Datum arg1 = IntervalPGetDatum(span);
+  //   char *result = DatumGetCString(call_function1(interval_out, arg1));
+  //   return result;
+  // }
 
 #endif /* ! MEOS */
 
@@ -127,7 +128,7 @@ pmode_parse(const char **str)
   }
   *str = endptr;
 
-  ensure_end_input(str, true, "periodic mode");
+  ensure_end_input(str, "periodic mode");
   pfree(str1);
 
   return pmode_make(frequency, repetitions);
@@ -321,7 +322,7 @@ psequence_to_string(const PSequence *pseq, const perType ptype, int maxdd, bool 
     outlen += strlen(strings[i]) + 1;
   }
   char open, close;
-  if (MEOS_FLAGS_GET_DISCRETE(pseq->flags))
+  if (MEOS_FLAGS_DISCRETE_INTERP(pseq->flags))
   {
     open = (char) '{';
     close = (char) '}';
@@ -342,7 +343,7 @@ psequenceset_to_string(const PSequenceSet *pss, const perType ptype, int maxdd, 
   size_t outlen = 0;
   char prefix[20];
   if (MEOS_FLAGS_GET_CONTINUOUS(pss->flags) &&
-      ! MEOS_FLAGS_GET_LINEAR(pss->flags))
+      ! MEOS_FLAGS_LINEAR_INTERP(pss->flags))
     sprintf(prefix, "Interp=Step;");
   else
     prefix[0] = '\0';
@@ -480,6 +481,9 @@ pint_to_tint(Periodic *temp)
 // }
 
 
+/* 
+  useless function for now, just for testing
+*/
 Periodic* temporal_make_periodic(Temporal* temp, PMode* pmode) 
 {
   // todo currently shifts 1st to 00:00:00, 
@@ -505,9 +509,10 @@ Periodic* temporal_make_periodic(Temporal* temp, PMode* pmode)
 
   // 2) shift the rest of the sequence accordingly
   Interval *shift_to_rel = diff;
-  Temporal *shifted_temp = temporal_shift_tscale(temp, shift_to_rel, NULL);
+  // Temporal *shifted_temp = temporal_shift_tscale(temp, shift_to_rel, NULL);  // todo <--- temporal_shift_tscale does not exist anymore
+  // Periodic* result = (Periodic *) shifted_temp;
 
-  Periodic* result = (Periodic *) shifted_temp;
+  Periodic* result = shift_to_rel;
 
   return result;
 }
