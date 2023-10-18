@@ -6,6 +6,7 @@
 #include "general/periodic.h"
 #include "general/temporal.h"
 #include "general/periodic_parser.h"
+#include "general/periodic_pg_types.h"
 
 /* C */
 #include <assert.h>
@@ -37,49 +38,9 @@
 #include "point/pgis_call.h"
 #include "point/tpoint_spatialfuncs.h"
 
-
-
 #if NPOINT
   #include "npoint/tnpoint_spatialfuncs.h"
 #endif
-
-
-
-/*****************************************************************************
- *  Temporary MEOS / MOBILITYDB defintions
-*****************************************************************************/
-
-#if ! MEOS
-  extern Datum call_function1(PGFunction func, Datum arg1);
-  extern Datum call_function2(PGFunction func, Datum arg1, Datum arg2);
-  extern Datum call_function3(PGFunction func, Datum arg1, Datum arg2, Datum arg3);
-  extern Datum timestamptz_to_char(PG_FUNCTION_ARGS);
-  extern Datum interval_in(PG_FUNCTION_ARGS);
-  extern Datum interval_out(PG_FUNCTION_ARGS);
-#endif /* ! MEOS */
-
-
-#if ! MEOS
-
-  text *
-  pg_timestamptz_to_char(TimestampTz dt, text *fmt)
-  {
-    Datum arg1 = TimestampTzGetDatum(dt);
-    Datum arg2 = PointerGetDatum(fmt);
-    text *result = DatumGetTextP(call_function2(timestamptz_to_char, arg1, arg2));
-    return result;
-  }
-
-  Interval *
-  pg_interval_in(const char *str, int32 typmod)
-  {
-    Datum arg1 = CStringGetDatum(str);
-    Datum arg2 = Int32GetDatum(typmod);
-    Interval *result = DatumGetIntervalP(call_function2(interval_in, arg1, arg2));
-    return result;
-  }
-
-#endif /* ! MEOS */
 
 
 
@@ -102,15 +63,15 @@ pmode_parse(const char **str)
   int delim = 0;
   char *endptr = NULL;  
 
-  while (*str[delim] != ';') delim++;
+  while ((*str)[delim] != ';') delim++;
   char *str1 = palloc(sizeof(char) * (delim + 1));
   strncpy(str1, *str, delim);
   str[delim] = '\0';
-  *str += delim;
+  *str += delim + 1;
 
   // Frequency
   frequency = pg_interval_in(str1, -1); 
-  
+
   // Repetitions
   repetitions = strtol(*str, &endptr, 10); // 10 cause base 10
   if (*str == endptr) 
@@ -236,9 +197,10 @@ pinstant_to_string(const PInstant *inst, const perType ptype, int maxdd, outfunc
     t = format_timestamptz(inst->t, "DD HH24:MI:SS");  // day_of_month hour:minutes:seconds
   else if (ptype == P_YEAR) 
     t = format_timestamptz(inst->t, "Mon DD HH24:MI:SS"); // day_of_month month hour:minutes:seconds
-  else if (ptype == P_INTERVAL) { // todo
-    // first get interval from tstz and then output
-    t = pg_timestamptz_out(inst->t);  
+  else if (ptype == P_INTERVAL) {
+    TimestampTz reference_tstz = pg_timestamptz_in("2000-01-01 00:00:00", -1);
+    Interval *diff = pg_timestamp_mi(inst->t, reference_tstz);
+    t = pg_interval_out(diff);
   }
     
   else 
@@ -451,37 +413,11 @@ Temporal* anchor_in_time(Periodic* per, PMode* pmode, TimestampTz start)
 
 
 /** 
-  IMPORTANT: useless function for now, left just for testing, implementation was moved to periodic_parser.c
+  NOTE: useless function for now, left just for testing, implementation was moved to periodic_parser.c
 */
-Periodic* temporal_make_periodic(Temporal* temp, PMode* pmode) 
+Periodic *temporal_make_periodic(Temporal* temp, PMode* pmode) 
 {
-  // but we might want to keep some info like time or part of date
-
-  // TInstant *start = temporal_start_instant(temp);
-  // TimestampDifferenceMilliseconds(start_tstz, )
-
-  // 1) find shift from 1st element to 2000 UTC  
-  char* reference_str = "2000-01-01 00:00:00 UTC";
-  TimestampTz reference_tstz = pg_timestamptz_in(reference_str, -1);
-  // elog(NOTICE, "debug tstz reference: %s", pg_timestamptz_out(reference_tstz));
-
-  //TimestampTz result = DatumGetTimestampTz(call_function3(timestamptz_in, arg1,(Datum) 0, arg3));
-  // Datum arg1 = CStringGetDatum(str);
-  // Datum reference_str_datum = CStringGetDatum(reference_str);
-  // elog(NOTICE, "MAKE RELATIVE TEST: %s", DatumGetCString(call_function1(pg_timestamptz_out, reference_str_datum)));
-
-  TimestampTz start_tstz = temporal_start_timestamp(temp);
-  // elog(NOTICE, "debug tstz start: %s", pg_timestamptz_out(start_tstz));
-
-  Interval *diff = pg_timestamp_mi(reference_tstz, start_tstz);
-
-  // 2) shift the rest of the sequence accordingly
-  Interval *shift_to_rel = diff;
-  // Temporal *shifted_temp = temporal_shift_tscale(temp, shift_to_rel, NULL);  // todo <--- temporal_shift_tscale does not exist anymore
-  // Periodic* result = (Periodic *) shifted_temp;
-
-  Periodic* result = shift_to_rel;
-
+  Periodic *result = NULL;
   return result;
 }
 
