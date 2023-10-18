@@ -5,6 +5,7 @@
 
 #include "general/periodic.h"
 #include "general/temporal.h"
+#include "general/periodic_parser.h"
 
 /* C */
 #include <assert.h>
@@ -78,15 +79,6 @@
     return result;
   }
 
-  // Is defiend in pg_types now. <3
-  // char *
-  // pg_interval_out(const Interval *span)
-  // {
-  //   Datum arg1 = IntervalPGetDatum(span);
-  //   char *result = DatumGetCString(call_function1(interval_out, arg1));
-  //   return result;
-  // }
-
 #endif /* ! MEOS */
 
 
@@ -117,10 +109,9 @@ pmode_parse(const char **str)
   *str += delim;
 
   // Frequency
-  // TODO/FIXME
-  // frequency = pg_interval_in(str1, -1); 
+  frequency = pg_interval_in(str1, -1); 
   
-  // Repeitions
+  // Repetitions
   repetitions = strtol(*str, &endptr, 10); // 10 cause base 10
   if (*str == endptr) 
   {
@@ -147,25 +138,10 @@ char *
 pmode_out(const PMode *pmode)
 {
   const Interval *freq_iv = &(pmode->frequency);
-  
-  elog(NOTICE, "PMODE OUT DEBUG: days: %d", freq_iv->day);
-  elog(NOTICE, "PMODE OUT DEBUG: repet: %d", pmode->repetitions);
-
-  // TODO / FIXME : add call_func for pg_interval_out
-  // char *freq_str = pg_interval_out(freq_iv); 
-  // pg_interval_out -> undefined symbol for some reason although pg_interval_in is ok
-  // edit: now pg_interval_in doesnt work either D:
-
-  // char *str = psprintf("%s, %d", freq_str, repet);
-  // char *str = psprintf("freq: %d, repetitions: %d", freq_iv->day, pmode->repetitions);
-  // char *str = psprintf("Interval (month %d, day: %d); Repetitions: %d", freq_iv->month, freq_iv->day, pmode->repetitions);
-
-  char *mon_str = int4_out(freq_iv->month);
-  char *dd_str = int4_out(freq_iv->day);
+  char *freq_str = pg_interval_out(freq_iv); 
   char *rep_str = int4_out(pmode->repetitions);
-  char *result = palloc(sizeof(char)*64 + strlen(mon_str) + strlen(dd_str) + strlen(rep_str));
-  sprintf(result, "Interval (month %s, day: %s); Repetitions: %s", mon_str, dd_str, rep_str);
-  
+  char *result = palloc(sizeof(char)*63 + strlen(freq_str) + strlen(rep_str));
+  sprintf(result, "Interval: %s; Repetitions: %s", freq_str, rep_str);
   return result;
 }
 
@@ -193,50 +169,19 @@ periodic_in(const char *str, meosType temptype)
 
   */
 
-  // todo add flags
+  /*
+    1) Input and parse as intervals list or other depending on the flag.
+    1.Q) How to input the flag ? Automatic ? User specified ?
+      Do DAY; []
+    2) Store as dates relative to 2000 UTC
+  */
 
-  return (Periodic *) temporal_parse(&str, temptype);
+  return (Periodic *) periodic_parse(&str, temptype);
+  // return (Periodic *) temporal_parse(&str, temptype);
 }
 
-// Periodic *
-// temporal_parse(const char **str, meosType temptype)
-// {
-//   p_whitespace(str);
-//   Temporal *result = NULL;  /* keep compiler quiet */
-//   interpType interp = temptype_continuous(temptype) ? LINEAR : STEP;
-//   /* Starts with "Interp=Step;" */
-//   if (pg_strncasecmp(*str, "Interp=Step;", 12) == 0)
-//   {
-//     /* Move str after the semicolon */
-//     *str += 12;
-//     interp = STEP;
-//   }
 
-//   /* Allow spaces after the Interpolation */
-//   p_whitespace(str);
 
-//   if (**str != '{' && **str != '[' && **str != '(')
-//     result = (Temporal *) tinstant_parse(str, temptype, true, true);
-//   else if (**str == '[' || **str == '(')
-//     result = (Temporal *) tcontseq_parse(str, temptype, interp, true, true);
-//   else if (**str == '{')
-//   {
-//     const char *bak = *str;
-//     p_obrace(str);
-//     p_whitespace(str);
-//     if (**str == '[' || **str == '(')
-//     {
-//       *str = bak;
-//       result = (Temporal *) tsequenceset_parse(str, temptype, interp);
-//     }
-//     else
-//     {
-//       *str = bak;
-//       result = (Temporal *) tdiscseq_parse(str, temptype);
-//     }
-//   }
-//   return result;
-// }
 
 char *
 periodic_out(const Periodic *per, int maxdd)
@@ -290,7 +235,12 @@ pinstant_to_string(const PInstant *inst, const perType ptype, int maxdd, outfunc
   else if (ptype == P_MONTH)
     t = format_timestamptz(inst->t, "DD HH24:MI:SS");  // day_of_month hour:minutes:seconds
   else if (ptype == P_YEAR) 
-    t = format_timestamptz(inst->t, "DD Mon HH24:MI:SS"); // day_of_month month hour:minutes:seconds
+    t = format_timestamptz(inst->t, "Mon DD HH24:MI:SS"); // day_of_month month hour:minutes:seconds
+  else if (ptype == P_INTERVAL) { // todo
+    // first get interval from tstz and then output
+    t = pg_timestamptz_out(inst->t);  
+  }
+    
   else 
     t = pg_timestamptz_out(inst->t); // default
 
@@ -431,6 +381,9 @@ periodic_get_pertype(const Periodic *per)
 
 /*****************************************************************************
  *  Casting
+ * 
+ *  TODO obviously a simple cast is not eough
+ * 
 *****************************************************************************/
 
 Periodic *
@@ -477,16 +430,31 @@ pint_to_tint(Periodic *temp)
 //   // if both repetitions and end_time -> max 'repetitions' times but not further than end_time
 
 //   // ...
-
 // }
 
 
-/* 
-  useless function for now, just for testing
+// Is it as simple as shifting per by start and then looping pmode ? Probably is.
+Temporal* anchor_in_time(Periodic* per, PMode* pmode, TimestampTz start) 
+{
+  
+  // *) get interval diff between 2000 UTC and start = startIv
+
+  // *) shift per by startIv
+
+  // *) pointer workPointer to current date points to start
+
+  // *) if repetitions left > 0, add frequency to workPointer
+
+  // *) shift per by workPointer diff and add to currect temporal sequence
+  
+}
+
+
+/** 
+  IMPORTANT: useless function for now, left just for testing, implementation was moved to periodic_parser.c
 */
 Periodic* temporal_make_periodic(Temporal* temp, PMode* pmode) 
 {
-  // todo currently shifts 1st to 00:00:00, 
   // but we might want to keep some info like time or part of date
 
   // TInstant *start = temporal_start_instant(temp);

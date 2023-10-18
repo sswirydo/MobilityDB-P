@@ -298,10 +298,11 @@ Datum Quick_test(PG_FUNCTION_ARGS)
   
   char *fmt_str = text_to_cstring(format);
 
-  char *result_str = format_timestamptz(tstz, P_YEAR);
+  char *result_str = format_timestamptz(tstz, fmt_str);
+  // char *result_str = "42";
   
   text *result = cstring_to_text(result_str);
-  pfree(result_str);
+  // pfree(result_str);
 
   PG_RETURN_TEXT_P(result);
 }

@@ -132,11 +132,12 @@ typedef struct
 
 typedef enum
 {
-  P_NONE  =  0,
-  P_DAY   =  1,
-  P_WEEK  =  2,
-  P_MONTH =  3,
-  P_YEAR  =  4,
+  P_NONE      = 0,
+  P_DAY       = 1,
+  P_WEEK      = 2,
+  P_MONTH     = 3,
+  P_YEAR      = 4,
+  P_INTERVAL  = 5,
 } perType;
 
 
@@ -145,15 +146,16 @@ typedef enum
 *****************************************************************************/
 
 /* The following flags are only used for Periodic */  
-#define MEOS_FLAG_PERIODIC    0x0700  // 0001, 0010, 0011, 0100 
+#define MEOS_FLAG_PERIODIC    0x0700  // 0001, 0010, 0011, 0100, 0101
 
 #define MEOS_FLAGS_GET_PERIODIC(flags)    (((flags) & MEOS_FLAG_PERIODIC) >> 8)
 #define MEOS_FLAGS_SET_PERIODIC(flags, value) ((flags) = (((flags) & ~MEOS_FLAG_PERIODIC) | ((value & 0x07) << 8)))
 
-#define MEOS_FLAGS_GET_PER_DAY(flags)     ((bool) (MEOS_FLAGS_GET_PERIODIC((flags)) == P_DAY))
-#define MEOS_FLAGS_GET_PER_WEEK(flags)    ((bool) (MEOS_FLAGS_GET_PERIODIC((flags)) == P_WEEK))
-#define MEOS_FLAGS_GET_PER_MONTH(flags)   ((bool) (MEOS_FLAGS_GET_PERIODIC((flags)) == P_MONTH))
-#define MEOS_FLAGS_GET_PER_YEAR(flags)    ((bool) (MEOS_FLAGS_GET_PERIODIC((flags)) == P_YEAR))
+#define MEOS_FLAGS_PER_DAY(flags)       ((bool) (MEOS_FLAGS_GET_PERIODIC((flags)) == P_DAY))
+#define MEOS_FLAGS_PER_WEEK(flags)      ((bool) (MEOS_FLAGS_GET_PERIODIC((flags)) == P_WEEK))
+#define MEOS_FLAGS_PER_MONTH(flags)     ((bool) (MEOS_FLAGS_GET_PERIODIC((flags)) == P_MONTH))
+#define MEOS_FLAGS_PER_YEAR(flags)      ((bool) (MEOS_FLAGS_GET_PERIODIC((flags)) == P_YEAR))
+#define MEOS_FLAGS_PER_INTERVAL(flags)  ((bool) (MEOS_FLAGS_GET_PERIODIC((flags)) == P_INTERVAL))
 
 /*****************************************************************************
  *  Input
