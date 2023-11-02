@@ -183,10 +183,7 @@ psequenceset_out(const PSequenceSet *pss, int maxdd)
 
 char *
 pinstant_to_string(const PInstant *inst, const perType ptype, int maxdd, outfunc value_out)
-{ 
-  // todo also add interval output
-  // todo check ensure setting flag on seq also sets it to its instants (?)
-  
+{   
   char *t = NULL;
 
   if (ptype == P_DAY)
@@ -384,38 +381,114 @@ pint_to_tint(Periodic *temp)
  *  Operations
 *****************************************************************************/
 
-// Temporal* periodic_generate(Periodic* temp, PMode* pmode) 
-// {
-//   // Generate a TSequenceSet from TSequence
-//   // if repetitions is specified -> repeat at max 'repetitions' times
-//   // if end_time is specified -> generated until that date
-//   // if both repetitions and end_time -> max 'repetitions' times but not further than end_time
-
-//   // ...
-// }
-
 
 // Is it as simple as shifting per by start and then looping pmode ? Probably is.
-Temporal* anchor_in_time(Periodic* per, PMode* pmode, TimestampTz start) 
+Temporal * 
+anchor(Periodic* per, PMode* pmode, TimestampTz start, TimestampTz end, bool upper_inc) 
 {
+  /** PARAMETERS:
+   * Frequency: after how long should the sequence repeat itself (interval relative to the start of the sequence)
+   *  If is empty, repeat directly
+   * Repetitions: how many times should the sequence repeat ()
+   *  If empty, repeat until end of span range
+   * Range: start and end of the created sequence
+  */
+
+  /** WARNING:
+   * Ensure FREQUENCY is > than the length of sequence
+   * Ensure REPETITIONS and END of range are not empty at the same time
+   */
+
+ /** TODO:
+  * Is there a clean way to specify upper bound inclusion?
+  *   Maybe replace (start, end) by tstz span (s.t. we can have low_up_inc) ? 
+  *   But what if we don't want an upper bound (empty tstz end) ?
+  *   Can be set to PG_INT64_MAX
+  */
+
+ /** TBD:
+  * Must the whole pattern occurn at the end or can the pattern be trimmed if does not fit ?
+  *   Both for upper_bound and interval.  
+  * 
+  */
+
+  Temporal *result;
+
+  if (!ensure_not_null(per) || !ensure_not_null(pmode))
+    return NULL;
+
+  perType ptype = MEOS_FLAGS_GET_PERIODIC(per->flags);
+ 
+  if (ptype == P_NONE || ptype == P_INTERVAL) 
+  {
+    result = anchor_interval(per, pmode, start, end, upper_inc);
+  }
+
+  else // TODO
+  { 
+    // result = anchor_fixed(per, pmode, start, end, upper_inc);
+    result = anchor_interval(per, pmode, start, end, upper_inc);
+  }
   
-  // *) get interval diff between 2000 UTC and start = startIv
+  return result;
+}
 
-  // *) shift per by startIv
+Temporal *
+anchor_interval(Periodic* per, PMode* pmode, TimestampTz start, TimestampTz end, bool upper_inc) 
+{
+  Temporal *result;
+  Temporal *temp;
+  Temporal *base_temp;
+  Temporal *work_temp;
+  TimestampTz reference_tstz = pg_timestamptz_in("2000-01-01 00:00:00", -1);
 
-  // *) pointer workPointer to current date points to start
+  // Create basic temporal sequence.
+  temp = (Temporal*) periodic_copy(per);
+  MEOS_FLAGS_SET_PERIODIC(temp->flags, P_NONE);
 
-  // *) if repetitions left > 0, add frequency to workPointer
+  // Shift it s.t. it starts at "start".
+  Interval *diff = pg_timestamp_mi(start, reference_tstz);
+  base_temp = (Temporal*) temporal_shift_scale_time(temp, diff, NULL);
 
-  // *) shift per by workPointer diff and add to currect temporal sequence
-  
+  // Repeat until repetition is empty or end is reached.
+  for (int32 i = 1; i < pmode->repetitions; i++)
+  {
+    // Working_start = start + frequency.
+    diff = pg_interval_pl(diff, &pmode->frequency);
+
+    // Shifts new seq s.t. it starts at working_start.
+    temp = (Temporal*) periodic_copy(per);
+    MEOS_FLAGS_SET_PERIODIC(temp->flags, P_NONE);
+    work_temp = (Temporal*) temporal_shift_scale_time(temp, diff, NULL);
+
+    // Merge new seq and seq.
+    base_temp = temporal_merge(base_temp, work_temp);
+
+    // Stop if reached end.
+    if (! temporal_always_lt(base_temp, end))
+      break;
+  }
+  // Trim if necessary
+  Span *trim_span = span_make(TimestampGetDatum(start), TimestampGetDatum(end), true, upper_inc, T_TIMESTAMPTZ);
+  base_temp = temporal_restrict_period(base_temp, trim_span, REST_AT);
+  result = base_temp;
+
+  return result;
+}
+
+Temporal *
+anchor_fixed(Periodic* per, PMode* pmode, TimestampTz start, TimestampTz end, bool upper_inc) 
+{
+  // TODO
+  return (Temporal*) per;
 }
 
 
 /** 
   NOTE: useless function for now, left just for testing, implementation was moved to periodic_parser.c
 */
-Periodic *temporal_make_periodic(Temporal* temp, PMode* pmode) 
+Periodic *
+temporal_make_periodic(Temporal* temp, PMode* pmode) 
 {
   Periodic *result = NULL;
   return result;

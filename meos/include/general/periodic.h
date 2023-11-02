@@ -138,7 +138,7 @@ typedef enum
   P_MONTH     = 3,
   P_YEAR      = 4,
   P_INTERVAL  = 5,
-} perType;
+} perType; // todo maybe shift enum by one later s.t. 0 is not default but just a simple Temporal
 
 
 /*****************************************************************************
@@ -207,8 +207,11 @@ Temporal *pint_to_tint(Periodic *temp);
  *  Operations
 *****************************************************************************/
 
-// Temporal* periodic_generate(Periodic* per, PMode* pmode);
-Periodic* temporal_make_periodic(Temporal* temp, PMode* pmode);
+Temporal *anchor(Periodic* per, PMode* pmode, TimestampTz start, TimestampTz end, bool upper_inc);
+Temporal *anchor_interval(Periodic* per, PMode* pmode, TimestampTz start, TimestampTz end, bool upper_inc);
+Temporal *anchor_fixed(Periodic* per, PMode* pmode, TimestampTz start, TimestampTz end, bool upper_inc);
+// Temporal *periodic_generate(Periodic* per, PMode* pmode);
+Periodic *temporal_make_periodic(Temporal* temp, PMode* pmode); // depreciated
 
 
 /*****************************************************************************

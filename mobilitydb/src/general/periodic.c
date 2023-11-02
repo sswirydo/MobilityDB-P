@@ -129,6 +129,40 @@ Datum PMode_constructor(PG_FUNCTION_ARGS)
  *  Periodic
 *****************************************************************************/
 
+PGDLLEXPORT Datum Anchor(PG_FUNCTION_ARGS);
+PG_FUNCTION_INFO_V1(Anchor);
+Datum Anchor(PG_FUNCTION_ARGS)
+{
+  Periodic *per = PG_GETARG_PERIODIC_P(0);
+  PMode *pmode = PG_GETARG_PMODE_P(1);
+  TimestampTz start_tstz = PG_GETARG_TIMESTAMPTZ(2);
+  TimestampTz end_tstz = PG_INT64_MAX;
+  PG_RETURN_POINTER(anchor(per, pmode, start_tstz, end_tstz, false));
+}
+
+PGDLLEXPORT Datum Anchor_end(PG_FUNCTION_ARGS);
+PG_FUNCTION_INFO_V1(Anchor_end);
+Datum Anchor_end(PG_FUNCTION_ARGS)
+{
+  Periodic *per = PG_GETARG_PERIODIC_P(0);
+  PMode *pmode = PG_GETARG_PMODE_P(1);
+  TimestampTz start_tstz = PG_GETARG_TIMESTAMPTZ(2);
+  TimestampTz end_tstz = PG_GETARG_TIMESTAMPTZ(3);
+  PG_RETURN_POINTER(anchor(per, pmode, start_tstz, end_tstz, false));
+}
+
+PGDLLEXPORT Datum Anchor_end_inc(PG_FUNCTION_ARGS);
+PG_FUNCTION_INFO_V1(Anchor_end_inc);
+Datum Anchor_end_inc(PG_FUNCTION_ARGS)
+{
+  Periodic *per = PG_GETARG_PERIODIC_P(0);
+  PMode *pmode = PG_GETARG_PMODE_P(1);
+  TimestampTz start_tstz = PG_GETARG_TIMESTAMPTZ(2);
+  TimestampTz end_tstz = PG_GETARG_TIMESTAMPTZ(3);
+  bool upper_inc = PG_GETARG_TIMESTAMPTZ(4);
+  PG_RETURN_POINTER(anchor(per, pmode, start_tstz, end_tstz, upper_inc));
+}
+
 // PGDLLEXPORT Datum Periodic_generate(PG_FUNCTION_ARGS);
 // PG_FUNCTION_INFO_V1(Periodic_generate);
 // Datum Periodic_generate(PG_FUNCTION_ARGS)

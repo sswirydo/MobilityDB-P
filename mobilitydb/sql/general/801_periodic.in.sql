@@ -135,6 +135,23 @@ CREATE FUNCTION setPeriodicType(pint, text)
  *  Periodicity -- todo add for other basetypes once base works
 *****************************************************************************/
 
+
+
+CREATE FUNCTION anchor(pint, pmode, timestamptz)
+  RETURNS tint
+  AS 'MODULE_PATHNAME', 'Anchor'
+  LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;
+
+CREATE FUNCTION anchor(pint, pmode, timestamptz, timestamptz)
+  RETURNS tint
+  AS 'MODULE_PATHNAME', 'Anchor_end'
+  LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;
+
+CREATE FUNCTION anchor(pint, pmode, timestamptz, timestamptz, boolean)
+  RETURNS tint
+  AS 'MODULE_PATHNAME', 'Anchor_end_inc'
+  LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;
+
 -- CREATE FUNCTION periodic_generate(pint, pmode) 
 --   RETURNS tint
 --   AS 'MODULE_PATHNAME', 'Periodic_generate'

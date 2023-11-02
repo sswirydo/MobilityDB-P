@@ -224,8 +224,10 @@ pinstant_parse(const char **str, meosType temptype, perType pertype, bool end, P
   /* Ensure there is no more input */
   if (end && ! ensure_end_input(str, "periodic"))
     return false;
-  if (result)
+  if (result) {
     *result = tinstant_make(elem, temptype, t);
+    MEOS_FLAGS_SET_PERIODIC((*result)->flags, pertype);
+  }
   return true;
 }
 
