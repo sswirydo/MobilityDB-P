@@ -28,7 +28,7 @@
 
 typedef struct
 {
-  Interval frequency; // maybe store as a TimestampTz and create Interval when used?
+  Interval frequency;
   int32 repetitions;
   // TimestampTz start_date;
   // TimestampTz end_date;
@@ -133,12 +133,13 @@ typedef struct
 typedef enum
 {
   P_NONE      = 0,
-  P_DAY       = 1,
-  P_WEEK      = 2,
-  P_MONTH     = 3,
-  P_YEAR      = 4,
-  P_INTERVAL  = 5,
-} perType; // todo maybe shift enum by one later s.t. 0 is not default but just a simple Temporal
+  P_DEFAULT   = 1,
+  P_DAY       = 2,
+  P_WEEK      = 3,
+  P_MONTH     = 4,
+  P_YEAR      = 5,
+  P_INTERVAL  = 6,
+} perType;
 
 
 /*****************************************************************************
@@ -146,11 +147,12 @@ typedef enum
 *****************************************************************************/
 
 /* The following flags are only used for Periodic */  
-#define MEOS_FLAG_PERIODIC    0x0700  // 0001, 0010, 0011, 0100, 0101
+#define MEOS_FLAG_PERIODIC    0x0700  // 0001, 0010, 0011, 0100, 0101, 0110
 
 #define MEOS_FLAGS_GET_PERIODIC(flags)    (((flags) & MEOS_FLAG_PERIODIC) >> 8)
 #define MEOS_FLAGS_SET_PERIODIC(flags, value) ((flags) = (((flags) & ~MEOS_FLAG_PERIODIC) | ((value & 0x07) << 8)))
 
+#define MEOS_FLAGS_PER_DEFAULT(flags)   ((bool) (MEOS_FLAGS_GET_PERIODIC((flags)) == P_DEFAULT))
 #define MEOS_FLAGS_PER_DAY(flags)       ((bool) (MEOS_FLAGS_GET_PERIODIC((flags)) == P_DAY))
 #define MEOS_FLAGS_PER_WEEK(flags)      ((bool) (MEOS_FLAGS_GET_PERIODIC((flags)) == P_WEEK))
 #define MEOS_FLAGS_PER_MONTH(flags)     ((bool) (MEOS_FLAGS_GET_PERIODIC((flags)) == P_MONTH))
@@ -208,8 +210,8 @@ Temporal *pint_to_tint(Periodic *temp);
 *****************************************************************************/
 
 Temporal *anchor(Periodic* per, PMode* pmode, TimestampTz start, TimestampTz end, bool upper_inc);
-Temporal *anchor_interval(Periodic* per, PMode* pmode, TimestampTz start, TimestampTz end, bool upper_inc);
-Temporal *anchor_fixed(Periodic* per, PMode* pmode, TimestampTz start, TimestampTz end, bool upper_inc);
+Temporal *anchor_interval(Periodic* per, Interval *frequency, int32 repetitions, TimestampTz start, TimestampTz end, bool upper_inc);
+// Temporal *anchor_fixed(Periodic* per, PMode* pmode, TimestampTz start, TimestampTz end, bool upper_inc);
 // Temporal *periodic_generate(Periodic* per, PMode* pmode);
 Periodic *temporal_make_periodic(Temporal* temp, PMode* pmode); // depreciated
 

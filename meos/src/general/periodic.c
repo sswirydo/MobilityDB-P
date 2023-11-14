@@ -188,8 +188,12 @@ pinstant_to_string(const PInstant *inst, const perType ptype, int maxdd, outfunc
 
   if (ptype == P_DAY)
     t = format_timestamptz(inst->t, "HH24:MI:SS");  // hour:minutes:seconds
-  else if (ptype == P_WEEK) 
-    t =format_timestamptz(inst->t, "FMDay HH24:MI:SS"); // day_of_week hour:minutes:seconds
+  else if (ptype == P_WEEK) {
+    // Shifting up by 2 days cause 2000-01-01 is actually a Saturday and not a Monday.
+    // But we assume that date as Monday 00:00:00. Shifting only affects FMDay output.
+    TimestampTz temp_t = pg_timestamp_pl_interval(inst->t, pg_interval_in("2 days", -1));
+    t = format_timestamptz(temp_t, "FMDay HH24:MI:SS"); // day_of_week hour:minutes:seconds
+  }
   else if (ptype == P_MONTH)
     t = format_timestamptz(inst->t, "DD HH24:MI:SS");  // day_of_month hour:minutes:seconds
   else if (ptype == P_YEAR) 
@@ -413,34 +417,32 @@ anchor(Periodic* per, PMode* pmode, TimestampTz start, TimestampTz end, bool upp
   */
 
   Temporal *result;
+  Interval *frequency;
+  int32 repetitions;
 
   if (!ensure_not_null(per) || !ensure_not_null(pmode))
     return NULL;
 
   perType ptype = MEOS_FLAGS_GET_PERIODIC(per->flags);
- 
-  if (ptype == P_NONE || ptype == P_INTERVAL) 
-  {
-    result = anchor_interval(per, pmode, start, end, upper_inc);
-  }
-
-  else // TODO
-  { 
-    // result = anchor_fixed(per, pmode, start, end, upper_inc);
-    result = anchor_interval(per, pmode, start, end, upper_inc);
-  }
   
+  frequency = &(pmode->frequency);
+  repetitions = pmode->repetitions;
+
+  result = anchor_interval(per, frequency, repetitions, start, end, upper_inc);
+
   return result;
 }
 
+
 Temporal *
-anchor_interval(Periodic* per, PMode* pmode, TimestampTz start, TimestampTz end, bool upper_inc) 
+anchor_interval(Periodic* per, Interval *frequency, int32 repetitions, TimestampTz start, TimestampTz end, bool upper_inc) 
 {
   Temporal *result;
   Temporal *temp;
   Temporal *base_temp;
   Temporal *work_temp;
   TimestampTz reference_tstz = pg_timestamptz_in("2000-01-01 00:00:00", -1);
+  Interval *work_freq = pg_interval_in("0 days", -1);
 
   // Create basic temporal sequence.
   temp = (Temporal*) periodic_copy(per);
@@ -451,36 +453,35 @@ anchor_interval(Periodic* per, PMode* pmode, TimestampTz start, TimestampTz end,
   base_temp = (Temporal*) temporal_shift_scale_time(temp, diff, NULL);
 
   // Repeat until repetition is empty or end is reached.
-  for (int32 i = 1; i < pmode->repetitions; i++)
+  for (int32 i = 1; i < repetitions; i++)
   {
-    // Working_start = start + frequency.
-    diff = pg_interval_pl(diff, &pmode->frequency);
+    // Incrementing frequency. 
+    work_freq = pg_interval_pl(work_freq, frequency);
 
-    // Shifts new seq s.t. it starts at working_start.
+    // Shifts new seq accordingly.
     temp = (Temporal*) periodic_copy(per);
     MEOS_FLAGS_SET_PERIODIC(temp->flags, P_NONE);
-    work_temp = (Temporal*) temporal_shift_scale_time(temp, diff, NULL);
+    work_temp = (Temporal*) temporal_shift_scale_time(temp, diff, NULL); 
+    work_temp = (Temporal*) temporal_shift_scale_time(work_temp, work_freq, NULL);
+    // (note: keeping diff and work_freq separate to avoid mixing interval days and months etc.)
+
+    // TODO Trim if frequency is month based and overflow into the next month.
+    // ...
 
     // Merge new seq and seq.
     base_temp = temporal_merge(base_temp, work_temp);
 
     // Stop if reached end.
-    if (! temporal_always_lt(base_temp, end))
+    if (temporal_end_timestamp(base_temp) >= end) { 
       break;
+    }
+
   }
   // Trim if necessary
   Span *trim_span = span_make(TimestampGetDatum(start), TimestampGetDatum(end), true, upper_inc, T_TIMESTAMPTZ);
   base_temp = temporal_restrict_period(base_temp, trim_span, REST_AT);
   result = base_temp;
-
   return result;
-}
-
-Temporal *
-anchor_fixed(Periodic* per, PMode* pmode, TimestampTz start, TimestampTz end, bool upper_inc) 
-{
-  // TODO
-  return (Temporal*) per;
 }
 
 
