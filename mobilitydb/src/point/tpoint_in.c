@@ -1,12 +1,12 @@
 /*****************************************************************************
  *
  * This MobilityDB code is provided under The PostgreSQL License.
- * Copyright (c) 2016-2023, Université libre de Bruxelles and MobilityDB
+ * Copyright (c) 2016-2024, Université libre de Bruxelles and MobilityDB
  * contributors
  *
  * MobilityDB includes portions of PostGIS version 3 source code released
  * under the GNU General Public License (GPLv2 or later).
- * Copyright (c) 2001-2023, PostGIS contributors
+ * Copyright (c) 2001-2024, PostGIS contributors
  *
  * Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose, without fee, and without a written
@@ -37,10 +37,10 @@
 #include <fmgr.h>
 /* MEOS */
 #include <meos.h>
-#include "general/type_util.h"
+#include "general/temporal.h"
 #include "point/tpoint_parser.h"
 /* MobilityDB */
-#include "pg_general/meos_catalog.h"
+#include "pg_general/meos_catalog.h" /* For oid_type */
 
 /*****************************************************************************
  * Input in EWKT format
@@ -51,10 +51,10 @@ PG_FUNCTION_INFO_V1(Tpoint_from_ewkt);
 /**
  * @ingroup mobilitydb_temporal_inout
  * @brief Input a temporal point from its Extended Well-Known Text (EWKT)
- * representation.
+ * representation
  * @note This just does the same thing as the _in function, except it has to handle
  * a 'text' input. First, unwrap the text into a cstring, then do as tpoint_in
- * @sqlfunc tgeompointFromText(), tgeogpointFromText(), tgeompointFromEWKT(),
+ * @sqlfn tgeompointFromText(), tgeogpointFromText(), tgeompointFromEWKT(),
  * tgeogpointFromEWKT()
  */
 Datum
@@ -68,7 +68,7 @@ Tpoint_from_ewkt(PG_FUNCTION_ARGS)
   Temporal *result = tpoint_parse(&wkt_ptr, oid_type(temptypid));
   pfree(wkt);
   PG_FREE_IF_COPY(wkt_text, 0);
-  PG_RETURN_POINTER(result);
+  PG_RETURN_TEMPORAL_P(result);
 }
 
 /*****************************************************************************/

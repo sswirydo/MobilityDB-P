@@ -1,12 +1,12 @@
 /*****************************************************************************
  *
  * This MobilityDB code is provided under The PostgreSQL License.
- * Copyright (c) 2016-2023, Université libre de Bruxelles and MobilityDB
+ * Copyright (c) 2016-2024, Université libre de Bruxelles and MobilityDB
  * contributors
  *
  * MobilityDB includes portions of PostGIS version 3 source code released
  * under the GNU General Public License (GPLv2 or later).
- * Copyright (c) 2001-2023, PostGIS contributors
+ * Copyright (c) 2001-2024, PostGIS contributors
  *
  * Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose, without fee, and without a written
@@ -40,8 +40,8 @@
 #include <liblwgeom.h>
 #include <lwgeodetic.h>
 /* MEOS */
+#include <meos.h>
 #include "general/temporal.h"
-#include "point/tpoint.h"
 
 /** Symbolic constants for transforming tgeompoint <-> tgeogpoint */
 #define GEOM_TO_GEOG        true
@@ -121,6 +121,11 @@ extern bool ensure_valid_tpoint_tpoint(const Temporal *temp1,
 
 extern Temporal *tpoint_get_coord(const Temporal *temp, int coord);
 
+/* Ever/always comparisons */
+
+extern int eacomp_tpoint_geo(const Temporal *temp, const GSERIALIZED *gs,
+  Datum (*func)(Datum, Datum, meosType), bool ever);
+
 /* Functions derived from PostGIS to increase floating-point precision */
 
 extern long double closest_point2d_on_segment_ratio(const POINT2D *p,
@@ -165,14 +170,14 @@ extern LWGEOM *lwpointarr_make_trajectory(LWGEOM **points, int count,
 extern LWLINE *lwline_make(Datum value1, Datum value2);
 extern LWGEOM *lwcoll_from_points_lines(LWGEOM **points, LWGEOM **lines,
   int npoints, int nlines);
-extern GSERIALIZED *tpointseq_disc_trajectory(const TSequence *seq);
-extern GSERIALIZED *tpointseq_cont_trajectory(const TSequence *seq);
+extern GSERIALIZED *tpointdiscseq_trajectory(const TSequence *seq);
+extern GSERIALIZED *tpointcontseq_trajectory(const TSequence *seq);
 
 /* Functions for spatial reference systems */
 
 extern TInstant *tpointinst_transform(const TInstant *inst, int srid);
-extern TSequence *tpointseq_disc_transform(const TSequence *is, int srid);
-extern TSequence *tpointseq_cont_transform(const TSequence *seq, int srid);
+extern TSequence *tpointdiscseq_transform(const TSequence *is, int srid);
+extern TSequence *tpointcontseq_transform(const TSequence *seq, int srid);
 extern TSequenceSet *tpointseqset_transform(const TSequenceSet *ss, int srid);
 extern Temporal *tpoint_transform(const Temporal *temp, int srid);
 

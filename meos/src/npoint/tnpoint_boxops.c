@@ -1,12 +1,12 @@
 /*****************************************************************************
  *
  * This MobilityDB code is provided under The PostgreSQL License.
- * Copyright (c) 2016-2023, Université libre de Bruxelles and MobilityDB
+ * Copyright (c) 2016-2024, Université libre de Bruxelles and MobilityDB
  * contributors
  *
  * MobilityDB includes portions of PostGIS version 3 source code released
  * under the GNU General Public License (GPLv2 or later).
- * Copyright (c) 2001-2023, PostGIS contributors
+ * Copyright (c) 2001-2024, PostGIS contributors
  *
  * Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose, without fee, and without a written
@@ -29,11 +29,11 @@
 
 /**
  * @file
- * @brief Bounding box operators for temporal network points.
+ * @brief Bounding box operators for temporal network points
  *
- * These operators test the bounding boxes of temporal npoints, which are
- * STBox boxes. The following operators are defined:
- *    overlaps, contains, contained, same
+ * These operators test the bounding boxes of temporal network points, which
+ * are @p STBox boxes. The following operators are defined:
+ *    @p overlaps, @p contains, @p contained, @p same
  * The operators consider as many dimensions as they are shared in both
  * arguments: only the space dimension, only the time dimension, or both
  * the space and the time dimensions.
@@ -41,25 +41,19 @@
 
 #include "npoint/tnpoint_boxops.h"
 
-/* PostgreSQL */
-#include <utils/timestamp.h>
 /* MEOS */
 #include <meos.h>
 #include <meos_internal.h>
-#include "general/type_util.h"
-#include "point/pgis_call.h"
-#include "point/tpoint_boxops.h"
-#include "point/tpoint_spatialfuncs.h"
-#include "npoint/tnpoint.h"
+#include "point/pgis_types.h"
 #include "npoint/tnpoint_static.h"
-#include "npoint/tnpoint_spatialfuncs.h"
 
 /*****************************************************************************
  * Transform a temporal Npoint to a STBox
  *****************************************************************************/
 
 /**
- * @brief Set the spatiotemporal box from the network point value.
+ * @brief Initialize the spatiotemporal box in the last argument from the
+ * network point value
  * @param[in] np Network point
  * @param[out] box Spatiotemporal box
  */
@@ -73,7 +67,20 @@ npoint_set_stbox(const Npoint *np, STBox *box)
 }
 
 /**
- * @brief Set the spatiotemporal box from an array of network point values
+ * @brief Convert a network point to a spatiotemporal box
+ */
+STBox *
+npoint_to_stbox(const Npoint *np)
+{
+  STBox box;
+  if (! npoint_set_stbox(np, &box))
+    return NULL;
+  return stbox_cp(&box);
+}
+
+/**
+ * @brief Initialize the spatiotemporal box in the last argument from an array
+ * of network point values
  * @param[in] values Temporal network point values
  * @param[in] count Number of elements in the array
  * @param[out] box Spatiotemporal box
@@ -91,7 +98,8 @@ npointarr_set_stbox(const Datum *values, int count, STBox *box)
   return;
 }
 /**
- * @brief Set the spatiotemporal box from the network point value
+ * @brief Initialize the last argument with the spatiotemporal box of a 
+ * temporal network point instant
  * @param[in] inst Temporal network point
  * @param[out] box Spatiotemporal box
  */
@@ -100,14 +108,14 @@ tnpointinst_set_stbox(const TInstant *inst, STBox *box)
 {
   npoint_set_stbox(DatumGetNpointP(tinstant_value(inst)), box);
   span_set(TimestampTzGetDatum(inst->t), TimestampTzGetDatum(inst->t),
-    true, true, T_TIMESTAMPTZ, &box->period);
+    true, true, T_TIMESTAMPTZ, T_TSTZSPAN, &box->period);
   MEOS_FLAGS_SET_T(box->flags, true);
   return;
 }
 
 /**
- * @brief Set the spatiotemporal box from the array of temporal network point
- * values
+ * @brief Initialize the last argument with the spatiotemporal box of an array 
+ * of temporal network point instants
  * @param[in] instants Temporal network point values
  * @param[in] count Number of elements in the array
  * @param[out] box Spatiotemporal box
@@ -126,8 +134,8 @@ tnpointinstarr_step_set_stbox(const TInstant **instants, int count, STBox *box)
 }
 
 /**
- * @brief Set the spatiotemporal box from the array of temporal network point
- * values
+ * @brief Initialize the last argument with the spatiotemporal box of an array
+ * of temporal network point instants
  * @param[in] instants Temporal instant values
  * @param[in] count Number of elements in the array
  * @param[out] box Spatiotemporal box
@@ -149,10 +157,10 @@ tnpointinstarr_linear_set_stbox(const TInstant **instants, int count,
 
   GSERIALIZED *line = route_geom(rid);
   GSERIALIZED *gs = (posmin == 0 && posmax == 1) ? line :
-    gserialized_line_substring(line, posmin, posmax);
+    linestring_substring(line, posmin, posmax);
   geo_set_stbox(gs, box);
   span_set(TimestampTzGetDatum(tmin), TimestampTzGetDatum(tmax),
-    true, true, T_TIMESTAMPTZ, &box->period);
+    true, true, T_TIMESTAMPTZ, T_TSTZSPAN, &box->period);
   MEOS_FLAGS_SET_T(box->flags, true);
   pfree(line);
   if (posmin != 0 || posmax != 1)
@@ -161,8 +169,8 @@ tnpointinstarr_linear_set_stbox(const TInstant **instants, int count,
 }
 
 /**
- * @brief Set the spatiotemporal box from the array of temporal network point
- * values.
+ * @brief Initialize the last argument with the spatiotemporal box of an array
+ * of temporal network point instants
  * @param[in] instants Temporal instant values
  * @param[in] count Number of elements in the array
  * @param[in] interp Interpolation
@@ -200,10 +208,10 @@ tnpointseq_expand_stbox(const TSequence *seq, const TInstant *inst)
     double posmax = Min(np1->pos, np2->pos);
     GSERIALIZED *line = route_geom(rid);
     GSERIALIZED *gs = (posmin == 0 && posmax == 1) ? line :
-      gserialized_line_substring(line, posmin, posmax);
+      linestring_substring(line, posmin, posmax);
     geo_set_stbox(gs, &box);
     span_set(TimestampTzGetDatum(last->t), TimestampTzGetDatum(inst->t),
-      true, true, T_TIMESTAMPTZ, &box.period);
+      true, true, T_TIMESTAMPTZ, T_TSTZSPAN, &box.period);
     MEOS_FLAGS_SET_T(box.flags, true);
     pfree(line);
     if (posmin != 0 || posmax != 1)
@@ -231,28 +239,69 @@ nsegment_set_stbox(const Nsegment *ns, STBox *box)
 }
 
 /**
- * @brief Transform a network point and a timestamp to a spatiotemporal box
+ * @brief Convert a network segment into a spatiotemporal box
+ */
+STBox *
+nsegment_to_stbox(const Nsegment *ns)
+{
+  STBox box;
+  if (! nsegment_set_stbox(ns, &box))
+    return NULL;
+  return stbox_cp(&box);
+}
+
+/**
+ * @brief Convert a network point and a timestamptz to a spatiotemporal box
  */
 bool
-npoint_timestamp_set_stbox(const Npoint *np, TimestampTz t, STBox *box)
+npoint_timestamptz_set_stbox(const Npoint *np, TimestampTz t, STBox *box)
 {
   npoint_set_stbox(np, box);
   span_set(TimestampTzGetDatum(t), TimestampTzGetDatum(t), true, true,
-    T_TIMESTAMPTZ, &box->period);
+    T_TIMESTAMPTZ, T_TSTZSPAN, &box->period);
   MEOS_FLAGS_SET_T(box->flags, true);
   return true;
 }
 
 /**
- * @brief Transform a network point and a period to a spatiotemporal box
+ * @brief Convert a network point and a timestamptz to a spatiotemporal box
+ */
+STBox *
+npoint_timestamptz_to_stbox(const Npoint *np, TimestampTz t)
+{
+  if (! ensure_not_null((void *) np))
+    return NULL;
+  STBox box;
+  if (! npoint_timestamptz_set_stbox(np, t, &box))
+    return NULL;
+  return stbox_cp(&box);
+}
+
+/**
+ * @brief Convert a network point and a timestamptz span to a spatiotemporal
+ * box
  */
 bool
-npoint_period_set_stbox(const Npoint *np, const Span *p, STBox *box)
+npoint_tstzspan_set_stbox(const Npoint *np, const Span *s, STBox *box)
 {
   npoint_set_stbox(np, box);
-  memcpy(&box->period, p, sizeof(Span));
+  memcpy(&box->period, s, sizeof(Span));
   MEOS_FLAGS_SET_T(box->flags, true);
   return true;
+}
+
+/**
+ * @brief Convert a network point and a timestamptz to a spatiotemporal box
+ */
+STBox *
+npoint_tstzspan_to_stbox(const Npoint *np, const Span *s)
+{
+  if (! ensure_not_null((void *) np) || ! ensure_not_null((void *) s))
+    return NULL;
+  STBox box;
+  if (! npoint_tstzspan_set_stbox(np, s, &box))
+    return NULL;
+  return stbox_cp(&box);
 }
 
 /*****************************************************************************/

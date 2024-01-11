@@ -1,12 +1,12 @@
 /*****************************************************************************
  *
  * This MobilityDB code is provided under The PostgreSQL License.
- * Copyright (c) 2016-2023, Université libre de Bruxelles and MobilityDB
+ * Copyright (c) 2016-2024, Université libre de Bruxelles and MobilityDB
  * contributors
  *
  * MobilityDB includes portions of PostGIS version 3 source code released
  * under the GNU General Public License (GPLv2 or later).
- * Copyright (c) 2001-2023, PostGIS contributors
+ * Copyright (c) 2001-2024, PostGIS contributors
  *
  * Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose, without fee, and without a written
@@ -28,7 +28,8 @@
  *****************************************************************************/
 
 /**
- * @brief Definitions of the sections for the MobilityDB API
+ * @file
+ * @brief Sections for the documentation of the MobilityDB API
  */
 
 /*****************************************************************************
@@ -39,7 +40,7 @@
 
 /**
  * @defgroup mobilitydb_api MobilityDB API
- * @brief API of MobilityDB PostgreSQL extension.
+ * @brief API of the MobilityDB PostgreSQL extension.
  */
 
 /**
@@ -47,9 +48,23 @@
  * @ingroup mobilitydb_api
  * @brief Functions for set and span types.
  *
- * @defgroup mobilitydb_setspan_inout Input/output functions
+ * @defgroup mobilitydb_box Functions for box types
+ * @ingroup mobilitydb_api
+ * @brief Functions for box types.
+ *
+ * @defgroup mobilitydb_temporal Functions for temporal types
+ * @ingroup mobilitydb_api
+ * @brief Functions for temporal types.
+ *
+ * @defgroup mobilitydb_misc Miscellaneous functions
+ * @ingroup mobilitydb_api
+ * @brief Miscellaneous functions.
+ */
+
+/**
+ * @defgroup mobilitydb_setspan_inout Input and output functions
  * @ingroup mobilitydb_setspan
- * @brief Input/output functions for set and span types.
+ * @brief Input and output functions for set and span types.
  *
  * @defgroup mobilitydb_setspan_constructor Constructor functions
  * @ingroup mobilitydb_setspan
@@ -90,16 +105,16 @@
  * @defgroup mobilitydb_setspan_comp Comparison functions
  * @ingroup mobilitydb_setspan
  * @brief Comparison functions for set and span types.
+ *
+ * @defgroup mobilitydb_setspan_agg Aggregate functions
+ * @ingroup mobilitydb_setspan
+ * @brief Aggregate functions for set and span types.
  */
 
 /**
- * @defgroup mobilitydb_box Functions for box types
- * @ingroup mobilitydb_api
- * @brief Functions for box types.
- *
- * @defgroup mobilitydb_box_inout Input/output functions
+ * @defgroup mobilitydb_box_inout Input and output functions
  * @ingroup mobilitydb_box
- * @brief Input/output functions for box types.
+ * @brief Input and output functions for box types.
  *
  * @defgroup mobilitydb_box_constructor Constructor functions
  * @ingroup mobilitydb_box
@@ -117,12 +132,16 @@
  * @ingroup mobilitydb_box
  * @brief Transformation functions for box types.
  *
- * @defgroup mobilitydb_box_topo Topological functions
+ * @defgroup mobilitydb_box_bbox Bounding box functions
  * @ingroup mobilitydb_box
+ * @brief Bounding box functions for box types.
+ *
+ * @defgroup mobilitydb_box_topo Topological functions
+ * @ingroup mobilitydb_box_bbox
  * @brief Topological functions for box types.
  *
  * @defgroup mobilitydb_box_pos Position functions
- * @ingroup mobilitydb_box
+ * @ingroup mobilitydb_box_bbox
  * @brief Position functions for box types.
  *
  * @defgroup mobilitydb_box_set Set functions
@@ -135,13 +154,9 @@
  */
 
 /**
- * @defgroup mobilitydb_temporal Functions for temporal types
- * @ingroup mobilitydb_api
- * @brief Functions for temporal types.
- *
- * @defgroup mobilitydb_temporal_inout Input/output functions
+ * @defgroup mobilitydb_temporal_inout Input and output functions
  * @ingroup mobilitydb_temporal
- * @brief Input/output functions for temporal types.
+ * @brief Input and output functions for temporal types.
  *
  * @defgroup mobilitydb_temporal_constructor Constructor functions
  * @ingroup mobilitydb_temporal
@@ -203,9 +218,9 @@
  * @ingroup mobilitydb_temporal_comp
  * @brief Traditional comparison functions for temporal types.
  *
- * @defgroup mobilitydb_temporal_comp_ever Ever/always comparison functions
+ * @defgroup mobilitydb_temporal_comp_ever Ever and always comparison functions
  * @ingroup mobilitydb_temporal_comp
- * @brief Ever/always comparison functions for temporal types.
+ * @brief Ever and always comparison functions for temporal types.
  *
  * @defgroup mobilitydb_temporal_comp_temp Temporal comparison functions
  * @ingroup mobilitydb_temporal_comp
@@ -213,35 +228,35 @@
  *
  * @defgroup mobilitydb_temporal_spatial Spatial functions
  * @ingroup mobilitydb_temporal
- * @brief Spatial functions for temporal point types.
+ * @brief Spatial functions for temporal points.
  *
  * @defgroup mobilitydb_temporal_spatial_accessor Spatial accessor functions
  * @ingroup mobilitydb_temporal_spatial
- * @brief Spatial accessor functions for temporal point types.
+ * @brief Spatial accessor functions for temporal points.
  *
  * @defgroup mobilitydb_temporal_spatial_transf Spatial transformation functions
  * @ingroup mobilitydb_temporal_spatial
- * @brief Spatial transformation functions for temporal point types.
+ * @brief Spatial transformation functions for temporal points.
  *
  * @defgroup mobilitydb_temporal_spatial_rel Spatial relationship functions
  * @ingroup mobilitydb_temporal_spatial
- * @brief Spatial relationship functions for temporal point types.
+ * @brief Spatial relationship functions for temporal points.
  *
- * @defgroup mobilitydb_temporal_spatial_rel_ever Ever spatial relationship functions
+ * @defgroup mobilitydb_temporal_spatial_rel_ever Ever and always spatial relationship functions
  * @ingroup mobilitydb_temporal_spatial_rel
- * @brief Ever spatial relationship functions for temporal point types.
+ * @brief Ever and always spatial relationship functions for temporal points.
  *
  * @defgroup mobilitydb_temporal_spatial_rel_temp Temporal spatial relationship functions
  * @ingroup mobilitydb_temporal_spatial_rel
- * @brief Temporal spatial relationship functions for temporal point types.
+ * @brief Temporal spatial relationship functions for temporal points.
  *
  * @defgroup mobilitydb_temporal_spatial_route Route functions
  * @ingroup mobilitydb_temporal_spatial
  * @brief Route functions for temporal network point types.
  *
- * @defgroup mobilitydb_temporal_agg Local aggregate functions
+ * @defgroup mobilitydb_temporal_agg Aggregate functions
  * @ingroup mobilitydb_temporal
- * @brief Local aggregate functions for temporal types.
+ * @brief Aggregate functions for temporal types.
  *
  * @defgroup mobilitydb_temporal_analytics Analytics functions
  * @ingroup mobilitydb_temporal
