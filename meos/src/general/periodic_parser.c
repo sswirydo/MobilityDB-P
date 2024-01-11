@@ -31,16 +31,16 @@
 /* MEOS */
 #include <meos.h>
 #include <meos_internal.h>
-#include "general/doxygen_libmeos.h"
+#include "general/doxygen_meos.h"
 #include "general/pg_types.h"
-#include "general/temporaltypes.h"
+// #include "general/temporaltypes.h"
 #include "general/temporal_boxops.h"
 #include "general/tnumber_distance.h"
 #include "general/temporal_tile.h"
 #include "general/type_parser.h"
 #include "general/type_util.h"
 #include "general/type_out.h"
-#include "point/pgis_call.h"
+// #include "point/pgis_call.h"
 #include "point/tpoint_spatialfuncs.h"
 
 
@@ -270,7 +270,7 @@ periodic_timestamp_parse(const char **str, perType pertype)
     else if (pg_strncasecmp(str1, "Sat", 3) == 0) week_shift = pg_interval_in("5 days", -1); 
     else week_shift = pg_interval_in("6 days", -1);
     TimestampTz result2shift = pg_to_timestamp(cstring2text(date2parse), cstring2text("YYYY FMDay HH24:MI:SS")); // day_of_week hour:minutes:seconds
-    result = pg_timestamp_pl_interval(result2shift, week_shift);
+    result = add_timestamptz_interval(result2shift, week_shift);
   }
   else if (pertype == P_MONTH) 
     result = pg_to_timestamp(cstring2text(date2parse), cstring2text("YYYY DD HH24:MI:SS")); // day_of_month hour:minutes:seconds
@@ -280,7 +280,7 @@ periodic_timestamp_parse(const char **str, perType pertype)
   {
     Interval *diff = pg_interval_in(str1, -1);
     TimestampTz reference_tstz = pg_timestamptz_in("2000-01-01 00:00:00", -1);
-    result = pg_timestamp_pl_interval(reference_tstz, diff);
+    result = add_timestamptz_interval(reference_tstz, diff);
   }
   else // P_DEFAULT, P_NONE
     result = pg_timestamptz_in(str1, -1);
@@ -346,8 +346,8 @@ PSequence*
 normalize_periodic_sequence(PSequence *pseq) 
 {
   TimestampTz reference_tstz = pg_timestamptz_in("2000-01-01 00:00:00", -1);
-  TimestampTz start_tstz = temporal_start_timestamp(pseq);
-  Interval *diff = pg_timestamp_mi(reference_tstz, start_tstz);
+  TimestampTz start_tstz = temporal_start_timestamptz(pseq);
+  Interval *diff = (Interval*) minus_timestamptz_timestamptz(reference_tstz, start_tstz);
   PSequence* result = (PSequence *) temporal_shift_scale_time(pseq, diff, NULL);
   return result;
 }

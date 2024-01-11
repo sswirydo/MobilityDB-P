@@ -26,16 +26,16 @@
 /* MEOS */
 #include <meos.h>
 #include <meos_internal.h>
-#include "general/doxygen_libmeos.h"
+#include "general/doxygen_meos.h"
 #include "general/pg_types.h"
-#include "general/temporaltypes.h"
+// #include "general/temporaltypes.h"
 #include "general/temporal_boxops.h"
 #include "general/tnumber_distance.h"
 #include "general/temporal_tile.h"
 #include "general/type_parser.h"
 #include "general/type_util.h"
 #include "general/type_out.h"
-#include "point/pgis_call.h"
+// #include "point/pgis_call.h"
 #include "point/tpoint_spatialfuncs.h"
 
 #if NPOINT
@@ -217,7 +217,8 @@ pinstant_to_string(const PInstant *inst, const perType ptype, int maxdd, outfunc
   else if (ptype == P_WEEK) {
     // Shifting up by 2 days cause 2000-01-01 is actually a Saturday and not a Monday.
     // But we assume that date as Monday 00:00:00. Shifting only affects FMDay output.
-    TimestampTz temp_t = pg_timestamp_pl_interval(inst->t, pg_interval_in("2 days", -1));
+    // TimestampTz temp_t = pg_timestamp_pl_interval(inst->t, pg_interval_in("2 days", -1));
+    TimestampTz temp_t = add_timestamptz_interval(inst->t, pg_interval_in("2 days", -1));
     t = format_timestamptz(temp_t, "FMDay HH24:MI:SS"); // day_of_week hour:minutes:seconds
   }
   else if (ptype == P_MONTH)
@@ -226,7 +227,8 @@ pinstant_to_string(const PInstant *inst, const perType ptype, int maxdd, outfunc
     t = format_timestamptz(inst->t, "Mon DD HH24:MI:SS"); // day_of_month month hour:minutes:seconds
   else if (ptype == P_INTERVAL) {
     TimestampTz reference_tstz = pg_timestamptz_in("2000-01-01 00:00:00", -1);
-    Interval *diff = pg_timestamp_mi(inst->t, reference_tstz);
+    // Interval *diff = (Interval *) pg_timestamp_mi(inst->t, reference_tstz);
+    Interval *diff = (Interval *) minus_timestamptz_timestamptz(inst->t, reference_tstz);
     t = pg_interval_out(diff);
   }
     
@@ -470,14 +472,16 @@ anchor(Periodic* per, PMode* pmode)
   MEOS_FLAGS_SET_PERIODIC(temp->flags, P_NONE);
 
   // Shift it s.t. it starts at "start".
-  Interval *diff = pg_timestamp_mi(start, reference_tstz);
+  // Interval *diff = pg_timestamp_mi(start, reference_tstz);
+  Interval *diff = minus_timestamptz_timestamptz(start, reference_tstz);
   base_temp = (Temporal*) temporal_shift_scale_time(temp, diff, NULL);
 
   // Repeat until repetition is empty or end is reached.
   for (int32 i = 1; i < repetitions; i++)
   {
     // Incrementing frequency. 
-    work_freq = pg_interval_pl(work_freq, frequency);
+    // work_freq = pg_interval_pl(work_freq, frequency);
+    work_freq = add_interval_interval(work_freq, frequency);
 
     // Shifts new seq accordingly.
     temp = (Temporal*) periodic_copy(per);
@@ -493,14 +497,15 @@ anchor(Periodic* per, PMode* pmode)
     base_temp = temporal_merge(base_temp, work_temp);
 
     // Stop if reached end.
-    if (temporal_end_timestamp(base_temp) >= end) { 
+    if (temporal_end_timestamptz(base_temp) >= end) { 
       break;
     }
 
   }
   // Trim if necessary
   Span *trim_span = span_make(TimestampGetDatum(start), TimestampGetDatum(end), true, upper_inc, T_TIMESTAMPTZ);
-  base_temp = temporal_restrict_period(base_temp, trim_span, REST_AT);
+  // base_temp = temporal_restrict_period(base_temp, trim_span, REST_AT);
+  base_temp = temporal_restrict_tstzspan(base_temp, trim_span, REST_AT);
   result = base_temp;
   return result;
 }

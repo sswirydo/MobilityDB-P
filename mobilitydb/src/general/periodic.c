@@ -25,7 +25,6 @@
 #include <meos.h>
 #include <meos_internal.h>
 #include "general/pg_types.h"
-#include "general/temporaltypes.h"
 #include "general/temporal_boxops.h"
 #include "general/type_out.h"
 #include "general/type_util.h"
@@ -262,7 +261,7 @@ Datum Periodic_get_type(PG_FUNCTION_ARGS)
 {
   Periodic *per = PG_GETARG_PERIODIC_P(0);
   char *str = periodic_get_pertype(per);
-  text *result = cstring_to_text(str);
+  text *result = cstring2text(str);
   pfree(str);
   PG_FREE_IF_COPY(per, 0);
   PG_RETURN_TEXT_P(result);
@@ -305,12 +304,12 @@ Datum Quick_test(PG_FUNCTION_ARGS)
   TimestampTz tstz = PG_GETARG_TIMESTAMPTZ(0);
   text *format = PG_GETARG_TEXT_P(1);
   
-  char *fmt_str = text_to_cstring(format);
+  char *fmt_str = text2cstring(format);
 
   char *result_str = format_timestamptz(tstz, fmt_str);
   // char *result_str = "42";
   
-  text *result = cstring_to_text(result_str);
+  text *result = cstring2text(result_str);
   // pfree(result_str);
 
   PG_RETURN_TEXT_P(result);
