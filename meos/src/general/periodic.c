@@ -60,13 +60,14 @@ pmode_parse(const char **str)
 {
   Interval* frequency = NULL;
   int32 repetitions = 0;
+  bool keep_pattern = true;
   int delim = 0;
   char *endptr = NULL;  
 
   while ((*str)[delim] != ';') delim++;
   char *str1 = palloc(sizeof(char) * (delim + 1));
   strncpy(str1, *str, delim);
-  str[delim] = '\0';
+  str1[delim] = '\0';
   *str += delim + 1;
 
   // Frequency
@@ -80,18 +81,43 @@ pmode_parse(const char **str)
   }
   *str = endptr;
 
+  /* Move str after the semicolon */
+  while (**str != ';' && **str != '\0') (*str)++;
+  if (**str == ';') (*str)++;
+
+  // Boolean
+  if (strncmp(*str, "true", 4) == 0) {
+    keep_pattern = true;
+    *str += 4;
+  } else if (strncmp(*str, "false", 5) == 0) {
+    keep_pattern = false;
+    *str += 5;
+  } else {
+    elog(ERROR, "Could not parse %s value (keep_pattern)", "periodic mode");
+  }
+
+  /* Move str after the semicolon */
+  while (**str != ';' && **str != '\0') (*str)++;
+  if (**str == ';') (*str)++;
+
+  // Span - bool span_parse(const char **str, meosType spantype, bool end, Span *span);
+  Span *period = NULL;
+  span_parse(str, T_TSTZRANGE, true, period);
+
   ensure_end_input(str, "periodic mode");
   pfree(str1);
 
-  return pmode_make(frequency, repetitions);
+  return pmode_make(frequency, repetitions, keep_pattern, period);
 }
 
 PMode *
-pmode_make(Interval *frequency, int32 repetitions)
+pmode_make(Interval *frequency, int32 repetitions, bool keep_pattern, Span *period)
 {
   PMode *pmode = palloc(sizeof(PMode));
   pmode->frequency = *frequency;
   pmode->repetitions = repetitions;
+  pmode->keep_pattern;
+  pmode->period = *period;
   return pmode;
 }
 
@@ -349,35 +375,35 @@ periodic_get_pertype(const Periodic *per)
  * 
 *****************************************************************************/
 
-Periodic *
-tint_to_pint(Temporal *temp)
-{
-  // todo fixme
-  Periodic *result;
-  assert(temptype_subtype(temp->subtype));
-  if (temp->subtype == TINSTANT)
-    result = (Periodic *) tinstant_copy((TInstant *) temp);
-  else if (temp->subtype == TSEQUENCE)
-    result = (Periodic *) tsequence_copy((TSequence *) temp);
-  else /* temp->subtype == TSEQUENCESET */
-    result = (Periodic *) tsequenceset_copy((TSequenceSet *) temp);
-  return result;
-}
+// Periodic *
+// tint_to_pint(Temporal *temp)
+// {
+//   // todo fixme
+//   Periodic *result;
+//   assert(temptype_subtype(temp->subtype));
+//   if (temp->subtype == TINSTANT)
+//     result = (Periodic *) tinstant_copy((TInstant *) temp);
+//   else if (temp->subtype == TSEQUENCE)
+//     result = (Periodic *) tsequence_copy((TSequence *) temp);
+//   else /* temp->subtype == TSEQUENCESET */
+//     result = (Periodic *) tsequenceset_copy((TSequenceSet *) temp);
+//   return result;
+// }
 
-Temporal *
-pint_to_tint(Periodic *temp) 
-{
-  // todo fixme
-  Temporal *result;
-  assert(temptype_subtype(temp->subtype));
-  if (temp->subtype == TINSTANT)
-    result = (Temporal *) tinstant_copy((TInstant *) temp);
-  else if (temp->subtype == TSEQUENCE)
-    result = (Temporal *) tsequence_copy((TSequence *) temp);
-  else /* temp->subtype == TSEQUENCESET */
-    result = (Temporal *) tsequenceset_copy((TSequenceSet *) temp);
-  return result;
-}
+// Temporal *
+// pint_to_tint(Periodic *temp) 
+// {
+//   // todo fixme
+//   Temporal *result;
+//   assert(temptype_subtype(temp->subtype));
+//   if (temp->subtype == TINSTANT)
+//     result = (Temporal *) tinstant_copy((TInstant *) temp);
+//   else if (temp->subtype == TSEQUENCE)
+//     result = (Temporal *) tsequence_copy((TSequence *) temp);
+//   else /* temp->subtype == TSEQUENCESET */
+//     result = (Temporal *) tsequenceset_copy((TSequenceSet *) temp);
+//   return result;
+// }
 
 
 
@@ -386,9 +412,9 @@ pint_to_tint(Periodic *temp)
 *****************************************************************************/
 
 
-// Is it as simple as shifting per by start and then looping pmode ? Probably is.
+// Temporal * anchor(Periodic* per, PMode* pmode, TimestampTz start, TimestampTz end, bool upper_inc) 
 Temporal * 
-anchor(Periodic* per, PMode* pmode, TimestampTz start, TimestampTz end, bool upper_inc) 
+anchor(Periodic* per, PMode* pmode) 
 {
   /** PARAMETERS:
    * Frequency: after how long should the sequence repeat itself (interval relative to the start of the sequence)
@@ -417,32 +443,27 @@ anchor(Periodic* per, PMode* pmode, TimestampTz start, TimestampTz end, bool upp
   */
 
   Temporal *result;
-  Interval *frequency;
-  int32 repetitions;
 
   if (!ensure_not_null(per) || !ensure_not_null(pmode))
     return NULL;
 
-  perType ptype = MEOS_FLAGS_GET_PERIODIC(per->flags);
-  
-  frequency = &(pmode->frequency);
-  repetitions = pmode->repetitions;
-
-  result = anchor_interval(per, frequency, repetitions, start, end, upper_inc);
-
-  return result;
-}
-
-
-Temporal *
-anchor_interval(Periodic* per, Interval *frequency, int32 repetitions, TimestampTz start, TimestampTz end, bool upper_inc) 
-{
-  Temporal *result;
   Temporal *temp;
   Temporal *base_temp;
   Temporal *work_temp;
   TimestampTz reference_tstz = pg_timestamptz_in("2000-01-01 00:00:00", -1);
   Interval *work_freq = pg_interval_in("0 days", -1);
+
+  perType ptype = MEOS_FLAGS_GET_PERIODIC(per->flags);
+  
+  Interval *frequency = &(pmode->frequency);
+  int32 repetitions = pmode->repetitions;
+  TimestampTz start = pmode->period.lower;
+  TimestampTz end = pmode->period.upper;
+  bool upper_inc = pmode->period.upper_inc;
+
+  bool lower_inc = pmode->period.lower_inc; // todo
+  bool keep_pattern = pmode->keep_pattern; // todo
+  uint8 spantype = pmode->period.spantype; // todo?
 
   // Create basic temporal sequence.
   temp = (Temporal*) periodic_copy(per);
@@ -485,15 +506,6 @@ anchor_interval(Periodic* per, Interval *frequency, int32 repetitions, Timestamp
 }
 
 
-/** 
-  NOTE: useless function for now, left just for testing, implementation was moved to periodic_parser.c
-*/
-Periodic *
-temporal_make_periodic(Temporal* temp, PMode* pmode) 
-{
-  Periodic *result = NULL;
-  return result;
-}
 
 
 
@@ -509,3 +521,75 @@ format_timestamptz(TimestampTz tstz, const char *fmt)
     char *result = text2cstring(out_text);
     return result;
 }
+
+
+
+// RSequence *
+// repeat_in(const char *str, meosType temptype) 
+// {
+//   RSequence *rseq = (RSequence *) temporal_parse(&str, temptype);
+//   // todo below does not makes sense as we haven't allocate memory for freq not rep
+//   rseq->frequency = *(pg_interval_in("666 days", -1));
+//   rseq->repetitions = 1515; 
+//   return rseq;
+// }
+
+// char *
+// repeat_out(const RSequence *per, int maxdd) 
+// {
+//   char *result;
+//   assert(temptype_subtype(per->subtype));
+//   if (per->subtype == TINSTANT)
+//     result = "SUSHI RINSTANT";
+//   else if (per->subtype == TSEQUENCE) {
+//     result = psequence_out((PSequence *) per, maxdd);
+//     char* temp1 = pg_interval_out(&(per->frequency));
+//     char* temp2 = int4_out(per->repetitions);
+
+//     int new_len = strlen(result) + strlen(temp1) + strlen(temp2) + 1;
+//     result = (char*) repalloc(result, new_len);
+//     strcat(result, temp1);
+//     strcat(result, temp2);
+//   }
+    
+//   else /* temp->subtype == TSEQUENCESET */
+//     result = "SUSHI RSEQUENCESET";
+//   return result;
+// }
+
+// RSequence *
+// r_distance(const RSequence *per, Datum value) 
+// {
+//   // return distance_tint_int(per, value);
+
+//   elog(NOTICE, "SUSHI A: %s", temporal_out(per, 0));
+
+
+//   Temporal *temp = distance_tnumber_number(per, value, T_INT4, T_TINT);
+
+//   elog(NOTICE, "SUSHI A: %s", temporal_out(temp, 0));
+
+
+//   RSequence* rseq = (RSequence*) palloc(sizeof(RSequence));
+//   memcpy(rseq, temp, sizeof(TSequence));
+//   rseq->frequency = per->frequency;
+//   rseq->repetitions = per->repetitions;
+
+
+//   elog(NOTICE, "SUSHI A: %s", temporal_out(rseq, 0));
+
+//   return rseq;
+
+//   // return temp;
+// }
+
+
+// RSequence* create_rsequence_from_tsequence(TSequence* tseq, Interval frequency, int32 repetitions) {
+
+//   RSequence* rseq = (RSequence*) palloc(sizeof(RSequence));
+//   memcpy(rseq, tseq, sizeof(TSequence)); // + instants sizes etc
+//   rseq->frequency = frequency;
+//   rseq->repetitions = repetitions;
+
+//   return rseq;
+// }

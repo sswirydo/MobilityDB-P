@@ -84,35 +84,38 @@ Datum PMode_out(PG_FUNCTION_ARGS)
   PG_RETURN_CSTRING(result);
 }
 
-PGDLLEXPORT Datum PMode_send(PG_FUNCTION_ARGS); // todo update later
-PG_FUNCTION_INFO_V1(PMode_send);
-Datum PMode_send(PG_FUNCTION_ARGS)
-{
-  PMode *pmode = PG_GETARG_PMODE_P(0);
-  StringInfoData buffer;
-  pq_begintypsend(&buffer);
-  pq_sendint64(&buffer, (uint64) pmode->repetitions);
-  PG_FREE_IF_COPY(pmode, 0);
-  PG_RETURN_BYTEA_P(pq_endtypsend(&buffer));
-}
+// PGDLLEXPORT Datum PMode_send(PG_FUNCTION_ARGS); // todo update later
+// PG_FUNCTION_INFO_V1(PMode_send);
+// Datum PMode_send(PG_FUNCTION_ARGS)
+// {
+//   PMode *pmode = PG_GETARG_PMODE_P(0);
+//   StringInfoData buffer;
+//   pq_begintypsend(&buffer);
+//   pq_sendint64(&buffer, (uint64) pmode->repetitions);
+//   PG_FREE_IF_COPY(pmode, 0);
+//   PG_RETURN_BYTEA_P(pq_endtypsend(&buffer));
+// }
 
-PGDLLEXPORT Datum PMode_recv(PG_FUNCTION_ARGS); // todo update later
-PG_FUNCTION_INFO_V1(PMode_recv);
-Datum PMode_recv(PG_FUNCTION_ARGS)
-{
-  StringInfo buffer = (StringInfo) PG_GETARG_POINTER(0);
-  PMode *pmode = (PMode *) palloc(sizeof(PMode));
-  pmode->repetitions = pq_getmsgint64(buffer);
-  PG_RETURN_PMODE_P(pmode);
-}
+// PGDLLEXPORT Datum PMode_recv(PG_FUNCTION_ARGS); // todo update later
+// PG_FUNCTION_INFO_V1(PMode_recv);
+// Datum PMode_recv(PG_FUNCTION_ARGS)
+// {
+//   StringInfo buffer = (StringInfo) PG_GETARG_POINTER(0);
+//   PMode *pmode = (PMode *) palloc(sizeof(PMode));
+//   pmode->repetitions = pq_getmsgint64(buffer);
+//   PG_RETURN_PMODE_P(pmode);
+// }
 
 PGDLLEXPORT Datum PMode_constructor(PG_FUNCTION_ARGS);
 PG_FUNCTION_INFO_V1(PMode_constructor);
 Datum PMode_constructor(PG_FUNCTION_ARGS)
 {
-  Interval* frequency = PG_GETARG_INTERVAL_P(0);
+  Interval *frequency = PG_GETARG_INTERVAL_P(0);
   int repetitions = PG_GETARG_INT32(1);
-  PG_RETURN_PMODE_P(pmode_make(frequency, repetitions));
+  bool keep_pattern = PG_GETARG_BOOL(2);
+  Span *period = PG_GETARG_SPAN_P(3);
+  // if ((PG_NARGS() > 2) && ! PG_ARGISNULL(n))
+  PG_RETURN_PMODE_P(pmode_make(frequency, repetitions, keep_pattern, period));
 }
 
 // PGDLLEXPORT Datum PMode_constructor(PG_FUNCTION_ARGS);
@@ -135,52 +138,33 @@ Datum Anchor(PG_FUNCTION_ARGS)
 {
   Periodic *per = PG_GETARG_PERIODIC_P(0);
   PMode *pmode = PG_GETARG_PMODE_P(1);
-  TimestampTz start_tstz = PG_GETARG_TIMESTAMPTZ(2);
-  TimestampTz end_tstz = PG_INT64_MAX;
-  PG_RETURN_POINTER(anchor(per, pmode, start_tstz, end_tstz, false));
+  PG_RETURN_POINTER(anchor(per, pmode));
 }
 
-PGDLLEXPORT Datum Anchor_end(PG_FUNCTION_ARGS);
-PG_FUNCTION_INFO_V1(Anchor_end);
-Datum Anchor_end(PG_FUNCTION_ARGS)
-{
-  Periodic *per = PG_GETARG_PERIODIC_P(0);
-  PMode *pmode = PG_GETARG_PMODE_P(1);
-  TimestampTz start_tstz = PG_GETARG_TIMESTAMPTZ(2);
-  TimestampTz end_tstz = PG_GETARG_TIMESTAMPTZ(3);
-  PG_RETURN_POINTER(anchor(per, pmode, start_tstz, end_tstz, false));
-}
-
-PGDLLEXPORT Datum Anchor_end_inc(PG_FUNCTION_ARGS);
-PG_FUNCTION_INFO_V1(Anchor_end_inc);
-Datum Anchor_end_inc(PG_FUNCTION_ARGS)
-{
-  Periodic *per = PG_GETARG_PERIODIC_P(0);
-  PMode *pmode = PG_GETARG_PMODE_P(1);
-  TimestampTz start_tstz = PG_GETARG_TIMESTAMPTZ(2);
-  TimestampTz end_tstz = PG_GETARG_TIMESTAMPTZ(3);
-  bool upper_inc = PG_GETARG_TIMESTAMPTZ(4);
-  PG_RETURN_POINTER(anchor(per, pmode, start_tstz, end_tstz, upper_inc));
-}
-
-// PGDLLEXPORT Datum Periodic_generate(PG_FUNCTION_ARGS);
-// PG_FUNCTION_INFO_V1(Periodic_generate);
-// Datum Periodic_generate(PG_FUNCTION_ARGS)
+// PGDLLEXPORT Datum Anchor_end(PG_FUNCTION_ARGS);
+// PG_FUNCTION_INFO_V1(Anchor_end);
+// Datum Anchor_end(PG_FUNCTION_ARGS)
 // {
 //   Periodic *per = PG_GETARG_PERIODIC_P(0);
 //   PMode *pmode = PG_GETARG_PMODE_P(1);
-//   PG_RETURN_POINTER(periodic_generate(per, pmode));
+//   TimestampTz start_tstz = PG_GETARG_TIMESTAMPTZ(2);
+//   TimestampTz end_tstz = PG_GETARG_TIMESTAMPTZ(3);
+//   PG_RETURN_POINTER(anchor(per, pmode, start_tstz, end_tstz, false));
+// }
+
+// PGDLLEXPORT Datum Anchor_end_inc(PG_FUNCTION_ARGS);
+// PG_FUNCTION_INFO_V1(Anchor_end_inc);
+// Datum Anchor_end_inc(PG_FUNCTION_ARGS)
+// {
+//   Periodic *per = PG_GETARG_PERIODIC_P(0);
+//   PMode *pmode = PG_GETARG_PMODE_P(1);
+//   TimestampTz start_tstz = PG_GETARG_TIMESTAMPTZ(2);
+//   TimestampTz end_tstz = PG_GETARG_TIMESTAMPTZ(3);
+//   bool upper_inc = PG_GETARG_TIMESTAMPTZ(4);
+//   PG_RETURN_POINTER(anchor(per, pmode, start_tstz, end_tstz, upper_inc));
 // }
 
 
-PGDLLEXPORT Datum Temporal_make_periodic(PG_FUNCTION_ARGS);
-PG_FUNCTION_INFO_V1(Temporal_make_periodic);
-Datum Temporal_make_periodic(PG_FUNCTION_ARGS)
-{
-  Temporal *temp = PG_GETARG_TEMPORAL_P(0);
-  PMode *pmode = PG_GETARG_PMODE_P(1);
-  PG_RETURN_POINTER(temporal_make_periodic(temp, pmode));
-}
 
 
 // TODO MODIFY WITH OID LOGIC LATER,
@@ -191,17 +175,8 @@ Datum Periodic_int_in(PG_FUNCTION_ARGS)
 {
   const char *input = PG_GETARG_CSTRING(0);
   meosType subtype = T_TINT;
-  Periodic *result = periodic_in(input, subtype); // fixme keeping temporal input for now
-  
-  // FIXME TYPMOD
-  // int32 temp_typmod = -1;
-  // if (PG_NARGS() > 2 && !PG_ARGISNULL(2))
-  //   temp_typmod = PG_GETARG_INT32(2);
-  // if (temp_typmod >= 0)
-  //   result = temporal_valid_typmod_temp(result, temp_typmod);
-
+  Periodic *result = periodic_in(input, subtype);
   PG_RETURN_POINTER(result);
-   
 }
 
 
@@ -299,25 +274,25 @@ Datum Periodic_get_type(PG_FUNCTION_ARGS)
 *****************************************************************************/
 
 
-PGDLLEXPORT Datum Tint_to_pint(PG_FUNCTION_ARGS);
-PG_FUNCTION_INFO_V1(Tint_to_pint);
-Datum Tint_to_pint(PG_FUNCTION_ARGS)
-{
-  Temporal *temp = PG_GETARG_TEMPORAL_P(0);
-  Periodic *result = tint_to_pint(temp);
-  PG_FREE_IF_COPY(temp, 0);
-  PG_RETURN_CSTRING(result);
-}
+// PGDLLEXPORT Datum Tint_to_pint(PG_FUNCTION_ARGS);
+// PG_FUNCTION_INFO_V1(Tint_to_pint);
+// Datum Tint_to_pint(PG_FUNCTION_ARGS)
+// {
+//   Temporal *temp = PG_GETARG_TEMPORAL_P(0);
+//   Periodic *result = tint_to_pint(temp);
+//   PG_FREE_IF_COPY(temp, 0);
+//   PG_RETURN_CSTRING(result);
+// }
 
-PGDLLEXPORT Datum Pint_to_tint(PG_FUNCTION_ARGS);
-PG_FUNCTION_INFO_V1(Pint_to_tint);
-Datum Pint_to_tint(PG_FUNCTION_ARGS)
-{
-  Periodic *temp = PG_GETARG_PERIODIC_P(0);
-  Temporal *result = pint_to_tint(temp);
-  PG_FREE_IF_COPY(temp, 0);
-  PG_RETURN_POINTER(result);
-}
+// PGDLLEXPORT Datum Pint_to_tint(PG_FUNCTION_ARGS);
+// PG_FUNCTION_INFO_V1(Pint_to_tint);
+// Datum Pint_to_tint(PG_FUNCTION_ARGS)
+// {
+//   Periodic *temp = PG_GETARG_PERIODIC_P(0);
+//   Temporal *result = pint_to_tint(temp);
+//   PG_FREE_IF_COPY(temp, 0);
+//   PG_RETURN_POINTER(result);
+// }
 
 /*****************************************************************************
   OTHER
@@ -345,125 +320,40 @@ Datum Quick_test(PG_FUNCTION_ARGS)
 
 
 
-/*
 
-  TEMPORARY
-  COPIES FOR REFERNECE
+/*****************************************************************************
+ *  Composition Test (FIXME TEMPORARY)
+*****************************************************************************/
 
-*/
-
-
-// typedef enum
+// PGDLLEXPORT Datum R_int_in(PG_FUNCTION_ARGS);
+// PG_FUNCTION_INFO_V1(R_int_in);
+// Datum R_int_in(PG_FUNCTION_ARGS)
 // {
-//   T_UNKNOWN        = 0,   /**< unknown type */
-//   T_BOOL           = 1,   /**< boolean type */
-//   T_DOUBLE2        = 2,   /**< double2 type */
-//   T_DOUBLE3        = 3,   /**< double3 type */
-//   T_DOUBLE4        = 4,   /**< double4 type */
-//   T_FLOAT8         = 5,   /**< float8 type */
-//   T_FLOATSET       = 6,   /**< float8 set type */
-//   T_FLOATSPAN      = 7,   /**< float8 span type */
-//   T_FLOATSPANSET   = 8,   /**< float8 span set type */
-//   T_INT4           = 9,   /**< int4 type */
-//   T_INT4RANGE      = 10,  /**< PostgreSQL int4 range type */
-//   T_INT4MULTIRANGE = 11,  /**< PostgreSQL int4 multirange type */
-//   T_INTSET         = 12,  /**< int4 set type */
-//   T_INTSPAN        = 13,  /**< int4 span type */
-//   T_INTSPANSET     = 14,  /**< int4 span set type */
-//   T_INT8           = 15,  /**< int8 type */
-//   T_BIGINTSET      = 16,  /**< int8 set type */
-//   T_BIGINTSPAN     = 17,  /**< int8 span type */
-//   T_BIGINTSPANSET  = 18,  /**< int8 span set type */
-//   T_STBOX          = 19,  /**< spatiotemporal box type */
-//   T_TBOOL          = 20,  /**< temporal boolean type */
-//   T_TBOX           = 21,  /**< temporal box type */
-//   T_TDOUBLE2       = 22,  /**< temporal double2 type */
-//   T_TDOUBLE3       = 23,  /**< temporal double3 type */
-//   T_TDOUBLE4       = 24,  /**< temporal double4 type */
-//   T_TEXT           = 25,  /**< text type */
-//   T_TEXTSET        = 26,  /**< text type */
-//   T_TFLOAT         = 27,  /**< temporal float type */
-//   T_TIMESTAMPTZ    = 28,  /**< timestamp with time zone type */
-//   T_TINT           = 29,  /**< temporal integer type */
-//   T_TSTZMULTIRANGE = 30,  /**< PostgreSQL timestamp with time zone multirange type */
-//   T_TSTZRANGE      = 31,  /**< PostgreSQL timestamp with time zone range type */
-//   T_TSTZSET        = 32,  /**< timestamptz set type */
-//   T_TSTZSPAN       = 33,  /**< timestamptz span type */
-//   T_TSTZSPANSET    = 34,  /**< timestamptz span set type */
-//   T_TTEXT          = 35,  /**< temporal text type */
-//   T_GEOMETRY       = 36,  /**< geometry type */
-//   T_GEOMSET        = 37,  /**< geometry set type */
-//   T_GEOGRAPHY      = 38,  /**< geography type */
-//   T_GEOGSET        = 39,  /**< geography set type */
-//   T_TGEOMPOINT     = 40,  /**< temporal geometry point type */
-//   T_TGEOGPOINT     = 41,  /**< temporal geography point type */
-//   T_NPOINT         = 42,  /**< network point type */
-//   T_NPOINTSET      = 43,  /**< network point set type */
-//   T_NSEGMENT       = 44,  /**< network segment type */
-//   T_TNPOINT        = 45,  /**< temporal network point type */
-// } meosType_COPY;
-
-// const char *_meosType_names_COPY[] =
-// {
-//   [T_UNKNOWN] = "",
-//   [T_BOOL] = "bool",
-//   [T_DOUBLE2] = "double2",
-//   [T_DOUBLE3] = "double3",
-//   [T_DOUBLE4] = "double4",
-//   [T_FLOAT8] = "float8",
-//   [T_FLOATSET] = "floatset",
-//   [T_FLOATSPAN] = "floatspan",
-//   [T_FLOATSPANSET] = "floatspanset",
-//   [T_INT4] = "int4",
-//   [T_INT4RANGE] = "int4range",
-//   [T_INT4MULTIRANGE] = "int4multirange",
-//   [T_INTSET] = "intset",
-//   [T_INTSPAN] = "intspan",
-//   [T_INTSPANSET] = "intspanset",
-//   [T_INT8] = "int8",
-//   [T_BIGINTSET] = "bigintset",
-//   [T_BIGINTSPAN] = "bigintspan",
-//   [T_BIGINTSPANSET] = "bigintspanset",
-//   [T_STBOX] = "stbox",
-//   [T_TBOOL] = "tbool",
-//   [T_TBOX] = "tbox",
-//   [T_TDOUBLE2] = "tdouble2",
-//   [T_TDOUBLE3] = "tdouble3",
-//   [T_TDOUBLE4] = "tdouble4",
-//   [T_TEXT] = "text",
-//   [T_TEXTSET] = "textset",
-//   [T_TFLOAT] = "tfloat",
-//   [T_TIMESTAMPTZ] = "timestamptz",
-//   [T_TINT] = "tint",
-//   [T_TSTZMULTIRANGE] = "tstzmultirange",
-//   [T_TSTZRANGE] = "tstzrange",
-//   [T_TSTZSET] = "tstzset",
-//   [T_TSTZSPAN] = "tstzspan",
-//   [T_TSTZSPANSET] = "tstzspanset",
-//   [T_TTEXT] = "ttext",
-//   [T_GEOMETRY] = "geometry",
-//   [T_GEOMSET] = "geomset",
-//   [T_GEOGRAPHY] = "geography",
-//   [T_GEOGSET] = "geogset",
-//   [T_TGEOMPOINT] = "tgeompoint",
-//   [T_TGEOGPOINT] = "tgeogpoint",
-//   [T_NPOINT] = "npoint",
-//   [T_NPOINTSET] = "npointset",
-//   [T_NSEGMENT] = "nsegment",
-//   [T_TNPOINT] = "tnpoint",
-// };
-
-// meosType
-// oid_type_COPY(Oid typid)
-// {
-//   if (!_oid_cache_ready)
-//     populate_operoid_cache();
-//   int n = sizeof(_meosType_names) / sizeof(char *);
-//   for (int i = 0; i < n; i++)
-//   {
-//     if (_type_oids[i] == typid)
-//       return i;
-//   }
-//   return T_UNKNOWN;
+//   const char *input = PG_GETARG_CSTRING(0);
+//   meosType subtype = T_TINT;
+//   RSequence *result = repeat_in(input, subtype);
+//   PG_RETURN_POINTER(result);   
 // }
+
+// PGDLLEXPORT Datum R_int_out(PG_FUNCTION_ARGS);
+// PG_FUNCTION_INFO_V1(R_int_out);
+// Datum R_int_out(PG_FUNCTION_ARGS)
+// {
+//   RSequence *per = PG_GETARG_PERIODIC_P(0);
+//   char *result = repeat_out(per, OUT_DEFAULT_DECIMAL_DIGITS);
+//   PG_FREE_IF_COPY(per, 0);
+//   PG_RETURN_CSTRING(result);
+// }
+
+// PGDLLEXPORT Datum Distance_rnumber_number(PG_FUNCTION_ARGS);
+// PG_FUNCTION_INFO_V1(Distance_rnumber_number);
+// Datum Distance_rnumber_number(PG_FUNCTION_ARGS)
+// {
+//   RSequence *temp = PG_GETARG_RSEQUENCE_P(0);
+//   Datum value = PG_GETARG_DATUM(1);
+//   RSequence *result = r_distance(temp, value);
+//   PG_FREE_IF_COPY(temp, 0);
+//   PG_RETURN_POINTER(result);
+// }
+
 

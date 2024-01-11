@@ -26,13 +26,45 @@
  *  PMode
 *****************************************************************************/
 
+// typedef struct
+// {
+//   Interval frequency;
+//   int32 repetitions;
+//   bool keep_pattern;
+//   TimestampTz start_date;
+//   TimestampTz end_date;
+//   bool upper_inc;
+// } PMode;
+
+
+// typedef struct
+// {
+//   int32 vl_len_;        /**< Varlena header (do not touch directly!) */
+//   uint8 temptype;       /**< Temporal type */
+//   uint8 subtype;        /**< Temporal subtype */
+//   int16 flags;          /**< Flags */
+//   /* variable-length data follows */
+// } Temporal;
+
 typedef struct
 {
   Interval frequency;
   int32 repetitions;
-  // TimestampTz start_date;
-  // TimestampTz end_date;
+  bool keep_pattern;
+  Span period; // <-- keep in PMode or separate for operations ?
 } PMode;
+
+
+// Type for operations/computations, takes both Temporal and Periodic and applies to Periodic.
+
+// typedef struct
+// {
+//   Temporal *temp;
+//   PMode repetition;
+// } Periodic; // for computations only
+
+
+
 
 
 #define DatumGetPmodeP(X) ((PMode*) DatumGetPointer(X))
@@ -42,7 +74,8 @@ typedef struct
 
 extern PMode *pmode_in(const char *str);
 extern PMode *pmode_parse(const char **str);
-extern PMode *pmode_make(Interval *frequency, int32 repetitions);
+extern PMode *pmode_make(Interval *frequency, int32 repetitions, bool keep_pattern, Span *period);
+// extern PMode *pmode_make(Interval *frequency, int32 repetitions, TimestampTz start_date, TimestampTz end_date, bool upper_inc, bool keep_pattern);
 extern char *pmode_out(const PMode *pmode);
 
 
@@ -201,19 +234,17 @@ char *periodic_get_pertype(const Periodic *per);
  *  Casting
 *****************************************************************************/
 
-Periodic *tint_to_pint(Temporal *temp);
-Temporal *pint_to_tint(Periodic *temp);
+// Periodic *tint_to_pint(Temporal *temp);
+// Temporal *pint_to_tint(Periodic *temp);
 
 
 /*****************************************************************************
  *  Operations
 *****************************************************************************/
 
-Temporal *anchor(Periodic* per, PMode* pmode, TimestampTz start, TimestampTz end, bool upper_inc);
-Temporal *anchor_interval(Periodic* per, Interval *frequency, int32 repetitions, TimestampTz start, TimestampTz end, bool upper_inc);
+Temporal *anchor(Periodic* per, PMode* pmode);
+// Temporal *anchor_interval(Periodic* per, Interval *frequency, int32 repetitions, TimestampTz start, TimestampTz end, bool upper_inc);
 // Temporal *anchor_fixed(Periodic* per, PMode* pmode, TimestampTz start, TimestampTz end, bool upper_inc);
-// Temporal *periodic_generate(Periodic* per, PMode* pmode);
-Periodic *temporal_make_periodic(Temporal* temp, PMode* pmode); // depreciated
 
 
 /*****************************************************************************
@@ -221,6 +252,47 @@ Periodic *temporal_make_periodic(Temporal* temp, PMode* pmode); // depreciated
 *****************************************************************************/
 
 char *format_timestamptz(TimestampTz tstz, const char* fmt);
+
+
+
+/*****************************************************************************
+ *  Temporary
+*****************************************************************************/
+
+
+// typedef struct
+// {
+//   int32 vl_len_;        /**< Varlena header (do not touch directly!) */
+//   uint8 temptype;       /**< Temporal type */
+//   uint8 subtype;        /**< Temporal subtype */
+//   int16 flags;          /**< Flags */
+//   int32 count;          /**< Number of TInstant elements */
+//   int32 maxcount;       /**< Maximum number of TInstant elements */
+//   int16 bboxsize;       /**< Size of the bounding box */
+//   char padding[6];      /**< Not used */
+//   Span period;          /**< Time span (24 bytes). All bounding boxes start
+//                              with a period so actually it is also the begining
+//                              of the bounding box. The extra bytes needed for
+//                              the bounding box are added upon creation. */
+//   /* variable-length data follows */
+//   Interval frequency;
+//   int32 repetitions;
+// } RSequence;
+
+// #define RSEQUENCE_BBOX_PTR(seq)      ((void *)(&(seq)->period))
+
+
+// // #define DatumGetPeriodicP(X)       ((RSequence *) DatumGetPointer(X))
+// // #define PG_GETARG_PERIODIC_P(X)    ((RSequence *) PG_GETARG_VARLENA_P(X))
+// // #define PG_GETARG_PINSTANT_P(X)    ((PInstant *) PG_GETARG_VARLENA_P(X))
+// #define PG_GETARG_RSEQUENCE_P(X)    ((RSequence *) PG_GETARG_VARLENA_P(X))
+// // #define PG_GETARG_PSEQUENCESET_P(X)    ((PSequenceSet *) PG_GETARG_VARLENA_P(X))
+
+
+// RSequence *repeat_in(const char *str, meosType temptype);
+// char *repeat_out(const RSequence *per, int maxdd);
+// RSequence *r_distance(const RSequence *per, Datum value);
+
 
 
 
