@@ -58,7 +58,6 @@
 #include "general/spanset.h"
 #include "general/tinstant.h"
 #include "general/temporal_boxops.h"
-#include "general/tnumber_distance.h"
 #include "general/tsequence.h"
 #include "general/tsequenceset.h"
 #include "general/type_util.h"
@@ -377,7 +376,7 @@ temporal_restrict_minmax(const Temporal *temp, bool min, bool atfunc)
   {
     case TINSTANT:
       return atfunc ? (Temporal *) tinstant_copy((TInstant *) temp) : NULL;
-    case TSEQUENCE: 
+    case TSEQUENCE:
       return MEOS_FLAGS_DISCRETE_INTERP(temp->flags) ?
         (Temporal *) tdiscseq_restrict_minmax((TSequence *) temp, min, atfunc) :
         (Temporal *) tcontseq_restrict_minmax((TSequence *) temp, min, atfunc);
@@ -428,8 +427,8 @@ temporal_restrict_timestamptz(const Temporal *temp, TimestampTz t, bool atfunc)
 
 /**
  * @ingroup meos_internal_temporal_restrict
- * @brief Initialize the last argument with the base value of a temporal value
- * at a timestamptz
+ * @brief Return the last argument initialized with the base value of a
+ * temporal value at a timestamptz
  * @param[in] temp Temporal value
  * @param[in] t Timestamp
  * @param[in] strict True if the timestamp must belong to the temporal value,
@@ -553,7 +552,7 @@ temporal_restrict_tstzspanset(const Temporal *temp, const SpanSet *ss,
 
 /**
  * @ingroup meos_temporal_restrict
- * @brief Restrict a temporal number to a temporal box
+ * @brief Return a temporal number restricted to a temporal box
  * @param[in] temp Temporal value
  * @param[in] box Temporal box
  * @csqlfn #Tnumber_at_tbox()
@@ -599,7 +598,8 @@ tnumber_at_tbox(const Temporal *temp, const TBox *box)
 
 /**
  * @ingroup meos_temporal_restrict
- * @brief Restrict a temporal number to the complement of a temporal box
+ * @brief Return a temporal number restricted to the complement of a temporal
+ * box
  * @param[in] temp Temporal value
  * @param[in] box Temporal box
  * @note It is not possible to make the difference from each dimension
@@ -650,7 +650,7 @@ TInstant *
 tinstant_restrict_value(const TInstant *inst, Datum value, bool atfunc)
 {
   assert(inst);
-  if (datum_eq(value, tinstant_value(inst),
+  if (datum_eq(value, tinstant_val(inst),
       temptype_basetype(inst->temptype)))
     return atfunc ? tinstant_copy(inst) : NULL;
   return atfunc ? NULL : tinstant_copy(inst);
@@ -666,7 +666,7 @@ tinstant_restrict_value(const TInstant *inst, Datum value, bool atfunc)
 bool
 tinstant_restrict_values_test(const TInstant *inst, const Set *s, bool atfunc)
 {
-  Datum value = tinstant_value(inst);
+  Datum value = tinstant_val(inst);
   meosType basetype = temptype_basetype(inst->temptype);
   for (int i = 0; i < s->count; i++)
   {
@@ -707,7 +707,7 @@ bool
 tnumberinst_restrict_span_test(const TInstant *inst, const Span *s,
   bool atfunc)
 {
-  bool contains = contains_span_value(s, tinstant_value(inst));
+  bool contains = contains_span_value(s, tinstant_val(inst));
   return atfunc ? contains : ! contains;
 }
 
@@ -739,7 +739,7 @@ bool
 tnumberinst_restrict_spanset_test(const TInstant *inst, const SpanSet *ss,
   bool atfunc)
 {
-  Datum value = tinstant_value(inst);
+  Datum value = tinstant_val(inst);
   for (int i = 0; i < ss->count; i++)
   {
     if (contains_span_value(SPANSET_SP_N(ss, i), value))
@@ -892,7 +892,7 @@ tdiscseq_restrict_value(const TSequence *seq, Datum value, bool atfunc)
   /* Instantaneous sequence */
   if (seq->count == 1)
   {
-    Datum value1 = tinstant_value(TSEQUENCE_INST_N(seq, 0));
+    Datum value1 = tinstant_val(TSEQUENCE_INST_N(seq, 0));
     bool equal = datum_eq(value, value1, basetype);
     if ((atfunc && ! equal) || (! atfunc && equal))
       return NULL;
@@ -905,7 +905,7 @@ tdiscseq_restrict_value(const TSequence *seq, Datum value, bool atfunc)
   for (int i = 0; i < seq->count; i++)
   {
     const TInstant *inst = TSEQUENCE_INST_N(seq, i);
-    bool equal = datum_eq(value, tinstant_value(inst), basetype);
+    bool equal = datum_eq(value, tinstant_val(inst), basetype);
     if ((atfunc && equal) || (! atfunc && ! equal))
       instants[count++] = inst;
   }
@@ -972,8 +972,8 @@ tsegment_restrict_value(const TInstant *inst1, const TInstant *inst2,
 {
   assert(inst1->temptype == inst2->temptype);
   assert(interp != DISCRETE);
-  Datum value1 = tinstant_value(inst1);
-  Datum value2 = tinstant_value(inst2);
+  Datum value1 = tinstant_val(inst1);
+  Datum value2 = tinstant_val(inst2);
   meosType basetype = temptype_basetype(inst1->temptype);
   TInstant *instants[2];
   /* Is the segment constant? */
@@ -1036,10 +1036,9 @@ tsegment_restrict_value(const TInstant *inst1, const TInstant *inst2,
   /* Interpolation */
   if (atfunc)
   {
-    TInstant *inst = tinstant_make(projvalue, inst1->temptype, t);
+    TInstant *inst = tinstant_make_free(projvalue, inst1->temptype, t);
     result[0] = tinstant_to_tsequence(inst, LINEAR);
     pfree(inst);
-    DATUM_FREE(projvalue, basetype);
     return 1;
   }
   else
@@ -1072,7 +1071,7 @@ tsegment_restrict_value(const TInstant *inst1, const TInstant *inst2,
     else
     {
       instants[0] = (TInstant *) inst1;
-      instants[1] = tinstant_make(projvalue, inst1->temptype, t);
+      instants[1] = tinstant_make_free(projvalue, inst1->temptype, t);
       result[0] = tsequence_make((const TInstant **) instants, 2,
         lower_inc, false, LINEAR, NORMALIZE_NO);
       instants[0] = instants[1];
@@ -1080,7 +1079,6 @@ tsegment_restrict_value(const TInstant *inst1, const TInstant *inst2,
       result[1] = tsequence_make((const TInstant **) instants, 2,
         false, upper_inc, LINEAR, NORMALIZE_NO);
       pfree(instants[0]);
-      DATUM_FREE(projvalue, basetype);
       return 2;
     }
   }
@@ -1111,7 +1109,7 @@ tcontseq_restrict_value_iter(const TSequence *seq, Datum value, bool atfunc,
     inst1 = TSEQUENCE_INST_N(seq, 0);
     /* We do not call the function tinstant_restrict_value since this
      * would create a new unnecessary instant that needs to be freed */
-    bool equal = datum_eq(tinstant_value(inst1), value,
+    bool equal = datum_eq(tinstant_val(inst1), value,
       temptype_basetype(seq->temptype));
     if ((atfunc && ! equal) || (! atfunc && equal))
       return 0;
@@ -1359,8 +1357,8 @@ tnumbersegm_restrict_span(const TInstant *inst1, const TInstant *inst2,
   interpType interp, bool lower_inc, bool upper_inc, const Span *s,
   bool atfunc, TSequence **result)
 {
-  Datum value1 = tinstant_value(inst1);
-  Datum value2 = tinstant_value(inst2);
+  Datum value1 = tinstant_val(inst1);
+  Datum value2 = tinstant_val(inst2);
   meosType basetype = temptype_basetype(inst1->temptype);
   meosType spantype = basetype_spantype(basetype);
   TInstant *instants[2];
@@ -1746,7 +1744,7 @@ TSequence *
 tdiscseq_restrict_minmax(const TSequence *seq, bool min, bool atfunc)
 {
   assert(seq);
-  Datum minmax = min ? tsequence_min_value(seq) : tsequence_max_value(seq);
+  Datum minmax = min ? tsequence_min_val(seq) : tsequence_max_val(seq);
   return tdiscseq_restrict_value(seq, minmax, atfunc);
 }
 
@@ -1765,15 +1763,15 @@ TSequenceSet *
 tcontseq_restrict_minmax(const TSequence *seq, bool min, bool atfunc)
 {
   assert(seq);
-  Datum minmax = min ? tsequence_min_value(seq) : tsequence_max_value(seq);
+  Datum minmax = min ? tsequence_min_val(seq) : tsequence_max_val(seq);
   return tcontseq_restrict_value(seq, minmax, atfunc);
 }
 
 /*****************************************************************************/
 
 /**
- * @brief Initialize the last argument with the value of a temporal discrete
- * sequence at a timestamptz
+ * @brief Return the last argument initialized with the value of a temporal
+ * discrete sequence at a timestamptz
  * @note In order to be compatible with the corresponding functions for
  * temporal sequences that need to interpolate the value, it is necessary to
  * return a copy of the value.
@@ -1786,7 +1784,7 @@ tdiscseq_value_at_timestamptz(const TSequence *seq, TimestampTz t, Datum *result
   if (loc < 0)
     return false;
 
-  *result = tinstant_value_copy(TSEQUENCE_INST_N(seq, loc));
+  *result = tinstant_value(TSEQUENCE_INST_N(seq, loc));
   return true;
 }
 
@@ -2021,9 +2019,7 @@ tsegment_at_timestamptz(const TInstant *inst1, const TInstant *inst2,
   interpType interp, TimestampTz t)
 {
   Datum value = tsegment_value_at_timestamptz(inst1, inst2, interp, t);
-  TInstant *result = tinstant_make(value, inst1->temptype, t);
-  DATUM_FREE(value, temptype_basetype(inst1->temptype));
-  return result;
+  return tinstant_make_free(value, inst1->temptype, t);
 }
 
 /**
@@ -2121,7 +2117,7 @@ tcontseq_minus_timestamp_iter(const TSequence *seq, TimestampTz t,
       }
       else
       {
-        instants[n] = tinstant_make(tinstant_value(instants[n - 1]),
+        instants[n] = tinstant_make(tinstant_val(instants[n - 1]),
           inst1->temptype, t);
         result[nseqs++] = tsequence_make((const TInstant **) instants, n + 1,
           seq->period.lower_inc, false, interp, NORMALIZE_NO);
@@ -2134,7 +2130,7 @@ tcontseq_minus_timestamp_iter(const TSequence *seq, TimestampTz t,
       instants[n] = (TInstant *) inst1;
       instants[n + 1] = (interp == LINEAR) ?
         tsegment_at_timestamptz(inst1, inst2, interp, t) :
-        tinstant_make(tinstant_value(inst1), inst1->temptype, t);
+        tinstant_make(tinstant_val(inst1), inst1->temptype, t);
       result[nseqs++] = tsequence_make((const TInstant **) instants, n + 2,
         seq->period.lower_inc, false, interp, NORMALIZE_NO);
       pfree(instants[n + 1]);
@@ -2265,7 +2261,7 @@ tcontseq_minus_tstzset_iter(const TSequence *seq, const Set *s,
   if (seq->count == 1)
   {
     if (contains_set_value(s,
-          TimestampTzGetDatum((TSEQUENCE_INST_N(seq, 0))->t)))
+          TimestampTzGetDatum(TSEQUENCE_INST_N(seq, 0)->t)))
       return 0;
     result[0] = tsequence_copy(seq);
     return 1;
@@ -2301,7 +2297,7 @@ tcontseq_minus_tstzset_iter(const TSequence *seq, const Set *s,
         else /* interp == STEP */
         {
           /* Take the value of the previous instant */
-          value = tinstant_value(instants[ninsts - 1]);
+          value = tinstant_val(instants[ninsts - 1]);
           instants[ninsts] = tinstant_make(value, inst->temptype, inst->t);
           tofree[nfree++] = instants[ninsts++];
         }
@@ -2329,7 +2325,7 @@ tcontseq_minus_tstzset_iter(const TSequence *seq, const Set *s,
             LINEAR, t);
         else
           /* Take the value of the previous instant */
-          value = tinstant_value(instants[ninsts - 1]);
+          value = tinstant_val(instants[ninsts - 1]);
         instants[ninsts] = tinstant_make(value, inst->temptype, t);
         tofree[nfree] = instants[ninsts++];
         result[nseqs++] = tsequence_make((const TInstant **) instants, ninsts,
@@ -2432,7 +2428,7 @@ tcontseq_at_tstzspan(const TSequence *seq, const Span *s)
       inter.upper);
   else
   {
-    Datum value = tinstant_value(instants[ninsts - 1]);
+    Datum value = tinstant_val(instants[ninsts - 1]);
     instants[ninsts++] = tinstant_make(value, seq->temptype, inter.upper);
   }
   /* Since by definition the sequence is normalized it is not necessary to
@@ -2548,7 +2544,7 @@ tcontseq_at_tstzspanset1(const TSequence *seq, const SpanSet *ss,
   /* Instantaneous sequence */
   if (seq->count == 1)
   {
-    if (! contains_spanset_timestamptz(ss, (TSEQUENCE_INST_N(seq, 0))->t))
+    if (! contains_spanset_timestamptz(ss, TSEQUENCE_INST_N(seq, 0)->t))
       return 0;
     result[0] = tsequence_copy(seq);
     return 1;
@@ -2626,7 +2622,7 @@ tcontseq_restrict_tstzspanset(const TSequence *seq, const SpanSet *ss,
   /* Instantaneous sequence */
   if (seq->count == 1)
   {
-    if (contains_spanset_timestamptz(ss, (TSEQUENCE_INST_N(seq, 0))->t))
+    if (contains_spanset_timestamptz(ss, TSEQUENCE_INST_N(seq, 0)->t))
       return atfunc ? tsequence_to_tsequenceset(seq) : NULL;
     return atfunc ? NULL : tsequence_to_tsequenceset(seq);
   }
@@ -2822,7 +2818,7 @@ TSequenceSet *
 tsequenceset_restrict_minmax(const TSequenceSet *ss, bool min, bool atfunc)
 {
   assert(ss);
-  Datum minmax = min ? tsequenceset_min_value(ss) : tsequenceset_max_value(ss);
+  Datum minmax = min ? tsequenceset_min_val(ss) : tsequenceset_max_val(ss);
   return tsequenceset_restrict_value(ss, minmax, atfunc);
 }
 

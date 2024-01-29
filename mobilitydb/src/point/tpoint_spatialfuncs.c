@@ -44,6 +44,7 @@
 #include <meos_internal.h>
 #include "general/set.h"
 #include "general/span.h"
+#include "general/type_round.h"
 #include "general/type_util.h"
 #include "point/tpoint_spatialfuncs.h"
 #include "point/stbox.h"
@@ -74,217 +75,6 @@ Tpoint_trajectory(PG_FUNCTION_ARGS)
 }
 
 /*****************************************************************************
- * Functions for spatial reference systems
- *****************************************************************************/
-
-PGDLLEXPORT Datum Tpoint_get_srid(PG_FUNCTION_ARGS);
-PG_FUNCTION_INFO_V1(Tpoint_get_srid);
-/**
- * @ingroup mobilitydb_temporal_spatial_accessor
- * @brief Return the SRID of a temporal point
- * @sqlfn SRID()
- */
-Datum
-Tpoint_get_srid(PG_FUNCTION_ARGS)
-{
-  Temporal *temp = PG_GETARG_TEMPORAL_P(0);
-  int result = tpoint_srid(temp);
-  PG_FREE_IF_COPY(temp, 0);
-  PG_RETURN_INT32(result);
-}
-
-PGDLLEXPORT Datum Tpoint_set_srid(PG_FUNCTION_ARGS);
-PG_FUNCTION_INFO_V1(Tpoint_set_srid);
-/**
- * @ingroup mobilitydb_temporal_spatial_transf 
- * @brief Return a temporal point with the SRID set to a value
- * @sqlfn setSRID()
- */
-Datum
-Tpoint_set_srid(PG_FUNCTION_ARGS)
-{
-  Temporal *temp = PG_GETARG_TEMPORAL_P(0);
-  int32 srid = PG_GETARG_INT32(1);
-  Temporal *result = tpoint_set_srid(temp, srid);
-  PG_FREE_IF_COPY(temp, 0);
-  PG_RETURN_TEMPORAL_P(result);
-}
-
-/*****************************************************************************/
-
-/**
- * @brief Call the PostGIS transform function. We need to use the fcinfo cached
- * in the external functions tpoint_transform
- */
-Datum
-datum_transform(Datum value, Datum srid)
-{
-  return CallerFInfoFunctionCall2(transform, (fetch_fcinfo())->flinfo,
-    InvalidOid, value, srid);
-}
-
-/**
- * @brief Transform a temporal point into another spatial reference system
- */
-TInstant *
-tpointinst_transform(const TInstant *inst, int srid)
-{
-  Datum geo = datum_transform(tinstant_value(inst), Int32GetDatum(srid));
-  TInstant *result = tinstant_make(geo, inst->temptype, inst->t);
-  pfree(DatumGetPointer(geo));
-  return result;
-}
-
-/**
- * @brief Transform a temporal point into another spatial reference system
- */
-TSequence *
-tpointseq_transform(const TSequence *seq, int srid)
-{
-  interpType interp = MEOS_FLAGS_GET_INTERP(seq->flags);
-
-  /* Instantaneous sequence */
-  if (seq->count == 1)
-  {
-    TInstant *inst = tpointinst_transform(TSEQUENCE_INST_N(seq, 0), srid);
-    TSequence *result = tinstant_to_tsequence(inst, interp);
-    pfree(inst);
-    return result;
-  }
-
-  /* General case */
-  /* Call the discrete sequence function even for continuous sequences
-   * to obtain a Multipoint that is sent to PostGIS for transformion */
-  Datum multipoint = PointerGetDatum(tpointdiscseq_trajectory(seq));
-  Datum transf = datum_transform(multipoint, srid);
-  GSERIALIZED *gs = (GSERIALIZED *) PG_DETOAST_DATUM(transf);
-  LWMPOINT *lwmpoint = lwgeom_as_lwmpoint(lwgeom_from_gserialized(gs));
-  TInstant **instants = palloc(sizeof(TInstant *) * seq->count);
-  for (int i = 0; i < seq->count; i++)
-  {
-    Datum point = PointerGetDatum(
-      geo_serialize((LWGEOM *) (lwmpoint->geoms[i])));
-    const TInstant *inst = TSEQUENCE_INST_N(seq, i);
-    instants[i] = tinstant_make(point, inst->temptype, inst->t);
-    pfree(DatumGetPointer(point));
-  }
-  PG_FREE_IF_COPY_P(gs, DatumGetPointer(transf));
-  pfree(DatumGetPointer(transf)); pfree(DatumGetPointer(multipoint));
-  lwmpoint_free(lwmpoint);
-
-  return tsequence_make_free(instants, seq->count, true, true, interp,
-    NORMALIZE_NO);
-}
-
-/**
- * @brief Transform a temporal point into another spatial reference system
- * @note In order to do a SINGLE call to the PostGIS transform function we do
- * not iterate through the sequences and call the transform for the sequence
- */
-TSequenceSet *
-tpointseqset_transform(const TSequenceSet *ss, int srid)
-{
-  /* Singleton sequence set */
-  if (ss->count == 1)
-  {
-    TSequence *seq1 = tpointseq_transform(TSEQUENCESET_SEQ_N(ss, 0), srid);
-    TSequenceSet *result = tsequence_to_tsequenceset(seq1);
-    pfree(seq1);
-    return result;
-  }
-
-  /* General case */
-  int npoints = 0;
-  const TSequence *seq;
-  LWGEOM **points = palloc(sizeof(LWGEOM *) * ss->totalcount);
-  int maxcount = -1; /* number of instants of the longest sequence */
-  for (int i = 0; i < ss->count; i++)
-  {
-    seq = TSEQUENCESET_SEQ_N(ss, i);
-    maxcount = Max(maxcount, seq->count);
-    for (int j = 0; j < seq->count; j++)
-    {
-      Datum value = tinstant_value(TSEQUENCE_INST_N(seq, j));
-      GSERIALIZED *gsvalue = DatumGetGserializedP(value);
-      points[npoints++] = lwgeom_from_gserialized(gsvalue);
-    }
-  }
-  /* Last parameter set to STEP to force the function to return multipoint */
-  LWGEOM *geom = lwpointarr_make_trajectory(points, ss->totalcount, STEP);
-  Datum multipoint = PointerGetDatum(geo_serialize(geom));
-  lwgeom_free(geom);
-  Datum transf = datum_transform(multipoint, srid);
-  GSERIALIZED *gs = (GSERIALIZED *) PG_DETOAST_DATUM(transf);
-  LWMPOINT *mpoint = lwgeom_as_lwmpoint(lwgeom_from_gserialized(gs));
-  TSequence **sequences = palloc(sizeof(TSequence *) * ss->count);
-  TInstant **instants = palloc(sizeof(TInstant *) * maxcount);
-  interpType interp = MEOS_FLAGS_GET_INTERP(ss->flags);
-  npoints = 0;
-  for (int i = 0; i < ss->count; i++)
-  {
-    seq = TSEQUENCESET_SEQ_N(ss, i);
-    for (int j = 0; j < seq->count; j++)
-    {
-      GSERIALIZED *point = geo_serialize((LWGEOM *)
-        (mpoint->geoms[npoints++]));
-      const TInstant *inst = TSEQUENCE_INST_N(seq, j);
-      instants[j] = tinstant_make(PointerGetDatum(point), inst->temptype,
-        inst->t);
-      pfree(point);
-    }
-    sequences[i] = tsequence_make((const TInstant **) instants, seq->count,
-      seq->period.lower_inc, seq->period.upper_inc, interp, NORMALIZE_NO);
-    for (int j = 0; j < seq->count; j++)
-      pfree(instants[j]);
-  }
-  TSequenceSet *result = tsequenceset_make_free(sequences, ss->count,
-    NORMALIZE_NO);
-  pfree(instants);
-  PG_FREE_IF_COPY_P(gs, DatumGetPointer(transf));
-  pfree(DatumGetPointer(transf)); pfree(DatumGetPointer(multipoint));
-  lwmpoint_free(mpoint);
-  return result;
-}
-
-/**
- * @brief Transform a temporal point into another spatial reference system
- */
-Temporal *
-tpoint_transform(const Temporal *temp, int srid)
-{
-  assert(temptype_subtype(temp->subtype));
-  switch (temp->subtype)
-  {
-    case TINSTANT:
-      return (Temporal *) tpointinst_transform((TInstant *) temp, srid);
-    case TSEQUENCE:
-      return  (Temporal *) tpointseq_transform((TSequence *) temp, srid);
-    default: /* TSEQUENCESET */
-      return (Temporal *) tpointseqset_transform((TSequenceSet *) temp, srid);
-  }
-}
-
-PGDLLEXPORT Datum Tpoint_transform(PG_FUNCTION_ARGS);
-PG_FUNCTION_INFO_V1(Tpoint_transform);
-/**
- * @ingroup mobilitydb_temporal_spatial_transf
- * @brief Return a temporal point transformed to another spatial reference
- * system
- * @sqlfn transform()
- */
-Datum
-Tpoint_transform(PG_FUNCTION_ARGS)
-{
-  Temporal *temp = PG_GETARG_TEMPORAL_P(0);
-  int srid = PG_GETARG_INT32(1);
-  /* Store fcinfo into a global variable */
-  store_fcinfo(fcinfo);
-  Temporal *result = tpoint_transform(temp, srid);
-  PG_FREE_IF_COPY(temp, 0);
-  PG_RETURN_TEMPORAL_P(result);
-}
-
-/*****************************************************************************
  * Conversion functions
  *****************************************************************************/
 
@@ -292,7 +82,8 @@ PGDLLEXPORT Datum Tgeompoint_to_tgeogpoint(PG_FUNCTION_ARGS);
 PG_FUNCTION_INFO_V1(Tgeompoint_to_tgeogpoint);
 /**
  * @ingroup mobilitydb_temporal_conversion
- * @brief Convert a temporal geometry point to a temporal geography point
+ * @brief Return a temporal geometry point converted to a temporal geography
+ * point
  * @sqlfn tgeogpoint()
  */
 Datum
@@ -308,7 +99,8 @@ PGDLLEXPORT Datum Tgeogpoint_to_tgeompoint(PG_FUNCTION_ARGS);
 PG_FUNCTION_INFO_V1(Tgeogpoint_to_tgeompoint);
 /**
  * @ingroup mobilitydb_temporal_conversion
- * @brief Convert a temporal geography point to a temporal geometry point
+ * @brief Return a temporal geography point converted to a temporal geometry
+ * point
  * @sqlfn tgeompoint()
  */
 Datum
@@ -414,7 +206,8 @@ PGDLLEXPORT Datum Tpoint_to_geomeas(PG_FUNCTION_ARGS);
 PG_FUNCTION_INFO_V1(Tpoint_to_geomeas);
 /**
  * @ingroup mobilitydb_temporal_conversion
- * @brief Convert a temporal point to a geometry/geography with M measure
+ * @brief Return a temporal point converted to a geometry/geography with
+ * M measure
  */
 Datum
 Tpoint_to_geomeas(PG_FUNCTION_ARGS)
@@ -431,7 +224,8 @@ PGDLLEXPORT Datum Geomeas_to_tpoint(PG_FUNCTION_ARGS);
 PG_FUNCTION_INFO_V1(Geomeas_to_tpoint);
 /**
  * @ingroup mobilitydb_temporal_conversion
- * @brief Convert a geometry/geography with M measure to a temporal point
+ * @brief Return a geometry/geography with M measure converted to a temporal
+ * point
  */
 Datum
 Geomeas_to_tpoint(PG_FUNCTION_ARGS)
@@ -446,8 +240,8 @@ PGDLLEXPORT Datum Tpoint_tfloat_to_geomeas(PG_FUNCTION_ARGS);
 PG_FUNCTION_INFO_V1(Tpoint_tfloat_to_geomeas);
 /**
  * @ingroup mobilitydb_temporal_conversion
- * @brief Convert a temporal point and a temporal float to a geometry/geography
- * with M measure 
+ * @brief Return a geometry/geography with M measure converted from a temporal
+ * point and a temporal float
  */
 Datum
 Tpoint_tfloat_to_geomeas(PG_FUNCTION_ARGS)
@@ -884,8 +678,8 @@ Tpoint_make_simple(PG_FUNCTION_ARGS)
  *****************************************************************************/
 
 /**
- * @brief Restrict a temporal point to (the complement of) a geometry and
- * possibly a timestamptz span
+ * @brief Return a temporal point restricted to (the complement of) a geometry
+ * and possibly a timestamptz span
  * @note Mixing 2D/3D is enabled to compute, for example, 2.5D operations.
  * However the geometry must be in 2D.
  */
@@ -917,7 +711,7 @@ PGDLLEXPORT Datum Tpoint_at_geom(PG_FUNCTION_ARGS);
 PG_FUNCTION_INFO_V1(Tpoint_at_geom);
 /**
  * @ingroup mobilitydb_temporal_restrict
- * @brief Restrict a temporal point to a geometry
+ * @brief Return a temporal point restricted to a geometry
  * @sqlfn atGeometry()
  */
 Datum
@@ -930,7 +724,7 @@ PGDLLEXPORT Datum Tpoint_at_geom_time(PG_FUNCTION_ARGS);
 PG_FUNCTION_INFO_V1(Tpoint_at_geom_time);
 /**
  * @ingroup mobilitydb_temporal_restrict
- * @brief Restrict a temporal point to a geometry and a time value
+ * @brief Return a temporal point restricted to a geometry and a time value
  * @sqlfn atGeometryTime()
  */
 Datum
@@ -943,7 +737,7 @@ PGDLLEXPORT Datum Tpoint_minus_geom(PG_FUNCTION_ARGS);
 PG_FUNCTION_INFO_V1(Tpoint_minus_geom);
 /**
  * @ingroup mobilitydb_temporal_restrict
- * @brief Restrict a temporal point to the complement of a geometry
+ * @brief Return a temporal point restricted to the complement of a geometry
  * @sqlfn minusGeometry()
  */
 Datum
@@ -956,8 +750,8 @@ PGDLLEXPORT Datum Tpoint_minus_geom_time(PG_FUNCTION_ARGS);
 PG_FUNCTION_INFO_V1(Tpoint_minus_geom_time);
 /**
  * @ingroup mobilitydb_temporal_restrict
- * @brief Restrict a temporal point to the complement of a geometry and a
- * period
+ * @brief Return a temporal point restricted to the complement of a geometry
+ * and a time value
  * @sqlfn minusGeometryTime()
  */
 Datum
@@ -972,7 +766,7 @@ PGDLLEXPORT Datum Tpoint_at_stbox(PG_FUNCTION_ARGS);
 PG_FUNCTION_INFO_V1(Tpoint_at_stbox);
 /**
  * @ingroup mobilitydb_temporal_restrict
- * @brief Restrict a temporal point to a spatiotemporal box
+ * @brief Return a temporal point restricted to a spatiotemporal box
  * @sqlfn atStbox()
  */
 Datum
@@ -991,7 +785,8 @@ PGDLLEXPORT Datum Tpoint_minus_stbox(PG_FUNCTION_ARGS);
 PG_FUNCTION_INFO_V1(Tpoint_minus_stbox);
 /**
  * @ingroup mobilitydb_temporal_restrict
- * @brief Restrict a temporal point to the complement of a spatiotemporal box
+ * @brief Return a temporal point restricted to the complement of a
+ * spatiotemporal box
  * @sqlfn minusStbox()
  */
 Datum

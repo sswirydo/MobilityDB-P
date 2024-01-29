@@ -63,12 +63,12 @@
 
 /**
  * @ingroup meos_internal_temporal_accessor
- * @brief Return the base value of a temporal instant
+ * @brief Return (a pointer to) the base value of a temporal instant
  * @param[in] inst Temporal instant
  * @csqlfn #Tinstant_value()
  */
 Datum
-tinstant_value(const TInstant *inst)
+tinstant_val(const TInstant *inst)
 {
   assert(inst);
   /* For base types passed by value */
@@ -84,23 +84,20 @@ tinstant_value(const TInstant *inst)
  * @param[in] inst Temporal instant
  */
 Datum
-tinstant_value_copy(const TInstant *inst)
+tinstant_value(const TInstant *inst)
 {
   assert(inst);
   /* For base types passed by value */
   if (MEOS_FLAGS_GET_BYVAL(inst->flags))
     return inst->value;
   /* For base types passed by reference */
-  int16 typlen =  basetype_length(temptype_basetype(inst->temptype));
-  size_t value_size = (typlen != -1) ?
-    (unsigned int) typlen : VARSIZE(&inst->value);
-  void *result = palloc0(value_size);
-  memcpy(result, &inst->value, value_size);
-  return PointerGetDatum(result);
+  meosType basetype = temptype_basetype(inst->temptype);
+  return datum_copy(PointerGetDatum(&inst->value), basetype);
 }
 
 /**
- * @brief Initialize the value and the timestamp of a temporal instant
+ * @brief Return the first argument initialized with the value and the
+ * timestamptz
  * @param[in,out] inst Temporal instant to be modified
  * @param[in] value Value
  * @param[in] t Timestamp
@@ -117,14 +114,14 @@ tinstant_set(TInstant *inst, Datum value, TimestampTz t)
 }
 
 /**
- * @brief Convert the value of temporal number instant to a double
+ * @brief Return the value of a temporal number instant converted to a double
  */
 double
 tnumberinst_double(const TInstant *inst)
 {
   assert(inst);
   assert(tnumber_type(inst->temptype));
-  Datum value = tinstant_value(inst);
+  Datum value = tinstant_val(inst);
   if (inst->temptype == T_TINT)
     return (double)(DatumGetInt32(value));
   else /* inst->temptype == T_TFLOAT */
@@ -248,7 +245,7 @@ tinstant_to_string(const TInstant *inst, int maxdd, outfunc value_out)
 
   char *t = pg_timestamptz_out(inst->t);
   meosType basetype = temptype_basetype(inst->temptype);
-  char *value = value_out(tinstant_value(inst), basetype, maxdd);
+  char *value = value_out(tinstant_val(inst), basetype, maxdd);
   char *result = palloc(strlen(value) + strlen(t) + 2);
   sprintf(result, "%s@%s", value, t);
   pfree(t); pfree(value);
@@ -286,8 +283,8 @@ tinstant_out(const TInstant *inst, int maxdd)
  * the end of the struct upon creation.
  *
  * @param[in] value Value
- * @param[in] t Timestamp
  * @param[in] temptype Temporal type
+ * @param[in] t Timestamp
  */
 TInstant *
 tinstant_make(Datum value, meosType temptype, TimestampTz t)
@@ -334,6 +331,21 @@ tinstant_make(Datum value, meosType temptype, TimestampTz t)
     MEOS_FLAGS_SET_GEODETIC(result->flags, FLAGS_GET_GEODETIC(gs->gflags));
     PG_FREE_IF_COPY_P(gs, DatumGetPointer(value));
   }
+  return result;
+}
+
+/**
+ * @brief Return a temporal instant created from the values
+ * and free the base value after the creation
+ * @param[in] value Values
+ * @param[in] temptype Temporal type
+ * @param[in] t Timestamp
+ */
+TInstant *
+tinstant_make_free(Datum value, meosType temptype, TimestampTz t)
+{
+  TInstant *result = tinstant_make(value, temptype, t);
+  DATUM_FREE(value,temptype_basetype(temptype));
   return result;
 }
 
@@ -433,18 +445,18 @@ tinstant_copy(const TInstant *inst)
 
 /**
  * @ingroup meos_internal_temporal_accessor
- * @brief Return the singleton base value of a temporal instant
+ * @brief Return the singleton (pointer to the) base value of a temporal instant
  * @param[in] inst Temporal instant
  * @param[out] count Number of values in the output array
  * @post The output parameter @p count is equal to 1
  * @csqlfn #Temporal_valueset()
  */
 Datum *
-tinstant_values(const TInstant *inst, int *count)
+tinstant_vals(const TInstant *inst, int *count)
 {
   assert(inst); assert(count);
   Datum *result = palloc(sizeof(Datum));
-  result[0] = tinstant_value(inst);
+  result[0] = tinstant_val(inst);
   *count = 1;
   return result;
 }
@@ -459,7 +471,7 @@ SpanSet *
 tnumberinst_valuespans(const TInstant *inst)
 {
   assert(inst);
-  Datum value = tinstant_value(inst);
+  Datum value = tinstant_val(inst);
   meosType basetype = temptype_basetype(inst->temptype);
   meosType spantype = basetype_spantype(basetype);
   Span s;
@@ -477,13 +489,13 @@ SpanSet *
 tinstant_time(const TInstant *inst)
 {
   assert(inst);
-  SpanSet *result = timestamptz_to_spanset(inst->t);
-  return result;
+  return timestamptz_to_spanset(inst->t);
 }
 
 /**
  * @ingroup meos_internal_temporal_accessor
- * @brief Initialize the last argument with the time span of a temporal instant
+ * @brief Return the last argument initialized with the time span of a temporal
+ * instant
  * @param[in] inst Temporal instant
  * @param[out] s Result
  */
@@ -523,7 +535,7 @@ tinstant_timestamps(const TInstant *inst, int *count)
  * @csqlfn #Temporal_instants()
  */
 const TInstant **
-tinstant_instants(const TInstant *inst, int *count)
+tinstant_insts(const TInstant *inst, int *count)
 {
   assert(inst); assert(count);
   const TInstant **result = palloc(sizeof(TInstant *));
@@ -534,8 +546,8 @@ tinstant_instants(const TInstant *inst, int *count)
 
 /**
  * @ingroup meos_internal_temporal_accessor
- * @brief Initialize the last argument with the value of a temporal instant at
- * a timestamptz
+ * @brief Return the last argument initialized with the value of a temporal
+ * instant at a timestamptz
  * @param[in] inst Temporal instant
  * @param[in] t Timestamp
  * @param[out] result Result
@@ -550,7 +562,7 @@ tinstant_value_at_timestamptz(const TInstant *inst, TimestampTz t,
   assert(inst); assert(result);
   if (t != inst->t)
     return false;
-  *result = tinstant_value_copy(inst);
+  *result = tinstant_value(inst);
   return true;
 }
 
@@ -608,7 +620,7 @@ tnumberinst_shift_value(const TInstant *inst, Datum shift)
 {
   assert(inst);
   TInstant *result = tinstant_copy(inst);
-  Datum value = tinstant_value(result);
+  Datum value = tinstant_val(result);
   meosType basetype = temptype_basetype(result->temptype);
   value = datum_add(value, shift, basetype);
   tinstant_set(result, value, result->t);
@@ -676,8 +688,8 @@ tinstant_eq(const TInstant *inst1, const TInstant *inst2)
 {
   assert(inst1); assert(inst2); assert(inst1->temptype == inst2->temptype);
   /* Compare values and timestamps */
-  Datum value1 = tinstant_value(inst1);
-  Datum value2 = tinstant_value(inst2);
+  Datum value1 = tinstant_val(inst1);
+  Datum value2 = tinstant_val(inst2);
   return inst1->t == inst2->t && datum_eq(value1, value2,
     temptype_basetype(inst1->temptype));
 }
@@ -706,10 +718,10 @@ tinstant_cmp(const TInstant *inst1, const TInstant *inst2)
   if (cmp > 0)
     return 1;
   /* Compare values */
-  if (datum_lt(tinstant_value(inst1), tinstant_value(inst2),
+  if (datum_lt(tinstant_val(inst1), tinstant_val(inst2),
       temptype_basetype(inst1->temptype)))
     return -1;
-  if (datum_gt(tinstant_value(inst1), tinstant_value(inst2),
+  if (datum_gt(tinstant_val(inst1), tinstant_val(inst2),
       temptype_basetype(inst1->temptype)))
     return 1;
   /* The two values are equal */
@@ -732,7 +744,7 @@ uint32
 tinstant_hash(const TInstant *inst)
 {
   assert(inst);
-  Datum value = tinstant_value(inst);
+  Datum value = tinstant_val(inst);
   meosType basetype = temptype_basetype(inst->temptype);
   /* Apply the hash function to the base type */
   uint32 value_hash = datum_hash(value, basetype);

@@ -792,7 +792,7 @@ tpointinst_get_coords_eps(const TInstant *inst, bool hasz, bool hast,
 {
   /* Read the point and compute the minimum values of the tile */
   POINT4D p;
-  datum_point4d(tinstant_value(inst), &p);
+  datum_point4d(tinstant_val(inst), &p);
   double x = float_bucket(p.x, state->xsize, state->box.xmin);
   double y = float_bucket(p.y, state->ysize, state->box.ymin);
   double z = 0;
@@ -1054,6 +1054,26 @@ tpoint_space_time_split_init(Temporal *temp, float xsize, float ysize,
  * possibly a time grid
  * @param[in] temp Temporal point
  * @param[in] xsize,ysize,zsize Size of the corresponding dimension
+ * @param[in] sorigin Origin for the space dimension
+ * @param[in] bitmatrix True when using a bitmatrix to speed up the computation
+ * @param[out] space_buckets Array of space buckets
+ * @param[out] count Number of elements in the output arrays
+ */
+Temporal **
+tpoint_space_split(Temporal *temp, float xsize, float ysize, float zsize,
+  GSERIALIZED *sorigin, bool bitmatrix, GSERIALIZED ***space_buckets,
+  int *count)
+{
+  return tpoint_space_time_split(temp, xsize, ysize, zsize, NULL, sorigin, 0,
+    bitmatrix, space_buckets, NULL, count);
+}
+
+/**
+ * @ingroup meos_temporal_analytics_tile
+ * @brief Return the fragments a temporal point split according to a space and
+ * possibly a time grid
+ * @param[in] temp Temporal point
+ * @param[in] xsize,ysize,zsize Size of the corresponding dimension
  * @param[in] duration Duration
  * @param[in] sorigin Origin for the space dimension
  * @param[in] torigin Origin for the time dimension
@@ -1115,7 +1135,7 @@ tpoint_space_time_split(Temporal *temp, float xsize, float ysize, float zsize,
       continue;
 
     /* Construct value of the result */
-    spaces[i] = gspoint_make(box.xmin, box.ymin, box.zmin, hasz, false,
+    spaces[i] = geopoint_make(box.xmin, box.ymin, box.zmin, hasz, false,
       box.srid);
     if (timesplit)
       times[i] = DatumGetTimestampTz(box.period.lower);

@@ -103,68 +103,7 @@ get_srid_ways()
  *****************************************************************************/
 
 /**
- * @brief Return a network point with the precision of the position set to a
- * number of decimal places
- * @note Funcion used by the lifting infrastructure
- */
-Datum
-datum_npoint_round(Datum npoint, Datum size)
-{
-  /* Set precision of position */
-  Npoint *np = (Npoint *) DatumGetPointer(npoint);
-  Npoint *result = npoint_round(np, size);
-  return PointerGetDatum(result);
-}
-
-/**
- * @brief Return a network point with the precision of the position set to a
- * number of decimal places
- */
-Npoint *
-npoint_round(const Npoint *np, Datum size)
-{
-  /* Set precision of position */
-  double pos = DatumGetFloat8(datum_round_float(Float8GetDatum(np->pos), size));
-  Npoint *result = npoint_make(np->rid, pos);
-  return result;
-}
-
-/**
- * @brief Return a network segment with the precision of the positions set to a
- * number of decimal places
- */
-Nsegment *
-nsegment_round(const Nsegment *ns, Datum size)
-{
-  /* Set precision of positions */
-  double pos1 = DatumGetFloat8(datum_round_float(Float8GetDatum(ns->pos1),
-    size));
-  double pos2 = DatumGetFloat8(datum_round_float(Float8GetDatum(ns->pos2),
-    size));
-  Nsegment *result = nsegment_make(ns->rid, pos1, pos2);
-  return result;
-}
-
-/**
- * @ingroup meos_setspan_transf
- * @brief Return a network point set with the precision of the positions set
- * to a number of decimal places
- * @csqlfn #Npointset_round()
- */
-Set *
-npointset_round(const Set *s, Datum prec)
-{
-  Datum *values = palloc(sizeof(Datum) * s->count);
-  for (int i = 0; i < s->count; i++)
-    values[i] = datum_npoint_round(SET_VAL_N(s, i), prec);
-  Set *result = set_make_free(values, s->count, s->basetype, ORDERED);
-  return result;
-}
-
-/*****************************************************************************/
-
-/**
- * @brief Convert an array of network points into a geometry
+ * @brief Return an array of network points converted into a geometry
  * @param[in] points Array of network points
  * @param[in] count Number of elements in the input array
  * @pre The argument @p count is greater than 1
@@ -192,7 +131,7 @@ npointarr_geom(Npoint **points, int count)
 }
 
 /**
- * @brief Convert an array of network segments into a geometry
+ * @brief Return an array of network segments converted into a geometry
  * @param[in] segments Array of network segments
  * @param[in] count Number of elements in the input array
  * @pre The argument @p count is greater than 1
@@ -385,8 +324,8 @@ npoint_make(int64 rid, double pos)
 }
 
 /**
- * @brief Initialize the last argument with a network point constructed from
- * a route identifier and a position
+ * @brief Return the last argument initialized with a network point constructed
+ * from a route identifier and a position
  */
 void
 npoint_set(int64 rid, double pos, Npoint *np)
@@ -424,8 +363,8 @@ nsegment_make(int64 rid, double pos1, double pos2)
 }
 
 /**
- * @brief Initialize the last argument with a network segment constructed from
- * a route identifier and two positions
+ * @brief Return the last argument initialized with a network segment
+ * constructed from a route identifier and two positions
  */
 void
 nsegment_set(int64 rid, double pos1, double pos2, Nsegment *ns)
@@ -453,7 +392,7 @@ nsegment_set(int64 rid, double pos1, double pos2, Nsegment *ns)
  *****************************************************************************/
 
 /**
- * @brief Convert a network point to a network segment
+ * @brief Return a network point converted to a network segment
  */
 Nsegment *
 npoint_to_nsegment(const Npoint *np)

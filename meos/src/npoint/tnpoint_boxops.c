@@ -52,8 +52,8 @@
  *****************************************************************************/
 
 /**
- * @brief Initialize the spatiotemporal box in the last argument from the
- * network point value
+ * @brief Return the last argument initialized with the spatiotemporal box from
+ * a network point value
  * @param[in] np Network point
  * @param[out] box Spatiotemporal box
  */
@@ -67,7 +67,7 @@ npoint_set_stbox(const Npoint *np, STBox *box)
 }
 
 /**
- * @brief Convert a network point to a spatiotemporal box
+ * @brief Return a network point converted to a spatiotemporal box
  */
 STBox *
 npoint_to_stbox(const Npoint *np)
@@ -79,8 +79,8 @@ npoint_to_stbox(const Npoint *np)
 }
 
 /**
- * @brief Initialize the spatiotemporal box in the last argument from an array
- * of network point values
+ * @brief Return the last argument initialized with the spatiotemporal box from
+ * an array of network point values
  * @param[in] values Temporal network point values
  * @param[in] count Number of elements in the array
  * @param[out] box Spatiotemporal box
@@ -98,7 +98,7 @@ npointarr_set_stbox(const Datum *values, int count, STBox *box)
   return;
 }
 /**
- * @brief Initialize the last argument with the spatiotemporal box of a 
+ * @brief Return the last argument initialized with the spatiotemporal box of a
  * temporal network point instant
  * @param[in] inst Temporal network point
  * @param[out] box Spatiotemporal box
@@ -106,7 +106,7 @@ npointarr_set_stbox(const Datum *values, int count, STBox *box)
 void
 tnpointinst_set_stbox(const TInstant *inst, STBox *box)
 {
-  npoint_set_stbox(DatumGetNpointP(tinstant_value(inst)), box);
+  npoint_set_stbox(DatumGetNpointP(tinstant_val(inst)), box);
   span_set(TimestampTzGetDatum(inst->t), TimestampTzGetDatum(inst->t),
     true, true, T_TIMESTAMPTZ, T_TSTZSPAN, &box->period);
   MEOS_FLAGS_SET_T(box->flags, true);
@@ -114,8 +114,8 @@ tnpointinst_set_stbox(const TInstant *inst, STBox *box)
 }
 
 /**
- * @brief Initialize the last argument with the spatiotemporal box of an array 
- * of temporal network point instants
+ * @brief Return the last argument initialized with the spatiotemporal box of
+ * an array of temporal network point instants
  * @param[in] instants Temporal network point values
  * @param[in] count Number of elements in the array
  * @param[out] box Spatiotemporal box
@@ -134,8 +134,8 @@ tnpointinstarr_step_set_stbox(const TInstant **instants, int count, STBox *box)
 }
 
 /**
- * @brief Initialize the last argument with the spatiotemporal box of an array
- * of temporal network point instants
+ * @brief Return the last argument initialized with the spatiotemporal box of
+ * an array of temporal network point instants
  * @param[in] instants Temporal instant values
  * @param[in] count Number of elements in the array
  * @param[out] box Spatiotemporal box
@@ -144,13 +144,13 @@ void
 tnpointinstarr_linear_set_stbox(const TInstant **instants, int count,
   STBox *box)
 {
-  Npoint *np = DatumGetNpointP(tinstant_value(instants[0]));
+  Npoint *np = DatumGetNpointP(tinstant_val(instants[0]));
   int64 rid = np->rid;
   double posmin = np->pos, posmax = np->pos;
   TimestampTz tmin = instants[0]->t, tmax = instants[count - 1]->t;
   for (int i = 1; i < count; i++)
   {
-    np = DatumGetNpointP(tinstant_value(instants[i]));
+    np = DatumGetNpointP(tinstant_val(instants[i]));
     posmin = Min(posmin, np->pos);
     posmax = Max(posmax, np->pos);
   }
@@ -169,8 +169,8 @@ tnpointinstarr_linear_set_stbox(const TInstant **instants, int count,
 }
 
 /**
- * @brief Initialize the last argument with the spatiotemporal box of an array
- * of temporal network point instants
+ * @brief Return the last argument initialized with the spatiotemporal box of
+ * an array of temporal network point instants
  * @param[in] instants Temporal instant values
  * @param[in] count Number of elements in the array
  * @param[in] interp Interpolation
@@ -198,11 +198,13 @@ tnpointseq_expand_stbox(const TSequence *seq, const TInstant *inst)
 {
   /* Compute the bounding box of the end point of the sequence and the instant */
   STBox box;
-  if (MEOS_FLAGS_GET_INTERP(seq->flags) == LINEAR)
+  if (MEOS_FLAGS_GET_INTERP(seq->flags) != LINEAR)
+    tnpointinst_set_stbox(inst, &box);
+  else
   {
     const TInstant *last = TSEQUENCE_INST_N(seq, seq->count - 1);
-    Npoint *np1 = DatumGetNpointP(tinstant_value(last));
-    Npoint *np2 = DatumGetNpointP(tinstant_value(inst));
+    Npoint *np1 = DatumGetNpointP(tinstant_val(last));
+    Npoint *np2 = DatumGetNpointP(tinstant_val(inst));
     int64 rid = np1->rid;
     double posmin = Min(np1->pos, np2->pos);
     double posmax = Min(np1->pos, np2->pos);
@@ -216,10 +218,6 @@ tnpointseq_expand_stbox(const TSequence *seq, const TInstant *inst)
     pfree(line);
     if (posmin != 0 || posmax != 1)
       pfree(gs);
-  }
-  else
-  {
-    tnpointinst_set_stbox(inst, &box);
   }
   /* Expand the bounding box of the sequence with the last edge */
   stbox_expand(&box, (STBox *) TSEQUENCE_BBOX_PTR(seq));
@@ -239,7 +237,7 @@ nsegment_set_stbox(const Nsegment *ns, STBox *box)
 }
 
 /**
- * @brief Convert a network segment into a spatiotemporal box
+ * @brief Return a network segment converted to a spatiotemporal box
  */
 STBox *
 nsegment_to_stbox(const Nsegment *ns)
@@ -251,7 +249,8 @@ nsegment_to_stbox(const Nsegment *ns)
 }
 
 /**
- * @brief Convert a network point and a timestamptz to a spatiotemporal box
+ * @brief Return in the last argument a spatiotemporal box constructed from a
+ * network point and a timestamptz
  */
 bool
 npoint_timestamptz_set_stbox(const Npoint *np, TimestampTz t, STBox *box)
@@ -264,7 +263,8 @@ npoint_timestamptz_set_stbox(const Npoint *np, TimestampTz t, STBox *box)
 }
 
 /**
- * @brief Convert a network point and a timestamptz to a spatiotemporal box
+ * @brief Return a spatiotemporal box constructed from a network point and a
+ * timestamptz
  */
 STBox *
 npoint_timestamptz_to_stbox(const Npoint *np, TimestampTz t)
@@ -278,8 +278,8 @@ npoint_timestamptz_to_stbox(const Npoint *np, TimestampTz t)
 }
 
 /**
- * @brief Convert a network point and a timestamptz span to a spatiotemporal
- * box
+ * @brief Return in the last argument a spatiotemporal box constructed from a
+ * network point and a timestamptz span
  */
 bool
 npoint_tstzspan_set_stbox(const Npoint *np, const Span *s, STBox *box)
@@ -291,7 +291,8 @@ npoint_tstzspan_set_stbox(const Npoint *np, const Span *s, STBox *box)
 }
 
 /**
- * @brief Convert a network point and a timestamptz to a spatiotemporal box
+ * @brief Return a spatiotemporal box constructed from a network point and a
+ * timestamptz
  */
 STBox *
 npoint_tstzspan_to_stbox(const Npoint *np, const Span *s)

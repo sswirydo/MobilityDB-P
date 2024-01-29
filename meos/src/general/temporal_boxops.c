@@ -115,7 +115,7 @@ temporal_bbox_eq(const void *box1, const void *box2, meosType temptype)
 {
   assert(temporal_type(temptype));
   if (talpha_type(temptype))
-    return span_eq1((Span *) box1, (Span *) box2);
+    return span_eq_int((Span *) box1, (Span *) box2);
   if (tnumber_type(temptype))
     return tbox_eq((TBox *) box1, (TBox *) box2);
   if (tspatial_type(temptype))
@@ -143,7 +143,7 @@ temporal_bbox_cmp(const void *box1, const void *box2, meosType temptype)
 {
   assert(temporal_type(temptype));
   if (talpha_type(temptype))
-    return span_cmp1((Span *) box1, (Span *) box2);
+    return span_cmp_int((Span *) box1, (Span *) box2);
   if (tnumber_type(temptype))
     return tbox_cmp((TBox *) box1, (TBox *) box2);
   if (tspatial_type(temptype))
@@ -177,8 +177,8 @@ temporal_bbox_size(meosType temptype)
 
 /**
  * @ingroup meos_internal_temporal_accessor
- * @brief Initialize the last argument with the bounding box of a temporal
- * instant
+ * @brief Return the last argument initialized with the bounding box of a
+ * temporal instant
  * @param[in] inst Temporal value
  * @param[out] box Result
  */
@@ -193,7 +193,7 @@ tinstant_set_bbox(const TInstant *inst, void *box)
   {
     meosType basetype = temptype_basetype(inst->temptype);
     meosType spantype = basetype_spantype(basetype);
-    Datum value = tinstant_value(inst);
+      Datum value = tinstant_val(inst);
     Datum time = TimestampTzGetDatum(inst->t);
     TBox *tbox = (TBox *) box;
     memset(tbox, 0, sizeof(TBox));
@@ -216,8 +216,8 @@ tinstant_set_bbox(const TInstant *inst, void *box)
 
 /**
  * @ingroup meos_internal_temporal_bbox
- * @brief Initialize the last argument with the bounding box of a temporal
- * sequence
+ * @brief Return the last argument initialized with the bounding box of a
+ * temporal sequence
  * @param[in] seq Temporal sequence
  * @param[out] box Bounding box
  */
@@ -232,8 +232,8 @@ tsequence_set_bbox(const TSequence *seq, void *box)
 
 /**
  * @ingroup meos_internal_temporal_bbox
- * @brief Initialize the last argument with the bounding box of a temporal
- * sequence set
+ * @brief Return the last argument initialized with the bounding box of a
+ * temporal sequence set
  * @param[in] ss Temporal sequence set
  * @param[out] box Bounding box
  */
@@ -272,12 +272,12 @@ tnumberinstarr_set_tbox(const TInstant **instants, int count, bool lower_inc,
     lower_inc1 = upper_inc1 = true;
   }
   /* Compute the value span */
-  Datum min = tinstant_value(instants[0]);
+  Datum min = tinstant_val(instants[0]);
   Datum max = min;
   bool min_inc = lower_inc1, max_inc = lower_inc1;
   for (int i = 1; i < count; i++)
   {
-    Datum value = tinstant_value(instants[i]);
+    Datum value = tinstant_val(instants[i]);
     int min_cmp = datum_cmp(value, min, basetype);
     int max_cmp = datum_cmp(value, max, basetype);
     if (min_cmp <= 0)
@@ -379,7 +379,7 @@ tsequence_expand_bbox(TSequence *seq, const TInstant *inst)
 {
   assert(temporal_type(seq->temptype));
   if (talpha_type(seq->temptype))
-    span_set(TimestampTzGetDatum((TSEQUENCE_INST_N(seq, 0))->t),
+    span_set(TimestampTzGetDatum(TSEQUENCE_INST_N(seq, 0)->t),
       TimestampTzGetDatum(inst->t), seq->period.lower_inc, true, T_TIMESTAMPTZ,
       T_TSTZSPAN, (Span *) TSEQUENCE_BBOX_PTR(seq));
   else if (tnumber_type(seq->temptype))
@@ -423,8 +423,8 @@ tsequenceset_expand_bbox(TSequenceSet *ss, const TSequence *seq)
 }
 
 /**
- * @brief Initialize the timestamptz span in the last argument from an array of
- * temporal sequence values
+ * @brief Return the last argument initialized with the timestamptz span of an
+ * array of temporal sequences
  * @param[in] sequences Temporal instants
  * @param[in] count Number of elements in the array
  * @param[out] s Result
@@ -440,8 +440,8 @@ tseqarr_set_tstzspan(const TSequence **sequences, int count, Span *s)
 }
 
 /**
- * @brief Initialize the temporal box in the last argument from an array of
- * temporal number sequence values
+ * @brief Return the last argument initialized with the temporal box of an
+ * array of temporal number sequences
  * @param[in] box Box
  * @param[in] sequences Temporal instants
  * @param[in] count Number of elements in the array
@@ -459,8 +459,8 @@ tnumberseqarr_set_tbox(const TSequence **sequences, int count, TBox *box)
 }
 
 /**
- * @brief Initialize the last argument with the bounding box from an array of
- * temporal sequence values
+ * @brief Return the last argument initialized with the bounding box from an
+ * array of temporal sequences
  */
 void
 tseqarr_compute_bbox(const TSequence **sequences, int count, void *box)

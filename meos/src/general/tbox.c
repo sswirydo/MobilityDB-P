@@ -204,8 +204,8 @@ tbox_make(const Span *s, const Span *p)
 
 /**
  * @ingroup meos_internal_box_constructor
- * @brief Initialize the last argument with a temporal box constructed from a
- * number span and a timestamptz span
+ * @brief Return the last argument initialized with a temporal box constructed
+ * from a number span and a timestamptz span
  * @param[in] s Value span
  * @param[in] p Time span
  * @param[out] box Result
@@ -407,8 +407,8 @@ numspan_tstzspan_to_tbox(const Span *s, const Span *p)
 
 /**
  * @ingroup meos_internal_box_conversion
- * @brief Initialize the last argument with a temporal box constructed from a
- * number
+ * @brief Return the last argument initialized with a temporal box constructed
+ * from a number
  * @param[in] value Value
  * @param[in] basetype Type of the value
  * @param[out] box Result
@@ -426,7 +426,7 @@ number_set_tbox(Datum value, meosType basetype, TBox *box)
 
 /**
  * @ingroup meos_internal_box_conversion
- * @brief Convert a number to a temporal box
+ * @brief Return a numberconverted to a temporal box
  * @param[in] value Value
  * @param[in] basetype Type of the value
  * @csqlfn #Number_to_tbox()
@@ -444,8 +444,8 @@ number_to_tbox(Datum value, meosType basetype)
 #if MEOS
 /**
  * @ingroup meos_internal_box_conversion
- * @brief Initialize the last argument with a temporal box constructed from an
- * integer
+ * @brief Return the last argument initialized with a temporal box constructed
+ * from an integer
  * @param[in] i Value
  * @param[out] box Result
  */
@@ -459,7 +459,7 @@ int_set_tbox(int i, TBox *box)
 
 /**
  * @ingroup meos_box_conversion
- * @brief Convert an integer to a temporal box
+ * @brief Return an integer converted to a temporal box
  * @param[in] i Value
  * @csqlfn #Number_to_tbox()
  */
@@ -473,8 +473,8 @@ int_to_tbox(int i)
 
 /**
  * @ingroup meos_internal_box_conversion
- * @brief Initialize the last argument with a temporal box constructed from a
- * float
+ * @brief Return the last argument initialized with a temporal box constructed
+ * from a float
  * @param[in] d Value
  * @param[out] box Result
  */
@@ -488,7 +488,7 @@ float_set_tbox(double d, TBox *box)
 
 /**
  * @ingroup meos_box_conversion
- * @brief Convert a float to a temporal box
+ * @brief Return a float converted to a temporal box
  * @param[in] d Value
  * @csqlfn #Number_to_tbox()
  */
@@ -503,8 +503,8 @@ float_to_tbox(double d)
 
 /**
  * @ingroup meos_internal_box_conversion
- * @brief Initialize the last argument with a temporal box constructed from a
- * timestamptz
+ * @brief Return the last argument initialized with a temporal box constructed
+ * from a timestamptz
  * @param[in] t Timestamp
  * @param[out] box Result
  */
@@ -521,7 +521,7 @@ timestamptz_set_tbox(TimestampTz t, TBox *box)
 
 /**
  * @ingroup meos_box_conversion
- * @brief Convert a timestamptz to a temporal box
+ * @brief Return a timestamptz converted to a temporal box
  * @param[in] t Timestamp
  * @csqlfn #Timestamptz_to_tbox()
  */
@@ -535,8 +535,8 @@ timestamptz_to_tbox(TimestampTz t)
 
 /**
  * @ingroup meos_internal_box_conversion
- * @brief Initialize the last argument with a temporal box constructed from a
- * number set
+ * @brief Return the last argument initialized with a temporal box constructed
+ * from a number set
  * @param[in] s Set
  * @param[out] box Result
  */
@@ -552,8 +552,8 @@ numset_set_tbox(const Set *s, TBox *box)
 
 /**
  * @ingroup meos_internal_box_conversion
- * @brief Initialize the last argument with a temporal box constructed from a
- * timestamptz set
+ * @brief Return the last argument initialized with a temporal box constructed
+ * from a timestamptz set
  * @param[in] s Set
  * @param[out] box Result
  */
@@ -569,7 +569,7 @@ tstzset_set_tbox(const Set *s, TBox *box)
 
 /**
  * @ingroup meos_box_conversion
- * @brief Convert a number set to a temporal box
+ * @brief Return a number or timestamptz set converted to a temporal box
  * @param[in] s Set
  * @csqlfn #Set_to_tbox()
  */
@@ -596,8 +596,8 @@ set_to_tbox(const Set *s)
 
 /**
  * @ingroup meos_internal_box_conversion
- * @brief Initialize the last argument with a temporal box constructed from a
- * number span
+ * @brief Return the last argument initialized with a temporal box constructed
+ * from a number span
  * @param[in] s Span
  * @param[out] box Result
  */
@@ -611,8 +611,8 @@ numspan_set_tbox(const Span *s, TBox *box)
 
 /**
  * @ingroup meos_internal_box_conversion
- * @brief Initialize the last argument with a temporal box constructed from a
- * timestamptz span
+ * @brief Return the last argument initialized with a temporal box
+ * constructed from a timestamptz span
  * @param[in] s Span
  * @param[out] box Result
  */
@@ -626,7 +626,7 @@ tstzspan_set_tbox(const Span *s, TBox *box)
 
 /**
  * @ingroup meos_box_conversion
- * @brief Convert a number span to a temporal box
+ * @brief Return a number span converted to a temporal box
  * @param[in] s Span
  * @csqlfn #Span_to_tbox()
  */
@@ -655,24 +655,23 @@ span_to_tbox(const Span *s)
 #if MEOS
 /**
  * @ingroup meos_internal_box_conversion
- * @brief Initialize the last argument with a temporal box constructed from a
- * span set
+ * @brief Return the last argument initialized with a temporal box constructed
+ * from a span set
  * @param[in] ss Span set
  * @param[out] box Result
  */
 void
 numspanset_set_tbox(const SpanSet *ss, TBox *box)
 {
-  assert(ss); assert(box);
-  assert(tnumber_spansettype(ss->spansettype));
+  assert(ss); assert(box); assert(tnumber_spansettype(ss->spansettype));
   tbox_set(&ss->span, NULL, box);
   return;
 }
 
 /**
  * @ingroup meos_internal_box_conversion
- * @brief Initialize the last argument with a temporal box constructed from a
- * timestamptz span set
+ * @brief Return the last argument initialized with a temporal box constructed
+ * from a timestamptz span set
  * @param[in] ss Span set
  * @param[out] box Result
  */
@@ -686,7 +685,7 @@ tstzspanset_set_tbox(const SpanSet *ss, TBox *box)
 
 /**
  * @ingroup meos_box_conversion
- * @brief Convert a number span set to a temporal box
+ * @brief Return a number span set converted to a temporal box
  * @param[in] ss Span set
  * @csqlfn #Spanset_to_tbox()
  */
@@ -694,8 +693,7 @@ TBox *
 spanset_to_tbox(const SpanSet *ss)
 {
   /* Ensure validity of the arguments */
-  if (! ensure_not_null((void *) ss) ||
-      ! ensure_numspan_type(ss->spantype))
+  if (! ensure_not_null((void *) ss))
     return NULL;
 
   TBox *result = palloc(sizeof(TBox));
@@ -718,7 +716,7 @@ spanset_to_tbox(const SpanSet *ss)
 
 /**
  * @ingroup meos_box_conversion
- * @brief Convert a temporal box as an integer span
+ * @brief Return a temporal box converted to an integer span
  * @param[in] box Temporal box
  * @csqlfn #Tbox_to_intspan()
  */
@@ -739,7 +737,7 @@ tbox_to_intspan(const TBox *box)
 
 /**
  * @ingroup meos_box_conversion
- * @brief Convert a temporal box as a float span
+ * @brief Return a temporal box converted to a float span
  * @param[in] box Temporal box
  * @csqlfn #Tbox_to_floatspan()
  */
@@ -760,7 +758,7 @@ tbox_to_floatspan(const TBox *box)
 
 /**
  * @ingroup meos_box_conversion
- * @brief Convert a temporal box as a timestamptz span
+ * @brief Return a temporal box converted to a timestamptz span
  * @param[in] box Temporal box
  * @csqlfn #Tbox_to_tstzspan()
  */
@@ -809,9 +807,10 @@ tbox_hast(const TBox *box)
 
 /**
  * @ingroup meos_box_accessor
- * @brief Return the minimum X value of a temporal box
+ * @brief Return in the last argument the minimum X value of a temporal box
  * @param[in] box Box
  * @param[out] result Result
+ * @return On error return false, otherwise return true
  * @csqlfn #Tbox_xmin()
  */
 bool
@@ -826,6 +825,14 @@ tbox_xmin(const TBox *box, double *result)
 }
 
 #if MEOS
+/**
+ * @ingroup meos_box_accessor
+ * @brief Return in the last argument the minimum X value of a temporal box
+ * @param[in] box Box
+ * @param[out] result Result
+ * @return On error return false, otherwise return true
+ * @csqlfn #Tbox_xmin()
+ */
 bool
 tboxint_xmin(const TBox *box, int *result)
 {
@@ -838,6 +845,14 @@ tboxint_xmin(const TBox *box, int *result)
   return true;
 }
 
+/**
+ * @ingroup meos_box_accessor
+ * @brief Return in the last argument the minimum X value of a temporal box
+ * @param[in] box Box
+ * @param[out] result Result
+ * @return On error return false, otherwise return true
+ * @csqlfn #Tbox_xmin()
+ */
 bool
 tboxfloat_xmin(const TBox *box, double *result)
 {
@@ -853,9 +868,11 @@ tboxfloat_xmin(const TBox *box, double *result)
 
 /**
  * @ingroup meos_box_accessor
- * @brief Return true if the minimum X value of a temporal box is inclusive
+ * @brief Return in the last argument whether the minimum X value of a temporal
+ * box is inclusive
  * @param[in] box Box
  * @param[out] result Result
+ * @return On error return false, otherwise return true
  * @csqlfn #Tbox_xmin_inc()
  */
 bool
@@ -871,9 +888,10 @@ tbox_xmin_inc(const TBox *box, bool *result)
 
 /**
  * @ingroup meos_box_accessor
- * @brief Return the maximum X value of a temporal box
+ * @brief Return in the last argument the maximum X value of a temporal box
  * @param[in] box Box
  * @param[out] result Result
+ * @return On error return false, otherwise return true
  * @csqlfn #Tbox_xmax()
  */
 bool
@@ -894,9 +912,10 @@ tbox_xmax(const TBox *box, double *result)
 #if MEOS
 /**
  * @ingroup meos_box_accessor
- * @brief Return the maximum X value of a temporal box
+ * @brief Return in the last argument the maximum X value of a temporal box
  * @param[in] box Box
  * @param[out] result Result
+ * @return On error return false, otherwise return true
  * @csqlfn #Tbox_xmax()
  */
 bool
@@ -913,9 +932,10 @@ tboxint_xmax(const TBox *box, int *result)
 
 /**
  * @ingroup meos_box_accessor
- * @brief Return the maximum X value of a temporal box
+ * @brief Return in the last argument the maximum X value of a temporal box
  * @param[in] box Box
  * @param[out] result Result
+ * @return On error return false, otherwise return true
  * @csqlfn #Tbox_xmax()
  */
 bool
@@ -933,9 +953,11 @@ tboxfloat_xmax(const TBox *box, double *result)
 
 /**
  * @ingroup meos_box_accessor
- * @brief Return true if the maximum X value of a temporal box is inclusive
+ * @brief Return in the last argument whether the maximum X value of a temporal
+ * box is inclusive
  * @param[in] box Box
  * @param[out] result Result
+ * @return On error return false, otherwise return true
  * @csqlfn #Tbox_xmax_inc()
  */
 bool
@@ -951,9 +973,10 @@ tbox_xmax_inc(const TBox *box, bool *result)
 
 /**
  * @ingroup meos_box_accessor
- * @brief Return the minimum T value of a temporal box
+ * @brief Return in the last argument the minimum T value of a temporal box
  * @param[in] box Box
  * @param[out] result Result
+ * @return On error return false, otherwise return true
  * @csqlfn #Tbox_tmin()
  */
 bool
@@ -969,9 +992,11 @@ tbox_tmin(const TBox *box, TimestampTz *result)
 
 /**
  * @ingroup meos_box_accessor
- * @brief Return true if the minimum T value of a temporal box is inclusive
+ * @brief Return in the last argument whether the minimum T value of a temporal
+ * box is inclusive
  * @param[in] box Box
  * @param[out] result Result
+ * @return On error return false, otherwise return true
  * @csqlfn #Tbox_tmin_inc()
  */
 bool
@@ -987,10 +1012,10 @@ tbox_tmin_inc(const TBox *box, bool *result)
 
 /**
  * @ingroup meos_box_accessor
- * @brief Initialize the last argument with the maximum T value of a temporal
- * box
+ * @brief Return in the last argument the maximum T value of a temporal box
  * @param[in] box Box
  * @param[out] result Result
+ * @return On error return false, otherwise return true
  * @csqlfn #Tbox_tmax()
  */
 bool
@@ -1006,9 +1031,11 @@ tbox_tmax(const TBox *box, TimestampTz *result)
 
 /**
  * @ingroup meos_box_accessor
- * @brief Return true if the maximum T value of a temporal box is inclusive
+ * @brief Return in the last argument whether the maximum T value of a temporal
+ * box is inclusive
  * @param[in] box Box
  * @param[out] result Result
+ * @return On error return false, otherwise return true
  * @csqlfn #Tbox_tmax_inc()
  */
 bool
@@ -1141,7 +1168,7 @@ tbox_shift_scale_time(const TBox *box, const Interval *shift,
 
 /**
  * @ingroup meos_internal_box_transf
- * @brief Expand the second temporal box with the first one
+ * @brief Return the second temporal box expanded with the first one
  * @param[in] box1 Temporal box
  * @param[in,out] box2 Temporal box
  */
@@ -1223,36 +1250,13 @@ tbox_expand_time(const TBox *box, const Interval *interv)
   return result;
 }
 
-/**
- * @ingroup meos_box_transf
- * @brief Return a temporal box with the precision of the value span set to a
- * number of decimal places
- * @param[in] box Temporal box
- * @param[in] maxdd Maximum number of decimal digits
- * @csqlfn #Tbox_round()
- */
-TBox *
-tbox_round(const TBox *box, int maxdd)
-{
-  /* Ensure validity of the arguments */
-  if (! ensure_not_null((void *) box) || ! ensure_has_X_tbox(box) ||
-      ! ensure_span_isof_basetype(&box->span, T_FLOAT8) ||
-      ! ensure_not_negative(maxdd))
-    return NULL;
-
-  TBox *result = tbox_cp(box);
-  Datum size = Int32GetDatum(maxdd);
-  result->span.lower = datum_round_float(box->span.lower, size);
-  result->span.upper = datum_round_float(box->span.upper, size);
-  return result;
-}
-
 /*****************************************************************************
  * Topological operators
  *****************************************************************************/
 
 /**
- * @brief Initialize the ouput variables with the flag values of the boxes
+ * @brief Return the ouput variables initialized  with the flag values of the
+ * boxes
  * @param[in] box1,box2 Input boxes
  * @param[out] hasx,hast Boolean variables
  */
@@ -1340,9 +1344,9 @@ same_tbox_tbox(const TBox *box1, const TBox *box2)
       ! topo_tbox_tbox_init(box1, box2, &hasx, &hast))
     return false;
 
-  if (hasx && ! span_eq(&box1->span, &box2->span))
+  if (hasx && ! span_eq_int(&box1->span, &box2->span))
     return false;
-  if (hast && ! span_eq(&box1->period, &box2->period))
+  if (hast && ! span_eq_int(&box1->period, &box2->period))
     return false;
   return true;
 }
@@ -1553,8 +1557,8 @@ union_tbox_tbox(const TBox *box1, const TBox *box2, bool strict)
 
 /**
  * @ingroup meos_internal_box_set
- * @brief Initialize the last argument with the result of the intersection
- * of two temporal boxes
+ * @brief Return the last argument initialized with the intersection of two
+ * temporal boxes
  * @param[in] box1,box2 Temporal boxes
  * @param[out] result Resulting box
  * @note This function is equivalent to @ref intersection_tbox_tbox without
@@ -1627,8 +1631,8 @@ tbox_eq(const TBox *box1, const TBox *box2)
   if (MEOS_FLAGS_GET_X(box1->flags) != MEOS_FLAGS_GET_X(box2->flags) ||
     MEOS_FLAGS_GET_T(box1->flags) != MEOS_FLAGS_GET_T(box2->flags))
       return false;
-  if (! span_eq1(&box1->span, &box2->span) ||
-      ! span_eq1(&box1->period, &box2->period))
+  if (! span_eq_int(&box1->span, &box2->span) ||
+      ! span_eq_int(&box1->period, &box2->period))
     return false;
   /* The two boxes are equal */
   return true;
@@ -1666,14 +1670,14 @@ tbox_cmp(const TBox *box1, const TBox *box2)
   int cmp;
   if (hast)
   {
-    cmp = span_cmp1(&box1->period, &box2->period);
+    cmp = span_cmp_int(&box1->period, &box2->period);
     /* Compare the box minima */
     if (cmp != 0)
       return cmp;
   }
   if (hasx)
   {
-    cmp = span_cmp1(&box1->span, &box2->span);
+    cmp = span_cmp_int(&box1->span, &box2->span);
     /* Compare the box minima */
     if (cmp != 0)
       return cmp;

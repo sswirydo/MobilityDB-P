@@ -65,9 +65,7 @@ PGDLLEXPORT Datum Set_in(PG_FUNCTION_ARGS);
 PG_FUNCTION_INFO_V1(Set_in);
 /**
  * @ingroup mobilitydb_setspan_inout
- * @brief Input function for set types
- * param[in] input String
- * param[in] typid Type identifier
+ * @brief Return a set from its Well-Known Text (WKT) representation
  * @sqlfn intset_in(), floatset_in(), ...
  */
 Datum
@@ -82,7 +80,7 @@ PGDLLEXPORT Datum Set_out(PG_FUNCTION_ARGS);
 PG_FUNCTION_INFO_V1(Set_out);
 /**
  * @ingroup mobilitydb_setspan_inout
- * @brief Output function for set types
+ * @brief Return the Well-Known Text (WKT) representation of a set
  * @sqlfn intset_out(), floatset_out(), ...
  */
 Datum
@@ -98,7 +96,7 @@ PGDLLEXPORT Datum Set_recv(PG_FUNCTION_ARGS);
 PG_FUNCTION_INFO_V1(Set_recv);
 /**
  * @ingroup mobilitydb_setspan_inout
- * @brief Receive function for set types
+ * @brief Return a set from its Well-Known Binary (WKB) representation
  * @sqlfn intset_recv(), floatset_recv(), ...
  */
 Datum
@@ -115,7 +113,7 @@ PGDLLEXPORT Datum Set_send(PG_FUNCTION_ARGS);
 PG_FUNCTION_INFO_V1(Set_send);
 /**
  * @ingroup mobilitydb_setspan_inout
- * @brief Send function for set types
+ * @brief Return the Well-Known Binary (WKB) representation of a set
  * @sqlfn intset_send(), floatset_send(), ...
  */
 Datum
@@ -163,7 +161,7 @@ PGDLLEXPORT Datum Value_to_set(PG_FUNCTION_ARGS);
 PG_FUNCTION_INFO_V1(Value_to_set);
 /**
  * @ingroup mobilitydb_setspan_conversion
- * @brief Convert a base value to a set
+ * @brief Return a base value converted to a set
  * @sqlfn set()
  */
 Datum
@@ -177,27 +175,11 @@ Value_to_set(PG_FUNCTION_ARGS)
   PG_RETURN_SET_P(value_to_set(d, basetype));
 }
 
-PGDLLEXPORT Datum Set_to_span(PG_FUNCTION_ARGS);
-PG_FUNCTION_INFO_V1(Set_to_span);
-/**
- * @ingroup mobilitydb_setspan_conversion
- * @brief Convert a set to a span
- * @sqlfn span()
- */
-Datum
-Set_to_span(PG_FUNCTION_ARGS)
-{
-  Set *s = PG_GETARG_SET_P(0);
-  Span *result = set_to_span(s);
-  PG_FREE_IF_COPY(s, 0);
-  PG_RETURN_SPAN_P(result);
-}
-
 PGDLLEXPORT Datum Intset_to_floatset(PG_FUNCTION_ARGS);
 PG_FUNCTION_INFO_V1(Intset_to_floatset);
 /**
  * @ingroup mobilitydb_setspan_conversion
- * @brief Convert an integer set to a float set
+ * @brief Return an integer set converted to a float set
  * @sqlfn floatset()
  * @sqlop @p ::
  */
@@ -205,7 +187,7 @@ Datum
 Intset_to_floatset(PG_FUNCTION_ARGS)
 {
   Set *s = PG_GETARG_SET_P(0);
-  Set *result = intset_to_floatset(s);
+  Set *result = intset_floatset(s);
   PG_FREE_IF_COPY(s, 0);
   PG_RETURN_SET_P(result);
 }
@@ -214,7 +196,7 @@ PGDLLEXPORT Datum Floatset_to_intset(PG_FUNCTION_ARGS);
 PG_FUNCTION_INFO_V1(Floatset_to_intset);
 /**
  * @ingroup mobilitydb_setspan_conversion
- * @brief Convert a float set to a integer set
+ * @brief Return a float set converted to a integer set
  * @sqlfn intset()
  * @sqlop @p ::
  */
@@ -222,7 +204,7 @@ Datum
 Floatset_to_intset(PG_FUNCTION_ARGS)
 {
   Set *s = PG_GETARG_SET_P(0);
-  Set *result = floatset_to_intset(s);
+  Set *result = floatset_intset(s);
   PG_FREE_IF_COPY(s, 0);
   PG_RETURN_SET_P(result);
 }
@@ -231,7 +213,7 @@ PGDLLEXPORT Datum Dateset_to_tstzsset(PG_FUNCTION_ARGS);
 PG_FUNCTION_INFO_V1(Dateset_to_tstzset);
 /**
  * @ingroup mobilitydb_setspan_conversion
- * @brief Convert a date set to a timestamptz set
+ * @brief Return a date set converted to a timestamptz set
  * @sqlfn tstzset()
  * @sqlop @p ::
  */
@@ -239,7 +221,7 @@ Datum
 Dateset_to_tstzset(PG_FUNCTION_ARGS)
 {
   Set *s = PG_GETARG_SET_P(0);
-  Set *result = dateset_to_tstzset(s);
+  Set *result = dateset_tstzset(s);
   PG_FREE_IF_COPY(s, 0);
   PG_RETURN_SET_P(result);
 }
@@ -248,7 +230,7 @@ PGDLLEXPORT Datum Tstzset_to_dateset(PG_FUNCTION_ARGS);
 PG_FUNCTION_INFO_V1(Tstzset_to_dateset);
 /**
  * @ingroup mobilitydb_setspan_conversion
- * @brief Convert a timestamptz set to a date set
+ * @brief Return a timestamptz set converted to a date set
  * @sqlfn dateset()
  * @sqlop @p ::
  */
@@ -256,7 +238,7 @@ Datum
 Tstzset_to_dateset(PG_FUNCTION_ARGS)
 {
   Set *s = PG_GETARG_SET_P(0);
-  Set *result = tstzset_to_dateset(s);
+  Set *result = tstzset_dateset(s);
   PG_FREE_IF_COPY(s, 0);
   PG_RETURN_SET_P(result);
 }
@@ -358,48 +340,11 @@ Datum
 Set_values(PG_FUNCTION_ARGS)
 {
   Set *s = PG_GETARG_SET_P(0);
-  Datum *values = set_values(s);
+  Datum *values = set_vals(s);
   ArrayType *result = datumarr_to_array(values, s->count, s->basetype);
   pfree(values);
   PG_FREE_IF_COPY(s, 0);
   PG_RETURN_ARRAYTYPE_P(result);
-}
-
-/*****************************************************************************
- * Functions for spatial reference systems
- *****************************************************************************/
-
-PGDLLEXPORT Datum Geoset_get_srid(PG_FUNCTION_ARGS);
-PG_FUNCTION_INFO_V1(Geoset_get_srid);
-/**
- * @ingroup mobilitydb_setspan_accessor
- * @brief Return the SRID of a geo set
- * @sqlfn SRID()
- */
-Datum
-Geoset_get_srid(PG_FUNCTION_ARGS)
-{
-  Set *s = PG_GETARG_SET_P(0);
-  int result = geoset_srid(s);
-  PG_FREE_IF_COPY(s, 0);
-  PG_RETURN_INT32(result);
-}
-
-PGDLLEXPORT Datum Geoset_set_srid(PG_FUNCTION_ARGS);
-PG_FUNCTION_INFO_V1(Geoset_set_srid);
-/**
- * @ingroup mobilitydb_setspan_transf
- * @brief Return a geo set with the coordinates set to an SRID
- * @sqlfn setSRID()
- */
-Datum
-Geoset_set_srid(PG_FUNCTION_ARGS)
-{
-  Set *s = PG_GETARG_SET_P(0);
-  int32 srid = PG_GETARG_INT32(1);
-  Set *result = geoset_set_srid(s, srid);
-  PG_FREE_IF_COPY(s, 0);
-  PG_RETURN_SET_P(result);
 }
 
 /*****************************************************************************
@@ -523,7 +468,42 @@ Floatset_round(PG_FUNCTION_ARGS)
 {
   Set *s = PG_GETARG_SET_P(0);
   int maxdd = PG_GETARG_INT32(1);
-  Set *result = floatset_round(s, maxdd);
+  Set *result = floatset_rnd(s, maxdd);
+  PG_FREE_IF_COPY(s, 0);
+  PG_RETURN_SET_P(result);
+}
+
+PGDLLEXPORT Datum Floatset_degrees(PG_FUNCTION_ARGS);
+PG_FUNCTION_INFO_V1(Floatset_degrees);
+/**
+ * @ingroup mobilitydb_setspan_transf
+ * @brief Return a float set with the values converted to degrees
+ * @sqlfn degrees()
+ */
+Datum
+Floatset_degrees(PG_FUNCTION_ARGS)
+{
+  Set *s = PG_GETARG_SET_P(0);
+  bool normalize = false;
+  if (PG_NARGS() > 1 && ! PG_ARGISNULL(1))
+    normalize = PG_GETARG_BOOL(1);
+  Set *result = floatset_deg(s, normalize);
+  PG_FREE_IF_COPY(s, 0);
+  PG_RETURN_SET_P(result);
+}
+
+PGDLLEXPORT Datum Floatset_radians(PG_FUNCTION_ARGS);
+PG_FUNCTION_INFO_V1(Floatset_radians);
+/**
+ * @ingroup mobilitydb_setspan_transf
+ * @brief Return a float set with the values converted to radians
+ * @sqlfn radians()
+ */
+Datum
+Floatset_radians(PG_FUNCTION_ARGS)
+{
+  Set *s = PG_GETARG_SET_P(0);
+  Set *result = floatset_rad(s);
   PG_FREE_IF_COPY(s, 0);
   PG_RETURN_SET_P(result);
 }
@@ -532,7 +512,7 @@ PGDLLEXPORT Datum Textset_lower(PG_FUNCTION_ARGS);
 PG_FUNCTION_INFO_V1(Textset_lower);
 /**
  * @ingroup mobilitydb_setspan_transf
- * @brief Return a text set with the values in lowercase
+ * @brief Return a text set with with the values transformed to lowercase
  * @sqlfn lower()
  */
 Datum
@@ -548,7 +528,7 @@ PGDLLEXPORT Datum Textset_upper(PG_FUNCTION_ARGS);
 PG_FUNCTION_INFO_V1(Textset_upper);
 /**
  * @ingroup mobilitydb_setspan_transf
- * @brief Return a text set with the values in uppercase
+ * @brief Return a text set with with the values transformed to uppercase
  * @sqlfn upper()
  */
 Datum
@@ -557,6 +537,58 @@ Textset_upper(PG_FUNCTION_ARGS)
   Set *s = PG_GETARG_SET_P(0);
   Set *result = textset_upper(s);
   PG_FREE_IF_COPY(s, 0);
+  PG_RETURN_SET_P(result);
+}
+
+PGDLLEXPORT Datum Textset_initcap(PG_FUNCTION_ARGS);
+PG_FUNCTION_INFO_V1(Textset_initcap);
+/**
+ * @ingroup mobilitydb_setspan_transf
+ * @brief Return a text set with with the values transformed to initcap
+ * @sqlfn initcap()
+ */
+Datum
+Textset_initcap(PG_FUNCTION_ARGS)
+{
+  Set *s = PG_GETARG_SET_P(0);
+  Set *result = textset_initcap(s);
+  PG_FREE_IF_COPY(s, 0);
+  PG_RETURN_SET_P(result);
+}
+
+PGDLLEXPORT Datum Textcat_text_textset(PG_FUNCTION_ARGS);
+PG_FUNCTION_INFO_V1(Textcat_text_textset);
+/**
+ * @ingroup mobilitydb_setspan_transf
+ * @brief Return a text set with with the values transformed to initcap
+ * @sqlfn initcap()
+ */
+Datum
+Textcat_text_textset(PG_FUNCTION_ARGS)
+{
+  text *txt = PG_GETARG_TEXT_P(0);
+  Set *s = PG_GETARG_SET_P(1);
+  Set *result = textcat_textset_text_int(s, txt, INVERT);
+  PG_FREE_IF_COPY(txt, 0);
+  PG_FREE_IF_COPY(s, 1);
+  PG_RETURN_SET_P(result);
+}
+
+PGDLLEXPORT Datum Textcat_textset_text(PG_FUNCTION_ARGS);
+PG_FUNCTION_INFO_V1(Textcat_textset_text);
+/**
+ * @ingroup mobilitydb_setspan_transf
+ * @brief Return a text set with with the values transformed to initcap
+ * @sqlfn initcap()
+ */
+Datum
+Textcat_textset_text(PG_FUNCTION_ARGS)
+{
+  Set *s = PG_GETARG_SET_P(0);
+  text *txt = PG_GETARG_TEXT_P(1);
+  Set *result = textcat_textset_text_int(s, txt, INVERT_NO);
+  PG_FREE_IF_COPY(s, 0);
+  PG_FREE_IF_COPY(txt, 1);
   PG_RETURN_SET_P(result);
 }
 

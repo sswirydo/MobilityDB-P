@@ -189,7 +189,7 @@ tinstant_tprecision(const TInstant *inst, const Interval *duration,
   assert(inst); assert(duration);
   assert(valid_duration(duration));
   TimestampTz lower = timestamptz_bucket(inst->t, duration, torigin);
-  Datum value = tinstant_value(inst);
+  Datum value = tinstant_val(inst);
   return tinstant_make(value, inst->temptype, lower);
 }
 
@@ -733,8 +733,8 @@ temporal_similarity(const Temporal *temp1, const Temporal *temp2,
   assert(temp1->temptype == temp2->temptype);
   double result;
   int count1, count2;
-  const TInstant **instants1 = temporal_instants(temp1, &count1);
-  const TInstant **instants2 = temporal_instants(temp2, &count2);
+  const TInstant **instants1 = temporal_insts(temp1, &count1);
+  const TInstant **instants2 = temporal_insts(temp2, &count2);
   result = count1 > count2 ?
     tinstarr_similarity(instants1, count1, instants2, count2, simfunc) :
     tinstarr_similarity(instants2, count2, instants1, count1, simfunc);
@@ -983,8 +983,8 @@ temporal_similarity_path(const Temporal *temp1, const Temporal *temp2,
   assert(temp1); assert(temp2); assert(count);
   assert(temp1->temptype == temp2->temptype);
   int count1, count2;
-  const TInstant **instants1 = temporal_instants(temp1, &count1);
-  const TInstant **instants2 = temporal_instants(temp2, &count2);
+  const TInstant **instants1 = temporal_insts(temp1, &count1);
+  const TInstant **instants2 = temporal_insts(temp2, &count2);
   Match *result = count1 > count2 ?
     tinstarr_similarity_matrix(instants1, count1, instants2, count2,
       simfunc, count) :
@@ -1103,8 +1103,8 @@ temporal_hausdorff_distance(const Temporal *temp1, const Temporal *temp2)
 
   double result;
   int count1, count2;
-  const TInstant **instants1 = temporal_instants(temp1, &count1);
-  const TInstant **instants2 = temporal_instants(temp2, &count2);
+  const TInstant **instants1 = temporal_insts(temp1, &count1);
+  const TInstant **instants2 = temporal_insts(temp2, &count2);
   result = tinstarr_hausdorff_distance(instants1, count1, instants2, count2);
   /* Free memory */
   pfree(instants1); pfree(instants2);
@@ -1330,14 +1330,14 @@ tfloatseq_findsplit(const TSequence *seq, int i1, int i2, int *split,
 
   const TInstant *start = TSEQUENCE_INST_N(seq, i1);
   const TInstant *end = TSEQUENCE_INST_N(seq, i2);
-  double startval = DatumGetFloat8(tinstant_value(start));
-  double endval = DatumGetFloat8(tinstant_value(end));
+  double startval = DatumGetFloat8(tinstant_val(start));
+  double endval = DatumGetFloat8(tinstant_val(end));
   double duration2 = (double) (end->t - start->t);
   /* Loop for every instant between i1 and i2 */
   for (int idx = i1 + 1; idx < i2; idx++)
   {
     const TInstant *inst = TSEQUENCE_INST_N(seq, idx);
-    double value = DatumGetFloat8(tinstant_value(inst));
+    double value = DatumGetFloat8(tinstant_val(inst));
     /*
      * The following is equivalent to
      * #tsegment_value_at_timestamptz(start, end, LINEAR, inst->t);
@@ -1478,13 +1478,13 @@ tpointseq_findsplit(const TSequence *seq, int i1, int i2, bool syncdist,
   const TInstant *end = TSEQUENCE_INST_N(seq, i2);
   if (hasz)
   {
-    p3a = (POINT3DZ *) DATUM_POINT3DZ_P(tinstant_value(start));
-    p3b = (POINT3DZ *) DATUM_POINT3DZ_P(tinstant_value(end));
+    p3a = (POINT3DZ *) DATUM_POINT3DZ_P(tinstant_val(start));
+    p3b = (POINT3DZ *) DATUM_POINT3DZ_P(tinstant_val(end));
   }
   else
   {
-    p2a = (POINT2D *) DATUM_POINT2D_P(tinstant_value(start));
-    p2b = (POINT2D *) DATUM_POINT2D_P(tinstant_value(end));
+    p2a = (POINT2D *) DATUM_POINT2D_P(tinstant_val(start));
+    p2b = (POINT2D *) DATUM_POINT2D_P(tinstant_val(end));
   }
 
   /* Loop for every instant between i1 and i2 */
@@ -1494,7 +1494,7 @@ tpointseq_findsplit(const TSequence *seq, int i1, int i2, bool syncdist,
     const TInstant *inst = TSEQUENCE_INST_N(seq, idx);
     if (hasz)
     {
-      p3k = (POINT3DZ *) DATUM_POINT3DZ_P(tinstant_value(inst));
+      p3k = (POINT3DZ *) DATUM_POINT3DZ_P(tinstant_val(inst));
       if (syncdist)
       {
         value = tsegment_value_at_timestamptz(start, end, interp, inst->t);
@@ -1507,7 +1507,7 @@ tpointseq_findsplit(const TSequence *seq, int i1, int i2, bool syncdist,
     }
     else
     {
-      p2k = (POINT2D *) DATUM_POINT2D_P(tinstant_value(inst));
+      p2k = (POINT2D *) DATUM_POINT2D_P(tinstant_val(inst));
       if (syncdist)
       {
         value = tsegment_value_at_timestamptz(start, end, interp, inst->t);
@@ -1585,8 +1585,8 @@ tsequence_simplify_max_dist(const TSequence *seq, double dist, bool syncdist,
 }
 
 /**
- * @brief Simplify a temporal sequence set float/point using a single-pass
- * Douglas-Peucker line simplification algorithm
+ * @brief Return a temporal sequence set float/point simplified using a
+ * single-pass Douglas-Peucker line simplification algorithm
  * @param[in] ss Temporal point
  * @param[in] dist Distance
  * @param[in] syncdist True when computing the Synchronized Euclidean
@@ -1606,8 +1606,8 @@ tsequenceset_simplify_max_dist(const TSequenceSet *ss, double dist,
 
 /**
  * @ingroup meos_temporal_analytics_simplify
- * @brief Simplify a temporal float/point using a single-pass Douglas-Peucker
- * line simplification algorithm
+ * @brief Return a temporal float/point simplified using a single-pass
+ * Douglas-Peucker line simplification algorithm
  * @param[in] temp Temporal value
  * @param[in] dist Distance in the units of the values for temporal floats or
  * the units of the coordinate system for temporal points.
@@ -1662,7 +1662,7 @@ int_cmp(const void *a, const void *b)
 #define DP_STACK_SIZE 256
 
 /**
- * @brief Simplify a temporal sequence set float/point using the
+ * @brief Return a temporal sequence set float/point simplified using the
  * Douglas-Peucker line simplification algorithm
  */
 static TSequence *
@@ -1738,7 +1738,7 @@ tsequence_simplify_dp(const TSequence *seq, double dist, bool syncdist,
 }
 
 /**
- * @brief Simplify a temporal sequence set float/point using the
+ * @brief Return a temporal sequence set float/point simplified using the
  * Douglas-Peucker line simplification algorithm
  * @param[in] ss Temporal point
  * @param[in] dist Distance
@@ -1759,8 +1759,8 @@ tsequenceset_simplify_dp(const TSequenceSet *ss, double dist, bool syncdist,
 
 /**
  * @ingroup meos_temporal_analytics_simplify
- * @brief Simplify a temporal float/point using the Douglas-Peucker line
- * simplification algorithm
+ * @brief Return a temporal float/point simplified using the Douglas-Peucker
+ * line simplification algorithm
  * @param[in] temp Temporal value
  * @param[in] dist Distance in the units of the values for temporal floats or
  * the units of the coordinate system for temporal points.

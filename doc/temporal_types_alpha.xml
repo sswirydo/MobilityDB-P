@@ -52,7 +52,7 @@ SELECT ~tbool '[true@2001-01-03, true@2001-01-05)';
 
 			<listitem id="whenTrue">
 				<indexterm><primary><varname>whenTrue</varname></primary></indexterm>
-				<para>Get the time when the temporal Boolean takes the value true</para>
+				<para>Return the time when the temporal Boolean takes the value true</para>
 				<para><varname>whenTrue(tbool) → tstzspanset</varname></para>
 				<programlisting language="sql" xml:space="preserve">
 SELECT whenTrue(tfloat '[1@2001-01-01, 4@2001-01-04, 1@2001-01-07]' #> 2);
@@ -129,7 +129,7 @@ SELECT tfloat '[-1@2001-01-04, 1@2001-01-05]' / tfloat '[-1@2001-01-01, 1@2001-0
 
 			<listitem id="abs">
 				<indexterm><primary><varname>abs</varname></primary></indexterm>
-				<para>Get the absolute value of the temporal number</para>
+				<para>Return the absolute value of the temporal number</para>
 				<para><varname>abs(tnumber) → tnumber</varname></para>
 				<programlisting language="sql" xml:space="preserve">
 SELECT abs(tfloat '[1@2001-01-01, -1@2001-01-03, 1@2001-01-05]');
@@ -141,7 +141,7 @@ SELECT abs(tint '[1@2001-01-01, -1@2001-01-03, 1@2001-01-05]');
 
 			<listitem id="deltaValue">
 				<indexterm><primary><varname>deltaValue</varname></primary></indexterm>
-				<para>Get the value difference between consecutive instants of the temporal number</para>
+				<para>Return the value difference between consecutive instants of the temporal number</para>
 				<para><varname>deltaValue(tnumber) → tnumber</varname></para>
 				<programlisting language="sql" xml:space="preserve">
 SELECT deltaValue(tint '[1@2001-01-01, 2@2001-01-02, 1@2001-01-03]');
@@ -166,7 +166,7 @@ SELECT round(tfloat '[0.785398163397448@2001-01-01, 2.356194490192345@2001-01-02
 			<listitem id="degrees">
 				<indexterm><primary><varname>degrees</varname></primary></indexterm>
 				<indexterm><primary><varname>radians</varname></primary></indexterm>
-				<para>Convert between radians and degrees</para>
+				<para>Convert to degrees or radians</para>
 				<para><varname>degrees({float,tfloat},normalize=false) → tfloat</varname></para>
 				<para><varname>radians(tfloat) → tfloat</varname></para>
 				<para>The additional parameter in the <varname>degrees</varname> function can be used to normalize the values between 0 and 360 degrees.</para>
@@ -184,7 +184,7 @@ SELECT radians(tfloat '[45@2001-01-01, 135@2001-01-02]');
 
 			<listitem id="derivative">
 				<indexterm><primary><varname>derivative</varname></primary></indexterm>
-				<para>Get the derivative over time of the temporal float in units per second</para>
+				<para>Return the derivative over time of the temporal float in units per second</para>
 				<para><varname>derivative(tfloat) → tfloat</varname></para>
 				<para>The temporal float must have linear interpolation</para>
 				<programlisting language="sql" xml:space="preserve">
@@ -205,7 +205,7 @@ SELECT derivative(tfloat 'Interp=Step;[0@2001-01-01, 10@2001-01-02, 5@2001-01-03
 		<itemizedlist>
 			<listitem id="ttext_concat">
 				<indexterm><primary><varname>||</varname></primary></indexterm>
-				<para>Temporal text concatenation</para>
+				<para>Text concatenation</para>
 				<para><varname>{text,ttext} || {text,ttext} → ttext</varname></para>
 				<programlisting language="sql" xml:space="preserve">
 SELECT ttext '[AA@2001-01-01, AA@2001-01-04)' || text 'B';
@@ -221,14 +221,18 @@ SELECT ttext '[A@2001-01-01, B@2001-01-03, C@2001-01-04]' ||
 			<listitem id="ttext_lower">
 				<indexterm><primary><varname>lower</varname></primary></indexterm>
 				<indexterm><primary><varname>upper</varname></primary></indexterm>
-				<para>Transform between lowercase and uppercase</para>
+				<indexterm><primary><varname>initcap</varname></primary></indexterm>
+				<para>Transform in lowercase, uppercase, or initcap</para>
 				<para><varname>upper(ttext) → ttext</varname></para>
 				<para><varname>lower(ttext) → ttext</varname></para>
+				<para><varname>initcap(ttext) → ttext</varname></para>
 				<programlisting language="sql" xml:space="preserve">
 SELECT lower(ttext '[AA@2001-01-01, bb@2001-01-02]');
 -- ["aa"@2001-01-01, "bb"@2001-01-02]
 SELECT upper(ttext '[AA@2001-01-01, bb@2001-01-02]');
 -- ["AA"@2001-01-01, "BB"@2001-01-02]
+SELECT initcap(ttext '[AA@2001-01-01, bb@2001-01-02]');
+-- ["Aa"@2001-01-01, "Bb"@2001-01-02]
 </programlisting>
 			</listitem>
 		</itemizedlist>

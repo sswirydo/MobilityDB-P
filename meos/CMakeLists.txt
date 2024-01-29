@@ -64,30 +64,6 @@ add_definitions(-DPOSTGIS_VERSION_STRING="${POSTGIS_VERSION_STRING}")
 add_definitions(-DPOSTGIS_VERSION_NUMBER=${POSTGIS_VERSION_NUMBER})
 
 #--------------------------------
-# Other dependencies
-#--------------------------------
-
-# GSL (GNU Scientific Library) (used for skiplists)
-find_package(GSL REQUIRED)
-include_directories(SYSTEM ${GSL_INCLUDE_DIRS})
-
-# Proj reprojection library
-find_package(PROJ REQUIRED)
-include_directories(SYSTEM ${PROJ_INCLUDE_DIRS})
-math(EXPR POSTGIS_PROJ_VERSION "${PROJ_VERSION_MAJOR} * 10 + ${PROJ_VERSION_MINOR}")
-message(STATUS "POSTGIS_PROJ_VERSION: ${POSTGIS_PROJ_VERSION}")
-
-# GEOS geometry library
-find_package(GEOS REQUIRED)
-include_directories(SYSTEM ${GEOS_INCLUDE_DIR})
-math(EXPR POSTGIS_GEOS_VERSION "${GEOS_VERSION_MAJOR} * 10 + ${GEOS_VERSION_MINOR}")
-message(STATUS "POSTGIS_GEOS_VERSION: ${POSTGIS_GEOS_VERSION}")
-
-# JSON-C library (used for MF-JSON input/output)
-find_package(JSON-C REQUIRED)
-include_directories(SYSTEM ${JSON-C_INCLUDE_DIRS})
-
-#--------------------------------
 # MobilityDB directories
 #--------------------------------
 
@@ -182,21 +158,38 @@ target_link_libraries(${MEOS_LIB_NAME} ${GSL_CBLAS_LIBRARY})
 # Belongs to MEOS
 #--------------------------------
 
-install(
-  FILES "${CMAKE_BINARY_DIR}/meos_export.h"
-  DESTINATION "/usr/local/include"
-  RENAME "meos.h")
-install(
-  FILES "${CMAKE_BINARY_DIR}/meos_internal_export.h"
-  DESTINATION "/usr/local/include"
-  RENAME "meos_internal.h")
-install(
-  FILES "${CMAKE_SOURCE_DIR}/meos/include/general/meos_catalog.h"
-  DESTINATION "/usr/local/include")
-install(TARGETS ${MEOS_LIB_NAME} DESTINATION "/usr/local/lib")
-message(STATUS "Building MEOS:")
-message(STATUS "  Library file: '/usr/local/lib'")
-message(STATUS "  Include file: '/usr/local/include'")
+if(APPLE AND ${CMAKE_SYSTEM_PROCESSOR} MATCHES "arm")
+  install(FILES "${CMAKE_BINARY_DIR}/meos_export.h"
+    DESTINATION "/opt/homebrew/include"
+    RENAME "meos.h")
+  install(
+    FILES "${CMAKE_BINARY_DIR}/meos_internal_export.h"
+    DESTINATION "/opt/homebrew/include"
+    RENAME "meos_internal.h")
+  install(
+    FILES "${CMAKE_SOURCE_DIR}/meos/include/general/meos_catalog.h"
+    DESTINATION "/opt/homebrew/include")
+  install(TARGETS ${MEOS_LIB_NAME} DESTINATION "/opt/homebrew/lib")
+  message(STATUS "Building MEOS:")
+  message(STATUS "  Library file: '/opt/homebrew/lib'")
+  message(STATUS "  Include file: '/opt/homebrew/include'")
+else()
+  install(
+    FILES "${CMAKE_BINARY_DIR}/meos_export.h"
+    DESTINATION "/usr/local/include"
+    RENAME "meos.h")
+  install(
+    FILES "${CMAKE_BINARY_DIR}/meos_internal_export.h"
+    DESTINATION "/usr/local/include"
+    RENAME "meos_internal.h")
+  install(
+    FILES "${CMAKE_SOURCE_DIR}/meos/include/general/meos_catalog.h"
+    DESTINATION "/usr/local/include")
+  install(TARGETS ${MEOS_LIB_NAME} DESTINATION "/usr/local/lib")
+  message(STATUS "Building MEOS:")
+  message(STATUS "  Library file: '/usr/local/lib'")
+  message(STATUS "  Include file: '/usr/local/include'")
+endif()
 
 #-----------------------------------------------------------------------------
 # Documentation

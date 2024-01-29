@@ -46,6 +46,7 @@
 /* MEOS */
 #include <meos.h>
 #include <meos_internal.h>
+#include "general/set.h"
 #include "general/span.h"
 #include "general/type_out.h"
 #include "general/type_util.h"
@@ -61,9 +62,7 @@ PGDLLEXPORT Datum Span_in(PG_FUNCTION_ARGS);
 PG_FUNCTION_INFO_V1(Span_in);
 /**
  * @ingroup mobilitydb_setspan_inout
- * @brief Input function for span types
- * param[in] str String
- * param[in] spantypid Type oid
+ * @brief Return a span from its Well-Known Text (WKT) representation
  * @sqlfn span_in()
  */
 Datum
@@ -78,7 +77,7 @@ PGDLLEXPORT Datum Span_out(PG_FUNCTION_ARGS);
 PG_FUNCTION_INFO_V1(Span_out);
 /**
  * @ingroup mobilitydb_setspan_inout
- * @brief Output function for span types
+ * @brief Return the Well-Known Text (WKT) representation of a span
  * @sqlfn span_out()
  */
 Datum
@@ -92,7 +91,7 @@ PGDLLEXPORT Datum Span_recv(PG_FUNCTION_ARGS);
 PG_FUNCTION_INFO_V1(Span_recv);
 /**
  * @ingroup mobilitydb_setspan_inout
- * @brief Receive function for span types
+ * @brief Return a span from its Well-Known Binary (WKB) representation
  * @sqlfn span_recv()
  */
 Datum
@@ -109,7 +108,7 @@ PGDLLEXPORT Datum Span_send(PG_FUNCTION_ARGS);
 PG_FUNCTION_INFO_V1(Span_send);
 /**
  * @ingroup mobilitydb_setspan_inout
- * @brief Send function for span types
+ * @brief Return the Well-Known Binary (WKB) representation of a span
  * @sqlfn span_send()
  */
 Datum
@@ -156,7 +155,7 @@ PGDLLEXPORT Datum Value_to_span(PG_FUNCTION_ARGS);
 PG_FUNCTION_INFO_V1(Value_to_span);
 /**
  * @ingroup mobilitydb_setspan_conversion
- * @brief Convert a value to a span
+ * @brief Return a value converted to a span
  * @sqlfn span()
  * @sqlop @p ::
  */
@@ -168,11 +167,27 @@ Value_to_span(PG_FUNCTION_ARGS)
   PG_RETURN_SPAN_P(value_to_span(value, basetype));
 }
 
+PGDLLEXPORT Datum Set_to_span(PG_FUNCTION_ARGS);
+PG_FUNCTION_INFO_V1(Set_to_span);
+/**
+ * @ingroup mobilitydb_setspan_conversion
+ * @brief Return a set converted to a span
+ * @sqlfn span()
+ */
+Datum
+Set_to_span(PG_FUNCTION_ARGS)
+{
+  Set *s = PG_GETARG_SET_P(0);
+  Span *result = set_span(s);
+  PG_FREE_IF_COPY(s, 0);
+  PG_RETURN_SPAN_P(result);
+}
+
 PGDLLEXPORT Datum Intspan_to_floatspan(PG_FUNCTION_ARGS);
 PG_FUNCTION_INFO_V1(Intspan_to_floatspan);
 /**
  * @ingroup mobilitydb_setspan_conversion
- * @brief Convert an integer span to a float span
+ * @brief Return an integer span converted to a float span
  * @sqlfn floatspan()
  * @sqlop @p ::
  */
@@ -187,7 +202,7 @@ PGDLLEXPORT Datum Floatspan_to_intspan(PG_FUNCTION_ARGS);
 PG_FUNCTION_INFO_V1(Floatspan_to_intspan);
 /**
  * @ingroup mobilitydb_setspan_conversion
- * @brief Convert a float span to a integer span
+ * @brief Return a float span converted to a integer span
  * @sqlfn intspan()
  * @sqlop @p ::
  */
@@ -202,7 +217,7 @@ PGDLLEXPORT Datum Datespan_to_tstzspan(PG_FUNCTION_ARGS);
 PG_FUNCTION_INFO_V1(Datespan_to_tstzspan);
 /**
  * @ingroup mobilitydb_setspan_conversion
- * @brief Convert a date span to a timestamptz span
+ * @brief Return a date span converted to a timestamptz span
  * @sqlfn tstzspan()
  * @sqlop @p ::
  */
@@ -210,14 +225,14 @@ Datum
 Datespan_to_tstzspan(PG_FUNCTION_ARGS)
 {
   Span *s = PG_GETARG_SPAN_P(0);
-  PG_RETURN_SPAN_P(datespan_to_tstzspan(s));
+  PG_RETURN_SPAN_P(datespan_tstzspan(s));
 }
 
 PGDLLEXPORT Datum Tstzspan_to_datespan(PG_FUNCTION_ARGS);
 PG_FUNCTION_INFO_V1(Tstzspan_to_datespan);
 /**
  * @ingroup mobilitydb_setspan_conversion
- * @brief Convert a timestamptz span to a date span
+ * @brief Return a timestamptz span converted to a date span
  * @sqlfn datespan()
  * @sqlop @p ::
  */
@@ -225,7 +240,7 @@ Datum
 Tstzspan_to_datespan(PG_FUNCTION_ARGS)
 {
   Span *s = PG_GETARG_SPAN_P(0);
-  PG_RETURN_SPAN_P(tstzspan_to_datespan(s));
+  PG_RETURN_SPAN_P(tstzspan_datespan(s));
 }
 
 /*****************************************************************************/
@@ -234,7 +249,7 @@ PGDLLEXPORT Datum Span_to_range(PG_FUNCTION_ARGS);
 PG_FUNCTION_INFO_V1(Span_to_range);
 /**
  * @ingroup mobilitydb_setspan_conversion
- * @brief Convert a span to a range
+ * @brief Return a span converted to a range
  * @sqlfn int4range(), tstzrange()
  * @sqlop @p ::
  */
@@ -250,7 +265,7 @@ Span_to_range(PG_FUNCTION_ARGS)
 }
 
 /**
- * @brief Convert a PostgreSQL range to a span
+ * @brief Return a PostgreSQL range converted to a span
  */
 void
 range_set_span(RangeType *range, TypeCacheEntry *typcache, Span *result)
@@ -285,7 +300,7 @@ PGDLLEXPORT Datum Range_to_span(PG_FUNCTION_ARGS);
 PG_FUNCTION_INFO_V1(Range_to_span);
 /**
  * @ingroup mobilitydb_setspan_conversion
- * @brief Convert a PostgreSQL range to a span
+ * @brief Return a PostgreSQL range converted to a span
  * @sqlfn intspan(), tstzspan()
  * @sqlop @p ::
  */
@@ -525,7 +540,7 @@ Floatspan_round(PG_FUNCTION_ARGS)
 {
   Span *s = PG_GETARG_SPAN_P(0);
   int maxdd = PG_GETARG_INT32(1);
-  PG_RETURN_SPAN_P(floatspan_round(s, maxdd));
+  PG_RETURN_SPAN_P(floatspan_rnd(s, maxdd));
 }
 
 /*****************************************************************************
@@ -545,7 +560,7 @@ Span_eq(PG_FUNCTION_ARGS)
 {
   Span *s1 = PG_GETARG_SPAN_P(0);
   Span *s2 = PG_GETARG_SPAN_P(1);
-  PG_RETURN_BOOL(span_eq(s1, s2));
+  PG_RETURN_BOOL(span_eq_int(s1, s2));
 }
 
 PGDLLEXPORT Datum Span_ne(PG_FUNCTION_ARGS);
@@ -577,7 +592,7 @@ Span_cmp(PG_FUNCTION_ARGS)
 {
   Span *s1 = PG_GETARG_SPAN_P(0);
   Span *s2 = PG_GETARG_SPAN_P(1);
-  PG_RETURN_INT32(span_cmp(s1, s2));
+  PG_RETURN_INT32(span_cmp_int(s1, s2));
 }
 
 PGDLLEXPORT Datum Span_lt(PG_FUNCTION_ARGS);

@@ -64,13 +64,13 @@ extern int edge_calculate_gbox(const POINT3D *A1, const POINT3D *A2, GBOX *gbox)
  *****************************************************************************/
 
 /**
- * @brief Initialize the last argument with the spatiotemporal box from a
- * temporal point instant
+ * @brief Return the last argument initialized with the spatiotemporal box from
+ * a temporal point instant
  */
 void
 tpointinst_set_stbox(const TInstant *inst, STBox *box)
 {
-  GSERIALIZED *point = DatumGetGserializedP(tinstant_value(inst));
+  GSERIALIZED *point = DatumGetGserializedP(tinstant_val(inst));
   geo_set_stbox(point, box);
   span_set(TimestampTzGetDatum(inst->t), TimestampTzGetDatum(inst->t),
     true, true, T_TIMESTAMPTZ, T_TSTZSPAN, &box->period);
@@ -79,8 +79,8 @@ tpointinst_set_stbox(const TInstant *inst, STBox *box)
 }
 
 /**
- * @brief Initialize the last argument with the spatiotemporal box of an array
- * of temporal point instants
+ * @brief Return the last argument initialized with the spatiotemporal box of
+ * an array of temporal point instants
  * @param[in] instants Temporal instant values
  * @param[in] count Number of elements in the array
  * @param[out] box Spatiotemporal box
@@ -96,7 +96,7 @@ tpointinstarr_set_stbox(const TInstant **instants, int count, STBox *box)
   bool geodetic = MEOS_FLAGS_GET_GEODETIC(instants[0]->flags);
   for (int i = 1; i < count; i++)
   {
-    GSERIALIZED *point = DatumGetGserializedP(tinstant_value(instants[i]));
+    GSERIALIZED *point = DatumGetGserializedP(tinstant_val(instants[i]));
     double x, y, z;
     point_get_coords(point, hasz, &x, &y, &z);
     box->xmin = Min(box->xmin, x);
@@ -133,8 +133,8 @@ tpointseq_expand_stbox(TSequence *seq, const TInstant *inst)
 }
 
 /**
- * @brief Initialize the last argument with the the spatiotemporal box from an
- * array of temporal point sequences
+ * @brief Return the last argument initialized with the the spatiotemporal box
+ * from an array of temporal point sequences
  * @param[in] sequences Temporal instant values
  * @param[in] count Number of elements in the array
  * @param[out] box Spatiotemporal box

@@ -50,6 +50,7 @@
 #include <meos.h>
 #include <meos_internal.h>
 #include "general/pg_types.h"
+#include "general/set.h"
 #include "general/temporal.h"
 #include "general/tnumber_mathfuncs.h"
 #include "general/type_parser.h"
@@ -140,7 +141,7 @@ span_deserialize(const Span *s, SpanBound *lower, SpanBound *upper)
 /**
  * @brief Compare two span boundary points, returning <0, 0, or >0 according to
  * whether the first one is less than, equal to, or greater than the second one
- * @details The boundaries can be any combination of upper and lower; so it is 
+ * @details The boundaries can be any combination of upper and lower; so it is
  * useful for a variety of operators.
  *
  * The simple case is when b1 and b2 are both inclusive, in which
@@ -224,7 +225,7 @@ span_lower_cmp(const Span *s1, const Span *s2)
 }
 
 /**
- * @brief Compare the upper bounds of two spans, returning <0, 0, or >0 
+ * @brief Compare the upper bounds of two spans, returning <0, 0, or >0
  * according to whether the first bound is less than, equal to, or greater than
  * the second one.
  * @note The function is equivalent to #span_bound_cmp but avoids
@@ -675,8 +676,8 @@ tstzspan_make(TimestampTz lower, TimestampTz upper, bool lower_inc,
 
 /**
  * @ingroup meos_internal_setspan_constructor
- * @brief Initialize the last argument to a span constructed from the other
- * arguments
+ * @brief Return the last argument initialized to a span constructed from the
+ * other arguments
  * @param[in] lower,upper Bounds
  * @param[in] lower_inc,upper_inc True when the bounds are inclusive
  * @param[in] basetype Base type
@@ -763,12 +764,13 @@ span_copy(const Span *s)
 #endif /* MEOS */
 
 /*****************************************************************************
- * Conversion
+ * Conversion functions
  *****************************************************************************/
 
 /**
- * @ingroup meos_internal_setspan_accessor
- * @brief Initialize the last argument to a span constructed from the value
+ * @ingroup meos_internal_setspan_conversion
+ * @brief Return the last argument initialized to a span constructed from the
+ * value
  * @param[in] value Value
  * @param[in] basetype Type of the value
  * @param[out] s Result span
@@ -784,7 +786,7 @@ value_set_span(Datum value, meosType basetype, Span *s)
 
 /**
  * @ingroup meos_internal_setspan_conversion
- * @brief Convert a value to a span
+ * @brief Return a value converted to a span
  * @param[in] value Value
  * @param[in] basetype Type of the value
  */
@@ -799,7 +801,7 @@ value_to_span(Datum value, meosType basetype)
 #if MEOS
 /**
  * @ingroup meos_setspan_conversion
- * @brief Convert an integer to a span
+ * @brief Return an integer converted to a span
  * @param[in] i Value
  * @csqlfn #Value_to_span()
  */
@@ -815,7 +817,7 @@ int_to_span(int i)
 
 /**
  * @ingroup meos_setspan_conversion
- * @brief Convert a big integer to a span
+ * @brief Return a big integer converted to a span
  * @param[in] i Value
  * @csqlfn #Value_to_span()
  */
@@ -831,7 +833,7 @@ bigint_to_span(int i)
 
 /**
  * @ingroup meos_setspan_conversion
- * @brief Convert a float to a span
+ * @brief Return a float converted to a span
  * @param[in] d Value
  * @csqlfn #Value_to_span()
  */
@@ -846,7 +848,7 @@ float_to_span(double d)
 
 /**
  * @ingroup meos_setspan_conversion
- * @brief Convert a date to a span
+ * @brief Return a date converted to a span
  * @param[in] d Value
  * @csqlfn #Value_to_span()
  */
@@ -862,7 +864,7 @@ date_to_span(DateADT d)
 
 /**
  * @ingroup meos_setspan_conversion
- * @brief Convert a timestamptz to a span
+ * @brief Return a timestamptz converted to a span
  * @param[in] t Value
  * @csqlfn #Value_to_span()
  */
@@ -873,6 +875,249 @@ timestamptz_to_span(TimestampTz t)
   span_set(TimestampTzGetDatum(t), TimestampTzGetDatum(t), true, true,
     T_TIMESTAMPTZ, T_TSTZSPAN, result);
   return result;
+}
+#endif /* MEOS */
+
+/**
+ * @ingroup meos_internal_setspan_conversion
+ * @brief Return the last argument initialized to the bounding span of a set
+ * @param[in] s Set
+ * @param[in] sp Span
+ */
+void
+set_set_span(const Set *s, Span *sp)
+{
+  assert(s); assert(sp);
+  meosType spantype = basetype_spantype(s->basetype);
+  span_set(SET_VAL_N(s, MINIDX), SET_VAL_N(s, s->MAXIDX), true, true,
+    s->basetype, spantype, sp);
+  return;
+}
+
+/**
+ * @ingroup meos_internal_setspan_conversion
+ * @brief Return the bounding span of a set
+ * @param[in] s Set
+ */
+Span *
+set_span(const Set *s)
+{
+  assert(s); assert(set_spantype(s->settype));
+  Span *result = palloc(sizeof(Span));
+  set_set_span(s, result);
+  return result;
+}
+
+/**
+ * @ingroup meos_setspan_conversion
+ * @brief Return a set converted to a span
+ * @param[in] s Set
+ * @csqlfn #Set_to_span()
+ */
+Span *
+set_to_span(const Set *s)
+{
+  /* Ensure validity of the arguments */
+  if (! ensure_not_null((void *) s) || ! ensure_set_spantype(s->settype))
+    return NULL;
+  return set_span(s);
+}
+
+/**
+ * @ingroup meos_internal_setspan_conversion
+ * @brief Return the second span initialized with the first one transformed to
+ * a float span
+ * @param[in] s1,s2 Spans
+ */
+void
+intspan_set_floatspan(const Span *s1, Span *s2)
+{
+  assert(s1); assert(s2); assert(s1->spantype == T_INTSPAN);
+  Datum lower = Float8GetDatum((double) DatumGetInt32(s1->lower));
+  Datum upper = Float8GetDatum((double) (DatumGetInt32(s1->upper) - 1));
+  span_set(lower, upper, true, true, T_FLOAT8, T_FLOATSPAN, s2);
+  return;
+}
+
+/**
+ * @ingroup meos_internal_setspan_conversion
+ * @brief Return an integer span converted to a float span
+ * @param[in] s Span
+ */
+Span *
+intspan_floatspan(const Span *s)
+{
+  assert(s); assert(s->spantype == T_INTSPAN);
+  Span *result = palloc(sizeof(Span));
+  intspan_set_floatspan(s, result);
+  return result;
+}
+
+/**
+ * @ingroup meos_setspan_conversion
+ * @brief Return an integer span converted to a float span
+ * @param[in] s Span
+ * @return On error return @p NULL
+ */
+Span *
+intspan_to_floatspan(const Span *s)
+{
+  /* Ensure validity of the arguments */
+  if (! ensure_not_null((void *) s) || ! ensure_span_isof_type(s, T_INTSPAN))
+    return NULL;
+  return intspan_floatspan(s);
+}
+
+/**
+ * @ingroup meos_internal_setspan_conversion
+ * @brief Return the second span initialized with the first one transformed to
+ * an integer span
+ * @param[in] s1,s2 Spans
+ */
+void
+floatspan_set_intspan(const Span *s1, Span *s2)
+{
+  assert(s1); assert(s2); assert(s1->spantype == T_FLOATSPAN);
+  Datum lower = Int32GetDatum((int) DatumGetFloat8(s1->lower));
+  Datum upper = Int32GetDatum((int) (DatumGetFloat8(s1->upper)));
+  span_set(lower, upper, s1->lower_inc, s1->upper_inc, T_INT4, T_INTSPAN, s2);
+  return;
+}
+
+/**
+ * @ingroup meos_internal_setspan_conversion
+ * @brief Return a float span converted to an integer span
+ * @param[in] s Span
+ * @return On error return @p NULL
+ */
+Span *
+floatspan_intspan(const Span *s)
+{
+  assert(s); assert(s->spantype == T_FLOATSPAN);
+  Span *result = palloc(sizeof(Span));
+  floatspan_set_intspan(s, result);
+  return result;
+}
+
+/**
+ * @ingroup meos_internal_setspan_conversion
+ * @brief Return a float span converted to an integer span
+ * @param[in] s Span
+ * @return On error return @p NULL
+ */
+Span *
+floatspan_to_intspan(const Span *s)
+{
+  /* Ensure validity of the arguments */
+  if (! ensure_not_null((void *) s) || ! ensure_span_isof_type(s, T_FLOATSPAN))
+    return NULL;
+  return floatspan_intspan(s);
+}
+
+/**
+ * @ingroup meos_internal_setspan_conversion
+ * @brief Return the second span initialized with the first one transformed to
+ * a timetstamptz span
+ * @param[in] s1,s2 Spans
+ */
+void
+datespan_set_tstzspan(const Span *s1, Span *s2)
+{
+  assert(s1); assert(s2); assert(s1->spantype == T_DATESPAN);
+  Datum lower =
+    TimestampTzGetDatum(date_to_timestamptz(DatumGetDateADT(s1->lower)));
+  Datum upper =
+    TimestampTzGetDatum(date_to_timestamptz(DatumGetDateADT(s1->upper)));
+  /* Date spans are always canonicalized */
+  span_set(lower, upper, true, false, T_TIMESTAMPTZ, T_TSTZSPAN, s2);
+  return;
+}
+
+/**
+ * @ingroup meos_internal_setspan_conversion
+ * @brief Return a date span converted to a timestamptz span
+ * @param[in] s Span
+ */
+Span *
+datespan_tstzspan(const Span *s)
+{
+  assert(s); assert(s->spantype == T_DATESPAN);
+  Span *result = palloc(sizeof(Span));
+  datespan_set_tstzspan(s, result);
+  return result;
+}
+
+#if MEOS
+/**
+ * @ingroup meos_setspan_conversion
+ * @brief Return a date span converted to a timestamptz span
+ * @param[in] s Span
+ * @return On error return @p NULL
+ */
+Span *
+datespan_to_tstzspan(const Span *s)
+{
+  /* Ensure validity of the arguments */
+  if (! ensure_not_null((void *) s) || ! ensure_span_isof_type(s, T_DATESPAN))
+    return NULL;
+  return datespan_tstzspan(s);
+}
+#endif /* MEOS */
+
+/**
+ * @ingroup meos_internal_setspan_conversion
+ * @brief Return the last span initialized with the first one transformed to a
+ * date span
+ * @param[in] s1,s2 Spans
+ */
+void
+tstzspan_set_datespan(const Span *s1, Span *s2)
+{
+  assert(s1); assert(s2); assert(s1->spantype == T_TSTZSPAN);
+  DateADT lower = timestamptz_to_date(DatumGetTimestampTz(s1->lower));
+  DateADT upper = timestamptz_to_date(DatumGetTimestampTz(s1->upper));
+  bool lower_inc = s1->lower_inc;
+  bool upper_inc = s1->upper_inc;
+  /* Both bounds are set to true when the resulting dates are equal, e.g.,
+   * (2001-10-18 19:46:00, 2001-10-18 19:50:00) -> [2001-10-18, 2001-10-18] */
+  if (lower == upper)
+  {
+    lower_inc = upper_inc = true;
+  }
+  /* Canonicalization takes place in the following function */
+  span_set(DateADTGetDatum(lower), DateADTGetDatum(upper), lower_inc,
+    upper_inc, T_DATE, T_DATESPAN, s2);
+  return;
+}
+
+/**
+ * @ingroup meos_internal_setspan_conversion
+ * @brief Return a timestamptz span converted to a date span
+ * @param[in] s Span
+ */
+Span *
+tstzspan_datespan(const Span *s)
+{
+  assert(s); assert(s->spantype == T_TSTZSPAN);
+  Span *result = palloc(sizeof(Span));
+  tstzspan_set_datespan(s, result);
+  return result;
+}
+
+#if MEOS
+/**
+ * @ingroup meos_setspan_conversion
+ * @brief Return a timestamptz span converted to a date span
+ * @param[in] s Span
+ * @return On error return @p NULL
+ */
+Span *
+tstzspan_to_datespan(const Span *s)
+{
+  /* Ensure validity of the arguments */
+  if (! ensure_not_null((void *) s) || ! ensure_span_isof_type(s, T_TSTZSPAN))
+    return NULL;
+  return tstzspan_datespan(s);
 }
 #endif /* MEOS */
 
@@ -1176,196 +1421,7 @@ tstzspan_duration(const Span *s)
 
 /**
  * @ingroup meos_internal_setspan_transf
- * @brief Initialize the last argument to a float span with the precision se
- * to the number of decimal places
- * @param[in] s Span
- * @param[in] maxdd Maximum number of decimal digits
- * @param[out] result Result span
- */
-void
-floatspan_rnd(const Span *s, Datum maxdd, Span *result)
-{
-  assert(s); assert(s->spantype == T_FLOATSPAN); assert(result);
-  /* Set precision of bounds */
-  Datum lower = datum_round_float(s->lower, maxdd);
-  Datum upper = datum_round_float(s->upper, maxdd);
-  /* Set resulting span */
-  span_set(lower, upper, s->lower_inc, s->upper_inc, s->basetype, s->spantype,
-    result);
-  return;
-}
-
-/**
- * @ingroup meos_setspan_transf
- * @brief Return a float span with the precision of the bounds set to the
- * number of decimal places
- * @param[in] s Span
- * @param[in] maxdd Maximum number of decimal digits
- * @return On error return @p NULL
- */
-Span *
-floatspan_round(const Span *s, int maxdd)
-{
-  /* Ensure validity of the arguments */
-  if (! ensure_not_null((void *) s) || ! ensure_not_negative(maxdd) ||
-      ! ensure_span_isof_type(s, T_FLOATSPAN))
-    return NULL;
-
-  Span *result = palloc(sizeof(Span));
-  floatspan_rnd(s, Int32GetDatum(maxdd), result);
-  return result;
-}
-
-/*****************************************************************************/
-
-/**
- * @ingroup meos_setspan_transf
- * @brief Transform an integer span to a float span
- * @param[in] s Span
- * @return On error return @p NULL
- */
-Span *
-intspan_to_floatspan(const Span *s)
-{
-  /* Ensure validity of the arguments */
-  if (! ensure_not_null((void *) s) || ! ensure_span_isof_type(s, T_INTSPAN))
-    return NULL;
-  Span *result = palloc(sizeof(Span));
-  intspan_set_floatspan(s, result);
-  return result;
-}
-
-/**
- * @ingroup meos_setspan_transf
- * @brief Transform a float span to an integer span
- * @param[in] s Span
- * @return On error return @p NULL
- */
-Span *
-floatspan_to_intspan(const Span *s)
-{
-  /* Ensure validity of the arguments */
-  if (! ensure_not_null((void *) s) || ! ensure_span_isof_type(s, T_FLOATSPAN))
-    return NULL;
-  Span *result = palloc(sizeof(Span));
-  floatspan_set_intspan(s, result);
-  return result;
-}
-
-/**
- * @ingroup meos_setspan_transf
- * @brief Transform a date span to a timestamptz span
- * @param[in] s Span
- * @return On error return @p NULL
- */
-Span *
-datespan_to_tstzspan(const Span *s)
-{
-  /* Ensure validity of the arguments */
-  if (! ensure_not_null((void *) s) || ! ensure_span_isof_type(s, T_DATESPAN))
-    return NULL;
-  Span *result = palloc(sizeof(Span));
-  datespan_set_tstzspan(s, result);
-  return result;
-}
-
-/**
- * @ingroup meos_setspan_transf
- * @brief Transform a timestamptz span to a date span
- * @param[in] s Span
- * @return On error return @p NULL
- */
-Span *
-tstzspan_to_datespan(const Span *s)
-{
-  /* Ensure validity of the arguments */
-  if (! ensure_not_null((void *) s) || ! ensure_span_isof_type(s, T_TSTZSPAN))
-    return NULL;
-  Span *result = palloc(sizeof(Span));
-  tstzspan_set_datespan(s, result);
-  return result;
-}
-
-/**
- * @ingroup meos_internal_setspan_transf
- * @brief Initialize the second span with the first one transformed to a float
- * span
- * @param[in] s1,s2 Spans
- */
-void
-intspan_set_floatspan(const Span *s1, Span *s2)
-{
-  assert(s1); assert(s2); assert(s1->spantype == T_INTSPAN);
-  Datum lower = Float8GetDatum((double) DatumGetInt32(s1->lower));
-  Datum upper = Float8GetDatum((double) (DatumGetInt32(s1->upper) - 1));
-  span_set(lower, upper, true, true, T_FLOAT8, T_FLOATSPAN, s2);
-  return;
-}
-
-/**
- * @ingroup meos_internal_setspan_transf
- * @brief Initialize the second span with the first one transformed to an
- * integer span
- * @param[in] s1,s2 Spans
- */
-void
-floatspan_set_intspan(const Span *s1, Span *s2)
-{
-  assert(s1); assert(s2); assert(s1->spantype == T_FLOATSPAN);
-  Datum lower = Int32GetDatum((int) DatumGetFloat8(s1->lower));
-  Datum upper = Int32GetDatum((int) (DatumGetFloat8(s1->upper)));
-  span_set(lower, upper, s1->lower_inc, s1->upper_inc, T_INT4, T_INTSPAN, s2);
-  return;
-}
-
-/**
- * @ingroup meos_internal_setspan_transf
- * @brief Initialize the second span with the first one transformed to a
- * timetstamptz span
- * @param[in] s1,s2 Spans
- */
-void
-datespan_set_tstzspan(const Span *s1, Span *s2)
-{
-  assert(s1); assert(s2); assert(s1->spantype == T_DATESPAN);
-  Datum lower =
-    TimestampTzGetDatum(date_to_timestamptz(DatumGetDateADT(s1->lower)));
-  Datum upper =
-    TimestampTzGetDatum(date_to_timestamptz(DatumGetDateADT(s1->upper)));
-  /* Date spans are always canonicalized */
-  span_set(lower, upper, true, false, T_TIMESTAMPTZ, T_TSTZSPAN, s2);
-  return;
-}
-
-/**
- * @ingroup meos_internal_setspan_transf
- * @brief Initialize the second span with the first one transformed to a date
- * span
- * @param[in] s1,s2 Spans
- */
-void
-tstzspan_set_datespan(const Span *s1, Span *s2)
-{
-  assert(s1); assert(s2); assert(s1->spantype == T_TSTZSPAN);
-  DateADT lower = timestamptz_to_date(DatumGetTimestampTz(s1->lower));
-  DateADT upper = timestamptz_to_date(DatumGetTimestampTz(s1->upper));
-  bool lower_inc = s1->lower_inc;
-  bool upper_inc = s1->upper_inc;
-  /* Both bounds are set to true when the resulting dates are equal, e.g.,
-   * (2001-10-18 19:46:00, 2001-10-18 19:50:00) -> [2001-10-18, 2001-10-18] */
-  if (lower == upper)
-  {
-    lower_inc = upper_inc = true;
-  }
-  /* Canonicalization takes place in the following function */
-  span_set(DateADTGetDatum(lower), DateADTGetDatum(upper), lower_inc,
-    upper_inc, T_DATE, T_DATESPAN, s2);
-  return;
-}
-
-/**
- * @ingroup meos_internal_setspan_transf
- * @brief Expand the second span with the first one
+ * @brief Return the second span expanded with the first one
  * @param[in] s1,s2 Spans
  */
 void
@@ -1757,7 +1813,7 @@ tstzspan_shift_scale(const Span *s, const Interval *shift,
  * @param[in] s1,s2 Sets
  */
 bool
-span_eq1(const Span *s1, const Span *s2)
+span_eq_int(const Span *s1, const Span *s2)
 {
   assert(s1); assert(s2); assert(s1->spantype == s2->spantype);
   if (s1->lower != s2->lower || s1->upper != s2->upper ||
@@ -1780,7 +1836,7 @@ span_eq(const Span *s1, const Span *s2)
   if (! ensure_not_null((void *) s1) || ! ensure_not_null((void *) s2) ||
       ! ensure_same_span_type(s1, s2))
     return false;
-  return span_eq1(s1, s2);
+  return span_eq_int(s1, s2);
 }
 
 /**
@@ -1802,7 +1858,7 @@ span_ne(const Span *s1, const Span *s2)
  * @param[in] s1,s2 Sets
  */
 int
-span_cmp1(const Span *s1, const Span *s2)
+span_cmp_int(const Span *s1, const Span *s2)
 {
   assert(s1); assert(s2); assert(s1->spantype == s2->spantype);
   int cmp = datum_cmp(s1->lower, s2->lower, s1->basetype);
@@ -1833,7 +1889,7 @@ span_cmp(const Span *s1, const Span *s2)
   if (! ensure_not_null((void *) s1) || ! ensure_not_null((void *) s2) ||
       ! ensure_same_span_type(s1, s2))
     return INT_MAX;
-  return span_cmp1(s1, s2);
+  return span_cmp_int(s1, s2);
 }
 
 /* Inequality operators using the span_cmp function */

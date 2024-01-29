@@ -191,11 +191,11 @@
 				</listitem>
 
 				<listitem>
-					<para><link linkend="lower"><varname>lower</varname>, <varname>upper</varname></link>: Obtener el límite inferior/superior</para>
+					<para><link linkend="lower"><varname>lower</varname>, <varname>upper</varname></link>: Obtener el límite inferior o superior</para>
 				</listitem>
 
 				<listitem>
-					<para><link linkend="setspan_lower_inc"><varname>lower_inc</varname>, <varname>upper_inc</varname></link>: ¿Es el límite inferior/superior inclusivo?</para>
+					<para><link linkend="setspan_lower_inc"><varname>lower_inc</varname>, <varname>upper_inc</varname></link>: ¿Es el límite inferior o superior inclusivo?</para>
 				</listitem>
 
 				<listitem>
@@ -253,23 +253,31 @@
 
 			<itemizedlist>
 				<listitem>
-					<para><link linkend="setspan_shift"><varname>shift</varname></link>: Desplazar el conjunto o el rango con un valor o intervalo de tiempo</para>
+					<para><link linkend="setspan_shift"><varname>shift</varname></link>: Desplazar un conjunto o un rango con un valor o intervalo de tiempo</para>
 				</listitem>
 
 				<listitem>
-					<para><link linkend="setspan_scale"><varname>scale</varname></link>: Escalar el conjunto o el rango con un valor o intervalo de tiempo</para>
+					<para><link linkend="setspan_scale"><varname>scale</varname></link>: Escalar un conjunto o un rango con un valor o intervalo de tiempo</para>
 				</listitem>
 
 				<listitem>
-					<para><link linkend="setspan_shiftScale"><varname>shiftScale</varname></link>: Desplazar y escalar el conjunto o el rango los valores or intervalos de tiempo</para>
+					<para><link linkend="setspan_shiftScale"><varname>shiftScale</varname></link>: Desplazar y escalar un conjunto o un rango con los valores o intervalos de tiempo</para>
 				</listitem>
 
 				<listitem>
-					<para><link linkend="floatspan_round"><varname>round</varname></link>: Redondear los límites de un rango flotante a un número de decimales</para>
+					<para><link linkend="floatspan_round"><varname>round</varname></link>: Redondear un conjunto o un rango flotante a un número de decimales</para>
 				</listitem>
 
 				<listitem>
-					<para><link linkend="textset_lower"><varname>lower</varname>, <varname>upper</varname></link>: Transformar entre minúsculas y majúsculas</para>
+					<para><link linkend="floatset_degrees"><varname>degrees</varname>, <varname>radians</varname></link>: Convertir un conjunto flotante a grados o radianes</para>
+				</listitem>
+
+				<listitem>
+					<para><link linkend="textset_lower"><varname>lower</varname>, <varname>upper</varname>, <varname>initcap</varname></link>: Transformar en minúsculas, majúsculas o initcap</para>
+				</listitem>
+
+				<listitem>
+					<para><link linkend="textset_concat"><varname>concat</varname></link>: Concatenación de texto</para>
 				</listitem>
 
 				<listitem>
@@ -304,6 +312,24 @@
 
 				<listitem>
 					<para><link linkend="setspan_ge"><varname>&gt;=</varname></link>: ¿Es el primer valor mayor o igual que el segundo?</para>
+				</listitem>
+			</itemizedlist>
+		</sect2>
+
+		<sect2>
+			<title>Sistema de referencia espacial</title>
+
+			<itemizedlist>
+				<listitem>
+					<para><link linkend="geoset_SRID"><varname>SRID</varname></link>: Obtener el identificador de referencia espacial</para>
+				</listitem>
+
+				<listitem>
+					<para><link linkend="geoset_setSRID"><varname>setSRID</varname></link>: Especificar el identificador de referencia espacial</para>
+				</listitem>
+
+				<listitem>
+					<para><link linkend="geoset_transform"><varname>transform</varname>, <varname>transformPipeline</varname></link>: Transformar a una referencia espacial diferente</para>
 				</listitem>
 			</itemizedlist>
 		</sect2>
@@ -528,7 +554,7 @@
 				</listitem>
 
 				<listitem>
-					<para><link linkend="box_round"><varname>round</varname></link>: Redondear el valor o las coordenadas del cuadro delimitador a un número de decimales</para>
+					<para><link linkend="box_degrees"><varname>degrees</varname>, <varname>radians</varname></link>: Convertir a grados o radianes</para>
 				</listitem>
 
 			</itemizedlist>
@@ -547,7 +573,7 @@
 					</listitem>
 
 				<listitem>
-					<para><link linkend="stbox_transform"><varname>transform</varname></link>: Transformar a una referencia espacial diferente</para>
+					<para><link linkend="stbox_transform"><varname>transform</varname>, <varname>transformPipeline</varname></link>: Transformar a una referencia espacial diferente</para>
 				</listitem>
 			</itemizedlist>
 		</sect2>
@@ -1105,7 +1131,7 @@
 				</listitem>
 
 				<listitem>
-					<para><link linkend="degrees"><varname>degrees</varname>, <varname>radians</varname></link>: Convertir entre radianes y grados</para>
+					<para><link linkend="degrees"><varname>degrees</varname>, <varname>radians</varname></link>: Convertir a grados o radianes</para>
 				</listitem>
 
 				<listitem>
@@ -1140,11 +1166,11 @@
 
 			<itemizedlist>
 				<listitem>
-					<para><link linkend="ttext_concat"><varname>||</varname></link>: Concatenación de texto temporal</para>
+					<para><link linkend="ttext_concat"><varname>||</varname></link>: Concatenación de texto</para>
 				</listitem>
 
 				<listitem>
-					<para><link linkend="ttext_lower"><varname>lower</varname>, <varname>upper</varname></link>: Transformar entre minúsculas y mayúsculas</para>
+					<para><link linkend="ttext_lower"><varname>lower</varname>, <varname>upper</varname>, <varname>initcap</varname></link>: Transformar en minúsculas, mayúsculas o initcap</para>
 				</listitem>
 			</itemizedlist>
 		</sect2>
@@ -1220,7 +1246,7 @@
 					</listitem>
 
 				<listitem>
-					<para><link linkend="tpoint_transform"><varname>transform</varname></link>: Transformar a una referencia espacial diferente</para>
+					<para><link linkend="tpoint_transform"><varname>transform</varname>, <varname>transformPipeline</varname></link>: Transformar a una referencia espacial diferente</para>
 				</listitem>
 			</itemizedlist>
 		</sect2>
@@ -1364,15 +1390,15 @@
 					</listitem>
 
 					<listitem>
-						<para><link linkend="tdisjoint"><varname>tDisjoint</varname></link>: Disjunto temporal</para>
+						<para><link linkend="tDisjoint"><varname>tDisjoint</varname></link>: Disjunto temporal</para>
 					</listitem>
 
 					<listitem>
-						<para><link linkend="tdwithin"><varname>tDwithin</varname></link>: Estar a distancia de temporal </para>
+						<para><link linkend="tDwithin"><varname>tDwithin</varname></link>: Estar a distancia de temporal </para>
 					</listitem>
 
 					<listitem>
-						<para><link linkend="tintersects"><varname>tIntersects</varname></link>: Intersección temporal</para>
+						<para><link linkend="tIntersects"><varname>tIntersects</varname></link>: Intersección temporal</para>
 					</listitem>
 
 					<listitem>
