@@ -38,30 +38,6 @@
 
 
 /*****************************************************************************
- *  Temporary (copy paste)
-*****************************************************************************/
-// /**
-//  * @brief Ensure that the temporal type of a temporal value corresponds to the
-//  * typmod
-//  */
-// static Temporal *
-// temporal_valid_typmod_temp(Temporal *temp, int32_t typmod)
-// {
-//   /* No typmod (-1) */
-//   if (typmod < 0)
-//     return temp;
-//   uint8 typmod_subtype = TYPMOD_GET_SUBTYPE(typmod);
-//   uint8 subtype = temp->subtype;
-//   /* Typmod has a preference */
-//   if (typmod_subtype != ANYTEMPSUBTYPE && typmod_subtype != subtype)
-//     ereport(ERROR, (errcode(ERRCODE_INVALID_PARAMETER_VALUE),
-//       errmsg("Temporal type (%s) does not match column type (%s)",
-//       tempsubtype_name(subtype), tempsubtype_name(typmod_subtype))));
-//   return temp;
-// }
-
-
-/*****************************************************************************
  *  PMode
 *****************************************************************************/
 
@@ -83,27 +59,6 @@ Datum PMode_out(PG_FUNCTION_ARGS)
   PG_RETURN_CSTRING(result);
 }
 
-// PGDLLEXPORT Datum PMode_send(PG_FUNCTION_ARGS); // todo update later
-// PG_FUNCTION_INFO_V1(PMode_send);
-// Datum PMode_send(PG_FUNCTION_ARGS)
-// {
-//   PMode *pmode = PG_GETARG_PMODE_P(0);
-//   StringInfoData buffer;
-//   pq_begintypsend(&buffer);
-//   pq_sendint64(&buffer, (uint64) pmode->repetitions);
-//   PG_FREE_IF_COPY(pmode, 0);
-//   PG_RETURN_BYTEA_P(pq_endtypsend(&buffer));
-// }
-
-// PGDLLEXPORT Datum PMode_recv(PG_FUNCTION_ARGS); // todo update later
-// PG_FUNCTION_INFO_V1(PMode_recv);
-// Datum PMode_recv(PG_FUNCTION_ARGS)
-// {
-//   StringInfo buffer = (StringInfo) PG_GETARG_POINTER(0);
-//   PMode *pmode = (PMode *) palloc(sizeof(PMode));
-//   pmode->repetitions = pq_getmsgint64(buffer);
-//   PG_RETURN_PMODE_P(pmode);
-// }
 
 PGDLLEXPORT Datum PMode_constructor(PG_FUNCTION_ARGS);
 PG_FUNCTION_INFO_V1(PMode_constructor);
@@ -117,14 +72,6 @@ Datum PMode_constructor(PG_FUNCTION_ARGS)
   PG_RETURN_PMODE_P(pmode_make(frequency, repetitions, keep_pattern, period));
 }
 
-// PGDLLEXPORT Datum PMode_constructor(PG_FUNCTION_ARGS);
-// PG_FUNCTION_INFO_V1(PMode_constructor);
-// Datum PMode_constructor(PG_FUNCTION_ARGS)
-// {
-//   Interval frequency = PG_GETARG_INTERVAL_P(0);
-//   int repetitions = PG_GETARG_INT32(1);
-//   PG_RETURN_PMODE_P(pmode_make(frequency, repetitions));
-// }
 
 
 /*****************************************************************************
@@ -139,30 +86,6 @@ Datum Anchor(PG_FUNCTION_ARGS)
   PMode *pmode = PG_GETARG_PMODE_P(1);
   PG_RETURN_POINTER(anchor(per, pmode));
 }
-
-// PGDLLEXPORT Datum Anchor_end(PG_FUNCTION_ARGS);
-// PG_FUNCTION_INFO_V1(Anchor_end);
-// Datum Anchor_end(PG_FUNCTION_ARGS)
-// {
-//   Periodic *per = PG_GETARG_PERIODIC_P(0);
-//   PMode *pmode = PG_GETARG_PMODE_P(1);
-//   TimestampTz start_tstz = PG_GETARG_TIMESTAMPTZ(2);
-//   TimestampTz end_tstz = PG_GETARG_TIMESTAMPTZ(3);
-//   PG_RETURN_POINTER(anchor(per, pmode, start_tstz, end_tstz, false));
-// }
-
-// PGDLLEXPORT Datum Anchor_end_inc(PG_FUNCTION_ARGS);
-// PG_FUNCTION_INFO_V1(Anchor_end_inc);
-// Datum Anchor_end_inc(PG_FUNCTION_ARGS)
-// {
-//   Periodic *per = PG_GETARG_PERIODIC_P(0);
-//   PMode *pmode = PG_GETARG_PMODE_P(1);
-//   TimestampTz start_tstz = PG_GETARG_TIMESTAMPTZ(2);
-//   TimestampTz end_tstz = PG_GETARG_TIMESTAMPTZ(3);
-//   bool upper_inc = PG_GETARG_TIMESTAMPTZ(4);
-//   PG_RETURN_POINTER(anchor(per, pmode, start_tstz, end_tstz, upper_inc));
-// }
-
 
 
 
@@ -273,25 +196,6 @@ Datum Periodic_get_type(PG_FUNCTION_ARGS)
 *****************************************************************************/
 
 
-// PGDLLEXPORT Datum Tint_to_pint(PG_FUNCTION_ARGS);
-// PG_FUNCTION_INFO_V1(Tint_to_pint);
-// Datum Tint_to_pint(PG_FUNCTION_ARGS)
-// {
-//   Temporal *temp = PG_GETARG_TEMPORAL_P(0);
-//   Periodic *result = tint_to_pint(temp);
-//   PG_FREE_IF_COPY(temp, 0);
-//   PG_RETURN_CSTRING(result);
-// }
-
-// PGDLLEXPORT Datum Pint_to_tint(PG_FUNCTION_ARGS);
-// PG_FUNCTION_INFO_V1(Pint_to_tint);
-// Datum Pint_to_tint(PG_FUNCTION_ARGS)
-// {
-//   Periodic *temp = PG_GETARG_PERIODIC_P(0);
-//   Temporal *result = pint_to_tint(temp);
-//   PG_FREE_IF_COPY(temp, 0);
-//   PG_RETURN_POINTER(result);
-// }
 
 /*****************************************************************************
   OTHER
@@ -318,41 +222,35 @@ Datum Quick_test(PG_FUNCTION_ARGS)
 
 
 
-
-
 /*****************************************************************************
- *  Composition Test (FIXME TEMPORARY)
+ *  Cyclic
 *****************************************************************************/
 
-// PGDLLEXPORT Datum R_int_in(PG_FUNCTION_ARGS);
-// PG_FUNCTION_INFO_V1(R_int_in);
-// Datum R_int_in(PG_FUNCTION_ARGS)
+
+// PGDLLEXPORT Datum Cyclic_in(PG_FUNCTION_ARGS);
+// PG_FUNCTION_INFO_V1(Cyclic_in);
+// Datum Cyclic_in(PG_FUNCTION_ARGS)
 // {
-//   const char *input = PG_GETARG_CSTRING(0);
-//   meosType subtype = T_TINT;
-//   RSequence *result = repeat_in(input, subtype);
-//   PG_RETURN_POINTER(result);   
+//   const char *str = PG_GETARG_CSTRING(0);
+//   PG_RETURN_CYCLIC_P(cyclic_in(str));
 // }
 
-// PGDLLEXPORT Datum R_int_out(PG_FUNCTION_ARGS);
-// PG_FUNCTION_INFO_V1(R_int_out);
-// Datum R_int_out(PG_FUNCTION_ARGS)
+// PGDLLEXPORT Datum Cyclic_out(PG_FUNCTION_ARGS);
+// PG_FUNCTION_INFO_V1(Cyclic_out);
+// Datum Cyclic_out(PG_FUNCTION_ARGS)
 // {
-//   RSequence *per = PG_GETARG_PERIODIC_P(0);
-//   char *result = repeat_out(per, OUT_DEFAULT_DECIMAL_DIGITS);
-//   PG_FREE_IF_COPY(per, 0);
+//   Cyclic *cycle = PG_GETARG_CYCLIC_P(0);
+//   char *result = cyclic_out(cycle);
+//   PG_FREE_IF_COPY_P(cycle, 0);
 //   PG_RETURN_CSTRING(result);
 // }
 
-// PGDLLEXPORT Datum Distance_rnumber_number(PG_FUNCTION_ARGS);
-// PG_FUNCTION_INFO_V1(Distance_rnumber_number);
-// Datum Distance_rnumber_number(PG_FUNCTION_ARGS)
+
+// PGDLLEXPORT Datum Cyclic_constructor(PG_FUNCTION_ARGS);
+// PG_FUNCTION_INFO_V1(Cyclic_constructor);
+// Datum Cyclic_constructor(PG_FUNCTION_ARGS)
 // {
-//   RSequence *temp = PG_GETARG_RSEQUENCE_P(0);
-//   Datum value = PG_GETARG_DATUM(1);
-//   RSequence *result = r_distance(temp, value);
-//   PG_FREE_IF_COPY(temp, 0);
-//   PG_RETURN_POINTER(result);
+//   Periodic *per = PG_GETARG_PERIODIC_P(0);
+//   PMode *pmode = PG_GETARG_PMODE_P(1);
+//   PG_RETURN_CYCLIC_P(cyclic_make(per, pmode));
 // }
-
-

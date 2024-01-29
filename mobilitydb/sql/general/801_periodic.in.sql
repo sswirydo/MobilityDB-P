@@ -24,41 +24,12 @@ CREATE FUNCTION pmode_out(pmode)
   AS 'MODULE_PATHNAME', 'PMode_out'
   LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;
 
--- CREATE FUNCTION pmode_send(pmode)
---   RETURNS bytea
---   AS 'MODULE_PATHNAME', 'PMode_send'
---   LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;
-
--- CREATE FUNCTION pmode_recv(internal)
---   RETURNS pmode
---   AS 'MODULE_PATHNAME', 'PMode_recv'
---   LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;
-
 CREATE TYPE pmode (
     internallength  = 64, --variable, --FIXME
     input           = pmode_in,
     output          = pmode_out,
-    -- send            = pmode_send,
-    -- receive         = pmode_recv,
     alignment       = double
 );
-    -- typmod_in = temporal_typmod_in,
-    -- typmod_out = temporal_typmod_out,
-    -- storage = extended,
-    -- analyze = temporal_analyze
--- );
-
-
--- CREATE FUNCTION pmode(interval, integer) -- frequency, repetitions
---   RETURNS pmode
---   AS 'MODULE_PATHNAME', 'PMode_constructor'
---   LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;
-
--- -- frequency, repetitions, start_date, end_date, upper_inc, keep_pattern
--- CREATE FUNCTION pmode(interval, integer, timestamptz, timestamptz, boolean, boolean) 
---   RETURNS pmode
---   AS 'MODULE_PATHNAME', 'PMode_constructor'
---   LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;
 
 CREATE FUNCTION pmode(interval, integer, boolean, tstzspan) 
   RETURNS pmode
@@ -70,7 +41,6 @@ CREATE FUNCTION pmode(interval, integer, boolean, tstzspan)
 /*****************************************************************************
  *  Periodic
 *****************************************************************************/
-
 
 
 CREATE TYPE pint;
@@ -86,40 +56,14 @@ CREATE FUNCTION periodic_out(pint)
   AS 'MODULE_PATHNAME', 'Periodic_out'
   LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;
 
--- CREATE FUNCTION periodic_send(pint)
---   RETURNS bytea
---   AS 'MODULE_PATHNAME', 'Periodic_send'
---   LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;
-
--- CREATE FUNCTION pint_recv(internal, oid, integer)
---   RETURNS pint
---   AS 'MODULE_PATHNAME', 'Periodic_recv'
---   LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;
 
 CREATE TYPE pint (
     internallength  = variable,
     input           = pint_in,
     output          = periodic_out,
-    -- send            = periodic_send,
-    -- receive         = pint_recv,
     storage         = extended,
     alignment       = double
 );
-
-
-
--- CREATE FUNCTION pint(tint)
---   RETURNS pint
---   AS 'MODULE_PATHNAME', 'Tint_to_pint'
---   LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;
--- CREATE FUNCTION tint(pint)
---   RETURNS tint
---   AS 'MODULE_PATHNAME', 'Pint_to_tint'
---   LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;
-
--- -- https://www.postgresql.org/docs/current/sql-createcast.html
--- CREATE CAST (pint as tint) WITH FUNCTION tint(pint);
--- CREATE CAST (tint as pint) WITH FUNCTION pint(tint);
 
 
 /*****************************************************************************
@@ -139,7 +83,7 @@ CREATE FUNCTION setPeriodicType(pint, text)
 
 
 /*****************************************************************************
- *  Periodicity -- todo add for other basetypes once base works
+ *  Periodicity
 *****************************************************************************/
 
 
@@ -179,36 +123,34 @@ CREATE FUNCTION quick_test(timestamptz, text)
 
 
 
+
 /*****************************************************************************
- *  Composition Test (FIXME TEMPORARY)
+ *  Cyclic 
 *****************************************************************************/
 
--- CREATE TYPE rint;
+-- CREATE TYPE cyclic; -- (todo rename to periodic later)
 
--- CREATE FUNCTION rint_in(cstring)
---   RETURNS rint
---   AS 'MODULE_PATHNAME', 'R_int_in'
+-- CREATE FUNCTION cyclic_in(cstring)
+--   RETURNS pmode
+--   AS 'MODULE_PATHNAME', 'Cyclic_in'
 --   LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;
 
--- CREATE FUNCTION rint_out(rint)
+-- CREATE FUNCTION cyclic_out(pmode)
 --   RETURNS cstring
---   AS 'MODULE_PATHNAME', 'R_int_out'
+--   AS 'MODULE_PATHNAME', 'Cyclic_out'
 --   LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;
 
--- CREATE TYPE rint (
+-- CREATE TYPE cyclic (
 --     internallength  = variable,
---     input           = rint_in,
---     output          = rint_out,
+--     input           = cyclic_in,
+--     output          = cyclic_out,
 --     storage         = extended,
 --     alignment       = double
 -- );
 
--- -- CREATE FUNCTION r_distance(rint)
--- --   RETURNS cstring
--- --   AS 'MODULE_PATHNAME', 'Distance_tnumber_number'
--- --   LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;
-
--- CREATE FUNCTION rnumber_distance(rint, integer)
---   RETURNS rint
---   AS 'MODULE_PATHNAME', 'Distance_rnumber_number'
+-- CREATE FUNCTION cyclic(pint, pmode) -- todo replace pint by temporal w/ periodic flag
+--   RETURNS cyclic
+--   AS 'MODULE_PATHNAME', 'Cyclic_constructor'
 --   LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;
+
+

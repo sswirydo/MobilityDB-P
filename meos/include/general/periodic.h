@@ -23,6 +23,18 @@
 
 
 /*****************************************************************************
+ *  Cyclic
+*****************************************************************************/
+
+// typedef struct
+// {
+//   Periodic *temp; // todo replace by Temporal later
+//   PMode repetition;
+// } Cyclic; // for computations only
+
+
+
+/*****************************************************************************
  *  PMode
 *****************************************************************************/
 
@@ -37,15 +49,6 @@
 // } PMode;
 
 
-// typedef struct
-// {
-//   int32 vl_len_;        /**< Varlena header (do not touch directly!) */
-//   uint8 temptype;       /**< Temporal type */
-//   uint8 subtype;        /**< Temporal subtype */
-//   int16 flags;          /**< Flags */
-//   /* variable-length data follows */
-// } Temporal;
-
 typedef struct
 {
   Interval frequency;
@@ -53,18 +56,6 @@ typedef struct
   bool keep_pattern;
   Span period; // <-- keep in PMode or separate for operations ?
 } PMode;
-
-
-// Type for operations/computations, takes both Temporal and Periodic and applies to Periodic.
-
-// typedef struct
-// {
-//   Temporal *temp;
-//   PMode repetition;
-// } Periodic; // for computations only
-
-
-
 
 
 #define DatumGetPmodeP(X) ((PMode*) DatumGetPointer(X))
