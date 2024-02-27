@@ -35,7 +35,7 @@
 #include "general/pg_types.h"
 // #include "general/temporaltypes.h"
 #include "general/temporal_boxops.h"
-#include "general/tnumber_distance.h"
+// #include "general/tnumber_distance.h"
 #include "general/temporal_tile.h"
 #include "general/type_parser.h"
 #include "general/type_util.h"
