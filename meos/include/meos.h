@@ -410,7 +410,7 @@ extern GSERIALIZED *geography_from_hexewkb(const char *wkt);
 extern GSERIALIZED *geography_from_text(char *wkt, int srid);
 extern GSERIALIZED *geometry_from_hexewkb(const char *wkt);
 extern GSERIALIZED *geometry_from_text(char *wkt, int srid);
-extern GSERIALIZED *pgis_geography_in(char *str, int32 geog_typmod);
+extern GSERIALIZED *pgis_geography_in(char *str, int32 typmod);
 extern GSERIALIZED *pgis_geometry_in(char *str, int32 typmod);
 
 /*===========================================================================*
@@ -550,7 +550,7 @@ extern Interval *datespan_duration(const Span *s);
 extern DateADT datespan_lower(const Span *s);
 extern DateADT datespan_upper(const Span *s);
 extern bool datespanset_date_n(const SpanSet *ss, int n, DateADT *result);
-extern DateADT *datespanset_dates(const SpanSet *ss, int *count);
+extern Set *datespanset_dates(const SpanSet *ss);
 extern Interval *datespanset_duration(const SpanSet *ss, bool boundspan);
 extern DateADT datespanset_end_date(const SpanSet *ss);
 extern int datespanset_num_dates(const SpanSet *ss);
@@ -615,7 +615,7 @@ extern TimestampTz tstzspanset_lower(const SpanSet *ss);
 extern int tstzspanset_num_timestamps(const SpanSet *ss);
 extern TimestampTz tstzspanset_start_timestamptz(const SpanSet *ss);
 extern bool tstzspanset_timestamptz_n(const SpanSet *ss, int n, TimestampTz *result);
-extern TimestampTz *tstzspanset_timestamps(const SpanSet *ss, int *count);
+extern Set *tstzspanset_timestamps(const SpanSet *ss);
 extern TimestampTz tstzspanset_upper(const SpanSet *ss);
 
 /*****************************************************************************
@@ -1031,7 +1031,7 @@ extern int distance_dateset_dateset(const Set *s1, const Set *s2);
 extern int distance_datespan_datespan(const Span *s1, const Span *s2);
 extern int distance_datespanset_datespan(const SpanSet *ss, const Span *s);
 extern int distance_datespanset_datespanset(const SpanSet *ss1, const SpanSet *ss2);
-extern double distance_floatset_floatset (const Set *s1, const Set *s2);
+extern double distance_floatset_floatset(const Set *s1, const Set *s2);
 extern double distance_floatspan_floatspan(const Span *s1, const Span *s2);
 extern double distance_floatspanset_floatspan(const SpanSet *ss, const Span *s);
 extern double distance_floatspanset_floatspanset(const SpanSet *ss1, const SpanSet *ss2);
@@ -1143,6 +1143,7 @@ extern STBox *timestamptz_to_stbox(TimestampTz t);
 extern TBox *timestamptz_to_tbox(TimestampTz t);
 extern STBox *tstzset_to_stbox(const Set *s);
 extern STBox *tstzspan_to_stbox(const Span *s);
+extern STBox *tstzspanset_to_stbox(const SpanSet *ss);
 extern TBox *tnumber_to_tbox(const Temporal *temp);
 extern STBox *tpoint_to_stbox(const Temporal *temp);
 
@@ -1437,6 +1438,8 @@ extern Temporal *tint_shift_value(const Temporal *temp, int shift);
 extern Temporal *tpoint_round(const Temporal *temp, int maxdd);
 extern Temporal *tpoint_transform(const Temporal *temp, int32 srid);
 extern Temporal *tpoint_transform_pipeline(const Temporal *temp, char *pipelinestr, int32 srid, bool is_forward);
+extern Temporal *tpoint_transform_pj(const Temporal *temp, int32 srid, const LWPROJ* pj);
+extern LWPROJ *lwproj_transform(int32 srid_from, int32 srid_to);
 extern Temporal **tpointarr_round(const Temporal **temp, int count, int maxdd);
 
 /*****************************************************************************
@@ -1629,7 +1632,6 @@ extern Temporal *teq_temporal_temporal(const Temporal *temp1, const Temporal *te
 extern Temporal *teq_text_ttext(const text *txt, const Temporal *temp);
 extern Temporal *teq_tfloat_float(const Temporal *temp, double d);
 extern Temporal *teq_tpoint_point(const Temporal *temp, const GSERIALIZED *gs);
-extern Temporal *teq_tpoint_tpoint(const Temporal *temp1, const Temporal *temp2);
 extern Temporal *teq_tint_int(const Temporal *temp, int i);
 extern Temporal *teq_ttext_text(const Temporal *temp, const text *txt);
 extern Temporal *tge_float_tfloat(double d, const Temporal *temp);
@@ -1669,7 +1671,6 @@ extern Temporal *tne_temporal_temporal(const Temporal *temp1, const Temporal *te
 extern Temporal *tne_text_ttext(const text *txt, const Temporal *temp);
 extern Temporal *tne_tfloat_float(const Temporal *temp, double d);
 extern Temporal *tne_tpoint_point(const Temporal *temp, const GSERIALIZED *gs);
-extern Temporal *tne_tpoint_tpoint(const Temporal *temp1, const Temporal *temp2);
 extern Temporal *tne_tint_int(const Temporal *temp, int i);
 extern Temporal *tne_ttext_text(const Temporal *temp, const text *txt);
 
@@ -1899,11 +1900,11 @@ extern double nad_stbox_stbox(const STBox *box1, const STBox *box2);
 extern int nad_tint_int(const Temporal *temp, int i);
 extern int nad_tint_tbox(const Temporal *temp, const TBox *box);
 extern int nad_tint_tint(const Temporal *temp1, const Temporal *temp2);
-extern int nad_tintbox_tintbox(const TBox *box1, const TBox *box2);
+extern int nad_tboxint_tboxint(const TBox *box1, const TBox *box2);
 extern double nad_tfloat_float(const Temporal *temp, double d);
 extern double nad_tfloat_tfloat(const Temporal *temp1, const Temporal *temp2);
 extern double nad_tfloat_tbox(const Temporal *temp, const TBox *box);
-extern double nad_tfloatbox_tfloatbox(const TBox *box1, const TBox *box2);
+extern double nad_tboxfloat_tboxfloat(const TBox *box1, const TBox *box2);
 extern double nad_tpoint_geo(const Temporal *temp, const GSERIALIZED *gs);
 extern double nad_tpoint_stbox(const Temporal *temp, const STBox *box);
 extern double nad_tpoint_tpoint(const Temporal *temp1, const Temporal *temp2);

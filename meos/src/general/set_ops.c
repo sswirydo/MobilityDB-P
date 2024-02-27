@@ -1950,7 +1950,7 @@ intersection_set_geo(const Set *s, const GSERIALIZED *gs)
 {
   /* Ensure validity of the arguments */
   if (! ensure_not_null((void *) s) || ! ensure_not_null((void *) gs) ||
-       ! ensure_geoset_type(s->settype) || ! ensure_not_empty(gs) || 
+       ! ensure_geoset_type(s->settype) || ! ensure_not_empty(gs) ||
        ! ensure_point_type(gs))
     return false;
   meosType geotype = FLAGS_GET_GEODETIC(gs->gflags) ? T_GEOGRAPHY : T_GEOMETRY;
@@ -2196,7 +2196,7 @@ minus_date_set(DateADT d, const Set *s)
 
 /**
  * @ingroup meos_setspan_set
- * @brief Return the difference of a timestamptz and a set 
+ * @brief Return the difference of a timestamptz and a set
  * @param[in] t Value
  * @param[in] s Set
  * @csqlfn #Minus_value_set()
@@ -2213,7 +2213,7 @@ minus_timestamptz_set(TimestampTz t, const Set *s)
 
 /**
  * @ingroup meos_setspan_set
- * @brief Return the difference of a geo and a set 
+ * @brief Return the difference of a geo and a set
  * @param[in] gs Value
  * @param[in] s Set
  * @csqlfn #Minus_value_set()
@@ -2223,7 +2223,7 @@ minus_geo_set(const GSERIALIZED *gs, const Set *s)
 {
   /* Ensure validity of the arguments */
   if (! ensure_not_null((void *) s) || ! ensure_not_null((void *) gs) ||
-      ! ensure_geoset_type(s->settype) || ! ensure_not_empty(gs) || 
+      ! ensure_geoset_type(s->settype) || ! ensure_not_empty(gs) ||
       ! ensure_point_type(gs) )
     return false;
   return minus_value_set(PointerGetDatum(gs), s);
@@ -2496,7 +2496,7 @@ distance_set_timestamptz(const Set *s, TimestampTz t)
   if (! ensure_not_null((void *) s) ||
       ! ensure_set_isof_basetype(s, T_TIMESTAMPTZ))
     return -1.0;
-  return distance_set_value(s, TimestampTzGetDatum(t));
+  return DatumGetFloat8(distance_set_value(s, TimestampTzGetDatum(t)));
 }
 #endif /* MEOS */
 
@@ -2545,7 +2545,7 @@ distance_intset_intset(const Set *s1, const Set *s2)
       ! ensure_set_isof_basetype(s1, T_INT4) ||
       ! ensure_set_isof_basetype(s2, T_INT4))
     return -1;
-  return distance_set_set(s1, s2);
+  return DatumGetInt32(distance_set_set(s1, s2));
 }
 
 /**
@@ -2563,7 +2563,7 @@ distance_bigintset_bigintset(const Set *s1, const Set *s2)
       ! ensure_set_isof_basetype(s1, T_INT8) ||
       ! ensure_set_isof_basetype(s2, T_INT8))
     return -1;
-  return distance_set_set(s1, s2);
+  return DatumGetInt64(distance_set_set(s1, s2));
 }
 
 /**
@@ -2581,7 +2581,7 @@ distance_floatset_floatset(const Set *s1, const Set *s2)
      ! ensure_set_isof_basetype(s1, T_FLOAT8) ||
      ! ensure_set_isof_basetype(s2, T_FLOAT8))
     return -1.0;
-  return distance_set_set(s1, s2);
+  return DatumGetFloat8(distance_set_set(s1, s2));
 }
 
 /**
@@ -2599,7 +2599,7 @@ distance_dateset_dateset(const Set *s1, const Set *s2)
       ! ensure_set_isof_basetype(s1, T_DATE) ||
       ! ensure_set_isof_basetype(s2, T_DATE))
     return -1;
-  return distance_set_set(s1, s2);
+  return DatumGetInt32(distance_set_set(s1, s2));
 }
 
 /**
@@ -2617,7 +2617,7 @@ distance_tstzset_tstzset(const Set *s1, const Set *s2)
       ! ensure_set_isof_basetype(s1, T_TIMESTAMPTZ) ||
       ! ensure_set_isof_basetype(s2, T_TIMESTAMPTZ))
     return -1.0;
-  return distance_set_set(s1, s2);
+  return DatumGetFloat8(distance_set_set(s1, s2));
 }
 #endif /* MEOS */
 

@@ -38,10 +38,7 @@ Benefits
 
 *   Adopted by the [Open Source Geospatial Foundation](https://www.osgeo.org/) (OSGeo) as a [community project](https://www.osgeo.org/projects/mobilitydb/)
 
-*   Database adapters to access MobilityDB from Python are also available
-
-    *   [MobilityDB-python](https://github.com/MobilityDB/MobilityDB-python) supports both the [psycopg2](https://www.psycopg.org/) and the [asyncpg](https://github.com/MagicStack/asyncpg) adapters for PostgreSQL and uses the [postgis](https://github.com/tilery/python-postgis) adapter for PostGIS. This package is developed by the MobilityDB Team.
-    *   [MobilityDB SQLAlchemy](https://github.com/adonmo/mobilitydb-sqlalchemy) is another independent package that provides extensions to [SQLAlchemy](https://www.sqlalchemy.org/) for interacting with MobilityDB
+*   Database adapters to access MobilityDB from Python are provided by the [PyMEOS](https://github.com/MobilityDB/PyMEOS) package, supporting [psycopg2](https://www.psycopg.org/docs/), [psycopg](https://www.psycopg.org/psycopg3/docs/) and [asyncpg](https://magicstack.github.io/asyncpg/current/) libraries.
 
 *   Data generator and benchmark tool based on the [BerlinMOD](https://secondo-database.github.io/BerlinMOD/BerlinMOD.html) benchmark. The data generator takes input data from [Open Street Map](https://www.openstreetmap.org/) and uses [pgRouting](https://pgrouting.org/) to generate routes between pairs of source and target locations.
 
@@ -209,7 +206,7 @@ make doc
 ```
 The resulting documentation will be generated in the `doc` directory of the build directory.
 
-In addition, pregenerated versions of them are available for both the master and develop branches.
+In addition, pregenerated versions are available for the master and develop branches.
 
 *   HTML: [master](https://mobilitydb.github.io/MobilityDB/master/), [develop](https://mobilitydb.github.io/MobilityDB/develop/)
 *   PDF: [master](https://mobilitydb.github.io/MobilityDB/master/mobilitydb-manual.pdf), [develop](https://mobilitydb.github.io/MobilityDB/develop/mobilitydb-manual.pdf)
@@ -232,9 +229,9 @@ make doc_dev
 
 The resulting HTML documentation will be generated in the `doxygen` directory of the build directory.
 
-In addition, a pregenerated version of the documentation is available.
+In addition, pregenerated versions are available for the master and develop branches.
 
-*   [HTML](https://docs.mobilitydb.com/MobilityDB/develop/api/html)
+*   HTML: [master](https://mobilitydb.github.io/MobilityDB/master-dev/), [develop](https://mobilitydb.github.io/MobilityDB/develop-dev/)
 
 Licenses
 --------

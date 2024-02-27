@@ -322,13 +322,13 @@ tpoint_set_srid(const Temporal *temp, int32 srid)
   }
 }
 
-
 /*****************************************************************************
  * Functions for spatial reference systems of temporal network points
  * For temporal points of duration distinct from TInstant the Spatial
  * reference system identifier (SRID) is obtained from the bounding box.
  *****************************************************************************/
 
+#if NPOINT
 /**
  * @brief Return the SRID of a temporal network point of subtype instant
  */
@@ -359,6 +359,7 @@ tnpoint_srid(const Temporal *temp)
       return tpointseqset_srid((TSequenceSet *) temp);
   }
 }
+#endif /* NPOINT */
 
 /*****************************************************************************
  * Transformation functions for spatial reference systems
@@ -390,7 +391,7 @@ to_dec(POINT4D *pt)
  * @brief Return a structure with the information to perform a transformation
  * @param[in] srid_from,srid_to SRIDs
  */
-static LWPROJ *
+LWPROJ *
 lwproj_transform(int32 srid_from, int32 srid_to)
 {
   char srid_from_str[MAX_EPSG_STR];
@@ -666,7 +667,7 @@ geoset_transform_pipeline(const Set *s, char *pipeline, int32 srid_to,
  * @param[in] pj Information about the transformation
  */
 static bool
-stbox_transf_pj(STBox *box, int32 srid_to, LWPROJ *pj)
+stbox_transf_pj(STBox *box, int32 srid_to, const LWPROJ *pj)
 {
   assert(box); assert(pj);
   /* Create the points corresponding to the bounds */
@@ -723,7 +724,7 @@ stbox_transform_pj(const STBox *box, int32 srid_to, LWPROJ *pj)
 {
   assert(box); assert(pj);
   /* Copy the spatiotemporal box to transform its composing points in place */
-  STBox *result = stbox_cp(box);   
+  STBox *result = stbox_cp(box);
   if (! stbox_transf_pj(result, srid_to, pj))
   {
     pfree(result); result = NULL;
@@ -799,7 +800,7 @@ stbox_transform_pipeline(const STBox *box, char *pipeline,
  * @param[in] pj Information about the transformation
  */
 static bool
-tpointinst_transf_pj(TInstant *inst, int32 srid_to, LWPROJ *pj)
+tpointinst_transf_pj(TInstant *inst, int32 srid_to, const LWPROJ *pj)
 {
   assert(inst); assert(pj); assert(tgeo_type(inst->temptype));
   GSERIALIZED *gs = DatumGetGserializedP(tinstant_val(inst));
@@ -816,7 +817,7 @@ tpointinst_transf_pj(TInstant *inst, int32 srid_to, LWPROJ *pj)
  * @param[in] pj Information about the transformation
  */
 static bool
-tpointseq_transf_pj(TSequence *seq, int32 srid_to, LWPROJ *pj)
+tpointseq_transf_pj(TSequence *seq, int32 srid_to, const LWPROJ *pj)
 {
   assert(seq); assert(pj); assert(tgeo_type(seq->temptype));
   for (int i = 0; i < seq->count; i++)
@@ -840,7 +841,7 @@ tpointseq_transf_pj(TSequence *seq, int32 srid_to, LWPROJ *pj)
  * @param[in] pj Information about the transformation
  */
 static bool
-tpointseqset_transf_pj(TSequenceSet *ss, int32 srid_to, LWPROJ *pj)
+tpointseqset_transf_pj(TSequenceSet *ss, int32 srid_to, const LWPROJ *pj)
 {
   assert(ss); assert(pj); assert(tgeo_type(ss->temptype));
   for (int i = 0; i < ss->count; i++)
@@ -866,8 +867,8 @@ tpointseqset_transf_pj(TSequenceSet *ss, int32 srid_to, LWPROJ *pj)
  * transformation
  * @param[in] pj Information about the transformation
  */
-static Temporal *
-tpoint_transform_pj(const Temporal *temp, int32 srid_to, LWPROJ *pj)
+Temporal *
+tpoint_transform_pj(const Temporal *temp, int32 srid_to, const LWPROJ *pj)
 {
   assert(temp); assert(pj);
   /* Copy the temporal point to transform its composing points in place */
@@ -891,7 +892,6 @@ tpoint_transform_pj(const Temporal *temp, int32 srid_to, LWPROJ *pj)
     result = NULL;
   }
   /* Clean up and return */
-  proj_destroy(pj->pj); pfree(pj);
   return result;
 }
 
@@ -921,7 +921,11 @@ tpoint_transform(const Temporal *temp, int32 srid_to)
     return NULL;
 
   /* Transform the temporal point */
-  return tpoint_transform_pj(temp, srid_to, pj);
+  Temporal * result = tpoint_transform_pj(temp, srid_to, pj);
+
+  proj_destroy(pj->pj); pfree(pj);
+
+  return result;
 }
 
 /**
@@ -951,7 +955,11 @@ tpoint_transform_pipeline(const Temporal *temp, char *pipeline,
     return NULL;
 
   /* Transform the temporal point */
-  return tpoint_transform_pj(temp, srid_to, pj);
+  Temporal * result = tpoint_transform_pj(temp, srid_to, pj);
+
+  proj_destroy(pj->pj); pfree(pj);
+
+  return result;
 }
 
 /*****************************************************************************/
