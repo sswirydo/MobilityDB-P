@@ -7,6 +7,7 @@
 /* Periodic */
 #include "pg_general/periodic.h"
 #include "general/periodic.h"
+#include "general/periodic_parser.h"
 
 #include "pg_general/temporal.h"
 
@@ -90,7 +91,8 @@ Datum Anchor(PG_FUNCTION_ARGS)
 
 
 // TODO MODIFY WITH OID LOGIC LATER,
-// TODO PERHAPS DO SOME SORT OF MATCHING TO MEOSTYPE 
+// TODO PERHAPS DO SOME SORT OF MATCHING TO MEOSTYPE
+// TODO -> PROBABLY JUST ADD TYPE AS FLAG INSTEAD
 PGDLLEXPORT Datum Periodic_int_in(PG_FUNCTION_ARGS);
 PG_FUNCTION_INFO_V1(Periodic_int_in);
 Datum Periodic_int_in(PG_FUNCTION_ARGS)
@@ -128,6 +130,26 @@ Datum Periodic_out(PG_FUNCTION_ARGS)
   PG_FREE_IF_COPY(per, 0);
   PG_RETURN_CSTRING(result);
 }
+
+
+
+// fixme: only testing geometries atm
+PGDLLEXPORT Datum Ppoint_in(PG_FUNCTION_ARGS);
+PG_FUNCTION_INFO_V1(Ppoint_in);
+Datum
+Ppoint_in(PG_FUNCTION_ARGS)
+{
+  const char *input = PG_GETARG_CSTRING(0);
+  meosType subtype = T_TGEOMPOINT;
+  PG_RETURN_TEMPORAL_P(ppoint_parse(&input, subtype));
+}
+
+
+
+
+
+
+
 
 
 /*****************************************************************************

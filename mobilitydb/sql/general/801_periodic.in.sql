@@ -66,6 +66,35 @@ CREATE TYPE pint (
 );
 
 
+
+CREATE TYPE pgeompoint;
+
+-- CREATE FUNCTION pgeompoint_in(cstring, oid, integer)
+CREATE FUNCTION pgeompoint_in(cstring)
+  RETURNS pgeompoint
+  AS 'MODULE_PATHNAME', 'Ppoint_in'
+  LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;
+
+CREATE FUNCTION periodic_out(pgeompoint)
+  RETURNS cstring
+  AS 'MODULE_PATHNAME', 'Periodic_out'
+  LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;
+
+CREATE TYPE pgeompoint (
+  internallength = variable,
+  input = pgeompoint_in,
+  output = periodic_out,
+  storage = extended,
+  alignment = double
+);
+
+CREATE FUNCTION pgeompointSeq(pgeompoint[], text DEFAULT 'linear',
+    lower_inc boolean DEFAULT true, upper_inc boolean DEFAULT true)
+  RETURNS pgeompoint
+  AS 'MODULE_PATHNAME', 'Psequence_constructor'
+  LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;
+
+
 /*****************************************************************************
  * Periodic type / flags
 *****************************************************************************/

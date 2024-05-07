@@ -352,3 +352,318 @@ normalize_periodic_sequence(PSequence *pseq)
   return result;
 }
 
+
+
+
+
+/* ------------------------------------------------------- */
+
+
+/**
+ * @brief Parse a temporal point value from the buffer
+ * @param[in] str Input string
+ * @param[in] temptype Temporal type
+ */
+Periodic *
+ppoint_parse(const char **str, meosType temptype)
+{
+  int tpoint_srid = 0;
+  const char *bak = *str;
+  p_whitespace(str);
+
+  /* Starts with "SRID=". The SRID specification must be gobbled for all
+   * types excepted TInstant. We cannot use the atoi() function
+   * because this requires a string terminated by '\0' and we cannot
+   * modify the string in case it must be passed to the #tpointinst_parse
+   * function. */
+  if (pg_strncasecmp(*str, "SRID=", 5) == 0)
+  {
+    /* Move str to the start of the number part */
+    *str += 5;
+    int delim = 0;
+    tpoint_srid = 0;
+    /* Delimiter will be either ',' or ';' depending on whether interpolation
+       is given after */
+    while ((*str)[delim] != ',' && (*str)[delim] != ';' && (*str)[delim] != '\0')
+    {
+      tpoint_srid = tpoint_srid * 10 + (*str)[delim] - '0';
+      delim++;
+    }
+    /* Set str to the start of the temporal point */
+    *str += delim + 1;
+  }
+
+  /* We cannot ensure that the SRID is geodetic for geography since
+   * the srid_is_latlong function is not exported by PostGIS */
+  // if (temptype == T_TGEOGPOINT)
+    // srid_is_latlong(fcinfo, tpoint_srid);
+
+  interpType interp = temptype_continuous(temptype) ? LINEAR : STEP;
+  /* Starts with "Interp=Step" */
+  if (pg_strncasecmp(*str, "Interp=Step;", 12) == 0)
+  {
+    /* Move str after the semicolon */
+    *str += 12;
+    interp = STEP;
+  }
+
+  /* Allow spaces after the SRID and/or Interpolation */
+  p_whitespace(str);
+
+
+
+  perType pertype = P_DEFAULT;
+  if (pg_strncasecmp(*str, "Periodic=Day;", 13) == 0)
+  {
+    *str += 13;
+    pertype = P_DAY;
+  }
+   else if (pg_strncasecmp(*str, "Periodic=Week;", 14) == 0)
+  {
+    *str += 14;
+    pertype = P_WEEK;
+  }
+  else if (pg_strncasecmp(*str, "Periodic=Month;", 15) == 0)
+  {
+    *str += 15;
+    pertype = P_MONTH;
+  }
+  else if (pg_strncasecmp(*str, "Periodic=Year;", 14) == 0)
+  {
+    *str += 14;
+    pertype = P_YEAR;
+  }
+  else if (pg_strncasecmp(*str, "Periodic=Interval;", 18) == 0)
+  {
+    *str += 18;
+    pertype = P_INTERVAL;
+  }
+  p_whitespace(str);
+
+
+  Periodic *result = NULL; /* keep compiler quiet */
+  /* Determine the type of the temporal point */
+  if (**str != '{' && **str != '[' && **str != '(')
+  {
+    /* Pass the SRID specification */
+    *str = bak;
+    PInstant *inst;
+    if (! ppointinst_parse(str, temptype, pertype, true, &tpoint_srid, &inst))
+      return NULL;
+    result = (Periodic *) inst;
+  }
+  else if (**str == '[' || **str == '(')
+  {
+    PSequence *seq;
+    if (! ppointcontseq_parse(str, temptype, pertype, interp, true, &tpoint_srid, &seq))
+      return NULL;
+    result = (Periodic *) seq;
+  }
+  else if (**str == '{')
+  {
+    bak = *str;
+    p_obrace(str);
+    p_whitespace(str);
+    if (**str == '[' || **str == '(')
+    {
+      *str = bak;
+      result = (Periodic *) ppointseqset_parse(str, temptype, pertype, interp,
+        &tpoint_srid);
+    }
+    else
+    {
+      *str = bak;
+      result = (Periodic *) ppointdiscseq_parse(str, temptype, pertype, &tpoint_srid);
+    }
+  }
+  MEOS_FLAGS_SET_PERIODIC((result)->flags, pertype);
+  return result;
+}
+
+
+
+bool 
+ppointinst_parse(const char **str, meosType temptype, perType pertype, bool end, 
+  int *tpoint_srid, PInstant **result)
+{
+  p_whitespace(str);
+  meosType basetype = temptype_basetype(temptype);
+  /* The next instruction will throw an exception if it fails */
+  Datum geo;
+  if (! periodic_basetype_parse(str, basetype, &geo))
+    return false;
+  GSERIALIZED *gs = DatumGetGserializedP(geo);
+  if (! ensure_point_type(gs) || ! ensure_not_empty(gs) ||
+      ! ensure_has_not_M_gs(gs))
+  {
+    pfree(gs);
+    return false;
+  }
+  /* If one of the SRID of the temporal point and of the geometry
+   * is SRID_UNKNOWN and the other not, copy the SRID */
+  int geo_srid = gserialized_get_srid(gs);
+  if (*tpoint_srid == SRID_UNKNOWN && geo_srid != SRID_UNKNOWN)
+    *tpoint_srid = geo_srid;
+  else if (*tpoint_srid != SRID_UNKNOWN &&
+    ( geo_srid == SRID_UNKNOWN || geo_srid == SRID_DEFAULT ))
+    gserialized_set_srid(gs, *tpoint_srid);
+  /* If the SRID of the temporal point and of the geometry do not match */
+  else if (*tpoint_srid != SRID_UNKNOWN && geo_srid != SRID_UNKNOWN &&
+    *tpoint_srid != geo_srid)
+  {
+    meos_error(ERROR, MEOS_ERR_TEXT_INPUT,
+      "Geometry SRID (%d) does not match temporal type SRID (%d)",
+      geo_srid, *tpoint_srid);
+    pfree(gs);
+    return false;
+  }
+  TimestampTz t = periodic_timestamp_parse(str, pertype);
+  if (t == DT_NOEND)
+    return false;
+  if (end && ! ensure_end_input(str, "temporal point"))
+  {
+    pfree(gs);
+    return false;
+  }
+  if (result) {
+    *result = (PInstant *) tinstant_make_free(PointerGetDatum(gs), temptype, t);
+    MEOS_FLAGS_SET_PERIODIC((*result)->flags, pertype);
+  }
+    
+  return true;
+}
+
+
+
+
+
+bool
+ppointcontseq_parse(const char **str, meosType temptype, perType pertype, interpType interp,
+  bool end, int *tpoint_srid, PSequence **result)
+{
+  p_whitespace(str);
+  bool lower_inc = false, upper_inc = false;
+  /* We are sure to find an opening bracket or parenthesis because that was the
+   * condition to call this function in the dispatch function tpoint_parse */
+  if (p_obracket(str))
+    lower_inc = true;
+  else if (p_oparen(str))
+    lower_inc = false;
+
+  /* First parsing */
+  const char *bak = *str;
+  if (! ppointinst_parse(str, temptype, pertype, false, tpoint_srid, NULL))
+    return false;
+  int count = 1;
+  while (p_comma(str))
+  {
+    count++;
+    if (! ppointinst_parse(str, temptype, pertype, false, tpoint_srid, NULL))
+      return false;
+  }
+  if (p_cbracket(str))
+    upper_inc = true;
+  else if (p_cparen(str))
+    upper_inc = false;
+  else
+  {
+    meos_error(ERROR, MEOS_ERR_TEXT_INPUT,
+      "Could not parse temporal point value: Missing closing bracket/parenthesis");
+    return false;
+  }
+  /* Ensure there is no more input */
+  if (end && ! ensure_end_input(str, "temporal point"))
+    return false;
+
+  /* Second parsing */
+  *str = bak;
+  PInstant **instants = palloc(sizeof(PInstant *) * count);
+  for (int i = 0; i < count; i++)
+  {
+    p_comma(str);
+    ppointinst_parse(str, temptype, pertype, false, tpoint_srid, &instants[i]);
+  }
+  p_cbracket(str);
+  p_cparen(str);
+  if (result) {
+    *result = (PSequence *) tsequence_make_free(instants, count, lower_inc, upper_inc, interp, NORMALIZE);
+    MEOS_FLAGS_SET_PERIODIC((*result)->flags, pertype);
+  }
+  return true;
+}
+
+
+
+PSequenceSet *
+ppointseqset_parse(const char **str, meosType temptype, perType pertype, interpType interp,
+  int *tpoint_srid)
+{
+  const char *type_str = "temporal point";
+  p_whitespace(str);
+  /* We are sure to find an opening brace because that was the condition
+   * to call this function in the dispatch function tpoint_parse */
+  p_obrace(str);
+
+  /* First parsing */
+  const char *bak = *str;
+  if (! ppointcontseq_parse(str, temptype, pertype, interp, false, tpoint_srid, NULL))
+    return NULL;
+  int count = 1;
+  while (p_comma(str))
+  {
+    count++;
+    if (! ppointcontseq_parse(str, temptype, pertype, interp, false, tpoint_srid, NULL))
+      return NULL;
+  }
+  if (! ensure_cbrace(str, type_str) || ! ensure_end_input(str, type_str))
+    return NULL;
+
+  /* Second parsing */
+  *str = bak;
+  PSequence **sequences = palloc(sizeof(PSequence *) * count);
+  for (int i = 0; i < count; i++)
+  {
+    p_comma(str);
+    ppointcontseq_parse(str, temptype, pertype, interp, false, tpoint_srid,
+      &sequences[i]);
+  }
+  p_cbrace(str);
+  return (PSequenceSet *) tsequenceset_make_free(sequences, count, NORMALIZE);
+}
+
+
+PSequence *
+ppointdiscseq_parse(const char **str, meosType temptype, perType pertype, int *tpoint_srid)
+{
+  const char *type_str = "temporal point";
+  p_whitespace(str);
+  /* We are sure to find an opening brace because that was the condition
+   * to call this function in the dispatch function #tpoint_parse */
+  p_obrace(str);
+
+  /* First parsing */
+  const char *bak = *str;
+  if (! ppointinst_parse(str, temptype, pertype, false, tpoint_srid, NULL))
+    return NULL;
+  int count = 1;
+  while (p_comma(str))
+  {
+    count++;
+    if (! ppointinst_parse(str, temptype, pertype, false, tpoint_srid, NULL))
+      return NULL;
+  }
+  if (! ensure_cbrace(str, type_str) || ! ensure_end_input(str, type_str))
+    return NULL;
+
+  /* Second parsing */
+  *str = bak;
+  PInstant **instants = palloc(sizeof(PInstant *) * count);
+  for (int i = 0; i < count; i++)
+  {
+    p_comma(str);
+    ppointinst_parse(str, temptype, pertype, false, tpoint_srid, &instants[i]);
+  }
+  p_cbrace(str);
+  return (PSequence *) tsequence_make_free(instants, count, true, true, DISCRETE,
+    NORMALIZE_NO);
+}
