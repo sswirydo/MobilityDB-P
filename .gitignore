@@ -6,3 +6,6 @@ Master-Thesis.lnk
 Master-Thesis
 Makefile
 postgis/
+
+meos/postgres/pg_config.h
+postgis/postgis_config.h
