@@ -116,7 +116,7 @@ pmode_make(Interval *frequency, int32 repetitions, bool keep_pattern, Span *peri
   PMode *pmode = palloc(sizeof(PMode));
   pmode->frequency = *frequency;
   pmode->repetitions = repetitions;
-  pmode->keep_pattern;
+  pmode->keep_pattern = keep_pattern;
   pmode->period = *period;
   return pmode;
 }
@@ -456,6 +456,7 @@ anchor(Periodic* per, PMode* pmode)
   Interval *work_freq = pg_interval_in("0 days", -1);
 
   perType ptype = MEOS_FLAGS_GET_PERIODIC(per->flags);
+  (void)ptype;
   
   Interval *frequency = &(pmode->frequency);
   int32 repetitions = pmode->repetitions;
@@ -466,6 +467,7 @@ anchor(Periodic* per, PMode* pmode)
   bool lower_inc = pmode->period.lower_inc; // todo
   bool keep_pattern = pmode->keep_pattern; // todo
   uint8 spantype = pmode->period.spantype; // todo?
+  (void)lower_inc;(void)keep_pattern;(void)spantype; // fixme quiet compiler for now
 
   // Create basic temporal sequence.
   temp = (Temporal*) periodic_copy(per);

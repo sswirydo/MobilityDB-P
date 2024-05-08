@@ -119,10 +119,10 @@ periodic_parse(const char **str, meosType temptype)
 
   // TODO: Only doing sequences for now. Instants are (probably) not important. Add seqsets later.
   if (**str == '[' || **str == '(') {
-    TSequence *seq;
+    PSequence *seq;
     if (! pcontseq_parse(str, temptype, pertype, interp, true, &seq))
       return NULL;
-    result = (Temporal *) seq;
+    result = (Periodic *) seq;
   }
     
   return result;
@@ -194,12 +194,13 @@ pcontseq_parse(const char **str, meosType temptype, perType pertype, interpType 
   and make sure sequence is shifted to 2000 if contains @
   and ensure sequence is correct if contains #
   (note: does it neceserrily need to start at 2000 01 01 00:00:00,
-  or can we accept the first one is omitted ?)
+  or can we accept the first one is omitted?)
+  (answer: it does not)
   
   */
 
   if (result)
-    *result = tsequence_make_free(instants, count, lower_inc, upper_inc, interp, NORMALIZE); // todo
+    *result = (PSequence*)tsequence_make_free((TInstant**)instants, count, lower_inc, upper_inc, interp, NORMALIZE); // todo
   
   if (contains_at) {
     *result = normalize_periodic_sequence(*result);
@@ -229,7 +230,7 @@ pinstant_parse(const char **str, meosType temptype, perType pertype, bool end, P
   if (end && ! ensure_end_input(str, "periodic"))
     return false;
   if (result) {
-    *result = tinstant_make(elem, temptype, t);
+    *result = (PInstant*) tinstant_make(elem, temptype, t);
     MEOS_FLAGS_SET_PERIODIC((*result)->flags, pertype);
   }
   return true;
@@ -341,14 +342,15 @@ periodic_basetype_parse(const char **str, meosType basetype, Datum *result)
 
 /**
  * @brief Ensures the first PSequence element starts at 2000 UTC and shifts the sequence accordingly.
+ * FIXME probably will not be used anymore
  */
 PSequence*
 normalize_periodic_sequence(PSequence *pseq) 
 {
   TimestampTz reference_tstz = pg_timestamptz_in("2000-01-01 00:00:00", -1);
-  TimestampTz start_tstz = temporal_start_timestamptz(pseq);
+  TimestampTz start_tstz = temporal_start_timestamptz((Temporal*)pseq);
   Interval *diff = (Interval*) minus_timestamptz_timestamptz(reference_tstz, start_tstz);
-  PSequence* result = (PSequence *) temporal_shift_scale_time(pseq, diff, NULL);
+  PSequence* result = (PSequence *) temporal_shift_scale_time((Temporal*) pseq, diff, NULL);
   return result;
 }
 
@@ -586,7 +588,7 @@ ppointcontseq_parse(const char **str, meosType temptype, perType pertype, interp
   p_cbracket(str);
   p_cparen(str);
   if (result) {
-    *result = (PSequence *) tsequence_make_free(instants, count, lower_inc, upper_inc, interp, NORMALIZE);
+    *result = (PSequence *) tsequence_make_free((TInstant**)instants, count, lower_inc, upper_inc, interp, NORMALIZE);
     MEOS_FLAGS_SET_PERIODIC((*result)->flags, pertype);
   }
   return true;
@@ -628,7 +630,7 @@ ppointseqset_parse(const char **str, meosType temptype, perType pertype, interpT
       &sequences[i]);
   }
   p_cbrace(str);
-  return (PSequenceSet *) tsequenceset_make_free(sequences, count, NORMALIZE);
+  return (PSequenceSet *) tsequenceset_make_free((TSequence**)sequences, count, NORMALIZE);
 }
 
 
@@ -664,6 +666,6 @@ ppointdiscseq_parse(const char **str, meosType temptype, perType pertype, int *t
     ppointinst_parse(str, temptype, pertype, false, tpoint_srid, &instants[i]);
   }
   p_cbrace(str);
-  return (PSequence *) tsequence_make_free(instants, count, true, true, DISCRETE,
+  return (PSequence*) tsequence_make_free((TInstant**)instants, count, true, true, DISCRETE,
     NORMALIZE_NO);
 }

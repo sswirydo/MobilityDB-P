@@ -88,11 +88,11 @@ CREATE TYPE pgeompoint (
   alignment = double
 );
 
-CREATE FUNCTION pgeompointSeq(pgeompoint[], text DEFAULT 'linear',
-    lower_inc boolean DEFAULT true, upper_inc boolean DEFAULT true)
-  RETURNS pgeompoint
-  AS 'MODULE_PATHNAME', 'Psequence_constructor'
-  LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;
+-- CREATE FUNCTION pgeompointSeq(pgeompoint[], text DEFAULT 'linear',
+--     lower_inc boolean DEFAULT true, upper_inc boolean DEFAULT true)
+--   RETURNS pgeompoint
+--   AS 'MODULE_PATHNAME', 'Psequence_constructor'
+--   LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;
 
 
 /*****************************************************************************
