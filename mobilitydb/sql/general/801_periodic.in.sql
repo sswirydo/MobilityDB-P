@@ -88,11 +88,11 @@ CREATE TYPE pgeompoint (
   alignment = double
 );
 
--- CREATE FUNCTION pgeompointSeq(pgeompoint[], text DEFAULT 'linear',
---     lower_inc boolean DEFAULT true, upper_inc boolean DEFAULT true)
---   RETURNS pgeompoint
---   AS 'MODULE_PATHNAME', 'Psequence_constructor'
---   LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;
+CREATE FUNCTION pgeompointSeq(pgeompoint[], text DEFAULT 'linear',
+    lower_inc boolean DEFAULT true, upper_inc boolean DEFAULT true)
+  RETURNS pgeompoint
+  AS 'MODULE_PATHNAME', 'Psequence_constructor'
+  LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;
 
 
 /*****************************************************************************
@@ -108,6 +108,13 @@ CREATE FUNCTION setPeriodicType(pint, text)
   RETURNS pint
   AS 'MODULE_PATHNAME', 'Periodic_set_type'
   LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;
+
+CREATE FUNCTION periodicType(pgeompoint)
+  RETURNS text
+  AS 'MODULE_PATHNAME', 'Periodic_get_type'
+  LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;
+
+
 
 
 

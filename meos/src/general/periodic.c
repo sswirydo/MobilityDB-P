@@ -341,12 +341,37 @@ psequenceset_copy(const PSequenceSet *pss)
 Periodic *
 periodic_set_pertype(const Periodic *per, perType ptype)
 {
-
-  // todo shall we set flags for each temporal (insts and seqs) composing the temporal or only the englobing temporal ?
-  // todo shall we ensure perType is valid ? (a priori no constraints to change perType ?)
-  // ensure_valid_interpolation(temp->temptype, interp); 
-
-  Periodic *result = periodic_copy(per);
+  Periodic *result;
+  if (per->subtype == TINSTANT)
+    result = periodic_copy(per);
+  else if (per->subtype == TSEQUENCE) // fixme there is probably a cleaner way of doing this..
+  {
+    PSequence *tempSeq = (PSequence*) per;
+    // setting flag for each individual instant composing the sequence
+    interpType interp = MEOS_FLAGS_GET_INTERP(tempSeq->flags);
+    // meosType basetype = temptype_basetype(tempSeq->temptype);
+    bool lower_inc = tempSeq->period.lower_inc;
+    bool upper_inc = tempSeq->period.upper_inc;
+    int16 flags = tempSeq->flags;
+    int ninsts = temporal_num_instants((Temporal*) tempSeq);
+    PInstant** instants = (PInstant**) temporal_insts((Temporal*) tempSeq, &ninsts);
+    for (int i = 0; i < ninsts; i++) 
+    {
+      MEOS_FLAGS_SET_PERIODIC(instants[i]->flags, ptype);
+    }
+    result = (Periodic*) tsequence_make((const TInstant **) instants, ninsts, lower_inc, upper_inc, interp, NORMALIZE_NO);
+    result->flags = flags;
+  }
+  else if (per->subtype == TSEQUENCESET)
+  {
+    meos_error(ERROR, MEOS_ERR_INTERNAL_ERROR, "periodic_set_pertype: TODO");
+    result = periodic_copy(per);
+  }
+  else { // fixme remove later
+    result = periodic_copy(per);
+    meos_error(ERROR, MEOS_ERR_INTERNAL_ERROR, "Unknown periodic subtype %s", per->subtype);
+    result = periodic_copy(per);
+  }
   MEOS_FLAGS_SET_PERIODIC(result->flags, ptype);
   return result;
 }
@@ -356,16 +381,28 @@ periodic_get_pertype(const Periodic *per)
 {
   char *result = palloc(sizeof(char) * MEOS_PERTYPE_STR_MAXLEN);
   perType ptype = MEOS_FLAGS_GET_PERIODIC(per->flags);
-  if (ptype == P_DAY)
-    strcpy(result, "day");
-  else if (ptype == P_WEEK)
-    strcpy(result, "week");
-  else if (ptype == P_MONTH)
-    strcpy(result, "month");
-  else if (ptype == P_YEAR)
-    strcpy(result, "year");
-  else
-    strcpy(result, "none");
+  switch (ptype) {
+    case P_DAY:
+      strcpy(result, "day");
+      break;
+    case P_WEEK:
+      strcpy(result, "week");
+      break;
+    case P_MONTH:
+      strcpy(result, "month");
+      break;
+    case P_YEAR:
+      strcpy(result, "year");
+      break;
+    case P_INTERVAL:
+      strcpy(result, "interval");
+      break;
+    case P_DEFAULT:
+    case P_NONE:
+    default:
+      strcpy(result, "none");
+      break;
+  }
   return result;
 }
 
@@ -418,6 +455,8 @@ periodic_get_pertype(const Periodic *per)
 Temporal * 
 anchor(Periodic* per, PMode* pmode) 
 {
+  // todo update description and functions cause not up to date anymore
+
   /** PARAMETERS:
    * Frequency: after how long should the sequence repeat itself (interval relative to the start of the sequence)
    *  If is empty, repeat directly

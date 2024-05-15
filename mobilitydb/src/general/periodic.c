@@ -145,7 +145,37 @@ Ppoint_in(PG_FUNCTION_ARGS)
 }
 
 
-
+/* Note: there is no difference with Tsequence_constructor */
+/* TODO Perhaps add an argument for perType */
+PGDLLEXPORT Datum Psequence_constructor(PG_FUNCTION_ARGS);
+PG_FUNCTION_INFO_V1(Psequence_constructor);
+Datum
+Psequence_constructor(PG_FUNCTION_ARGS)
+{
+  ArrayType *array = PG_GETARG_ARRAYTYPE_P(0);
+  ensure_not_empty_array(array);
+  meosType temptype = oid_type(get_fn_expr_rettype(fcinfo->flinfo));
+  interpType interp = temptype_continuous(temptype) ? LINEAR : STEP;
+  if (PG_NARGS() > 1 && !PG_ARGISNULL(1))
+  {
+    text *interp_txt = PG_GETARG_TEXT_P(1);
+    char *interp_str = text2cstring(interp_txt);
+    interp = interptype_from_string(interp_str);
+    pfree(interp_str);
+  }
+  bool lower_inc = true, upper_inc = true;
+  if (PG_NARGS() > 2 && !PG_ARGISNULL(2))
+    lower_inc = PG_GETARG_BOOL(2);
+  if (PG_NARGS() > 3 && !PG_ARGISNULL(3))
+    upper_inc = PG_GETARG_BOOL(3);
+  int count;
+  PInstant **instants = (PInstant **) temparr_extract(array, &count);
+  PSequence *result = (PSequence *) tsequence_make((const TInstant **) instants, count,
+    lower_inc, upper_inc, interp, NORMALIZE);
+  pfree(instants);
+  PG_FREE_IF_COPY(array, 0);
+  PG_RETURN_TSEQUENCE_P(result);
+}
 
 
 
@@ -156,13 +186,15 @@ Ppoint_in(PG_FUNCTION_ARGS)
   Setters
 *****************************************************************************/
 
-char * _perType_names[] =
+static const char *_perType_names[] =
 {
   [P_NONE] = "none",
+  [P_DEFAULT] = "default",
   [P_DAY] = "day",
   [P_WEEK] = "week",
   [P_MONTH] = "month",
-  [P_YEAR] = "year"
+  [P_YEAR] = "year",
+  [P_INTERVAL] = "interval"
 };
 
 #define PERTYPE_STR_MAX_LEN 5
@@ -170,11 +202,12 @@ char * _perType_names[] =
 perType
 pertype_from_string(const char *pertype_str)
 {
-  int n = sizeof(_perType_names) / sizeof(char *);
-  for (int i = 0; i < n; i++)
+  size_t n = sizeof(_perType_names) / sizeof(char *);
+  for (size_t i = 0; i < n; i++)
   {
-    if (pg_strncasecmp(pertype_str, _perType_names[i], PERTYPE_STR_MAX_LEN) == 0)
-      return i;
+    if (pg_strncasecmp(pertype_str, _perType_names[i], PERTYPE_STR_MAX_LEN) == 0) {
+      return (perType) i;
+    }
   }
   /* Error */
   elog(ERROR, "Unknown periodic type: %s", pertype_str);

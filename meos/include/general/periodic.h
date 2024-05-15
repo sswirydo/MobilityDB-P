@@ -153,6 +153,10 @@ typedef struct
 #define PG_GETARG_PSEQUENCE_P(X)    ((PSequence *) PG_GETARG_VARLENA_P(X))
 #define PG_GETARG_PSEQUENCESET_P(X)    ((PSequenceSet *) PG_GETARG_VARLENA_P(X))
 
+#define PG_RETURN_PERIODIC_P(X)      PG_RETURN_POINTER(X)
+#define PG_RETURN_PINSTANT_P(X)      PG_RETURN_POINTER(X)
+#define PG_RETURN_PSEQUENCE_P(X)     PG_RETURN_POINTER(X)
+#define PG_RETURN_PSEQUENCESET_P(X)  PG_RETURN_POINTER(X)
 
 typedef enum
 {
@@ -164,6 +168,8 @@ typedef enum
   P_YEAR      = 5,
   P_INTERVAL  = 6,
 } perType;
+// todo: perhaps just change perType (output style) automatically based on the span of the sequence
+//       and only specify it for inputs (at least atm)
 
 
 /*****************************************************************************
