@@ -209,25 +209,53 @@ psequenceset_out(const PSequenceSet *pss, int maxdd)
 
 char *
 pinstant_to_string(const PInstant *inst, const perType ptype, int maxdd, outfunc value_out)
-{   
-  char *t = NULL;
+{  
+  // Reference: https://www.postgresql.org/docs/16/functions-formatting.html
+  // FIXME: Currently timestamptz formatting is done manually for BE locale
+  //        Update to support for instance 01-12h + A.M/P.M format instead of 00-23h depending
+  //        on user settings.
 
-  if (ptype == P_DAY)
-    t = format_timestamptz(inst->t, "HH24:MI:SS");  // hour:minutes:seconds
-  else if (ptype == P_WEEK) {
+  char *t = NULL;
+  bool include_us = (inst->t % 1000000) != 0; // checks if value has trailing microseconds
+
+  if (ptype == P_DAY) 
+  {
+    if (include_us)
+      t = format_timestamptz(inst->t, "HH24:MI:SS.USTZH");  // hour:minutes:seconds.microseconds+timezone_hours
+    else
+      t = format_timestamptz(inst->t, "HH24:MI:SSTZH");  // hour:minutes:seconds
+  }
+    
+  else if (ptype == P_WEEK)
+  {
     // Shifting up by 2 days cause 2000-01-01 is actually a Saturday and not a Monday.
     // But we assume that date as Monday 00:00:00. Shifting only affects FMDay output.
-    // TimestampTz temp_t = pg_timestamp_pl_interval(inst->t, pg_interval_in("2 days", -1));
     TimestampTz temp_t = add_timestamptz_interval(inst->t, pg_interval_in("2 days", -1));
-    t = format_timestamptz(temp_t, "FMDay HH24:MI:SS"); // day_of_week hour:minutes:seconds
+    if (include_us)
+      t = format_timestamptz(temp_t, "FMDay HH24:MI:SS.USTZH"); // day_of_week hour:minutes:seconds.microseconds+timezone_hours
+    else
+      t = format_timestamptz(temp_t, "FMDay HH24:MI:SSTZH"); // day_of_week hour:minutes:seconds+timezone_hours
   }
+
   else if (ptype == P_MONTH)
-    t = format_timestamptz(inst->t, "DD HH24:MI:SS");  // day_of_month hour:minutes:seconds
-  else if (ptype == P_YEAR) 
-    t = format_timestamptz(inst->t, "Mon DD HH24:MI:SS"); // day_of_month month hour:minutes:seconds
-  else if (ptype == P_INTERVAL) {
+  {
+    if (include_us)
+      t = format_timestamptz(inst->t, "DD HH24:MI:SS.USTZH");  // day_of_month hour:minutes:seconds.microseconds+timezone_hours
+    else
+      t = format_timestamptz(inst->t, "DD HH24:MI:SSTZH");  // day_of_month hour:minutes:seconds+timezone_hours
+  }
+    
+  else if (ptype == P_YEAR)
+  {
+    if (include_us)
+      t = format_timestamptz(inst->t, "Mon DD HH24:MI:SS.USTZH"); // day_of_month month hour:minutes:seconds.microseconds+timezone_hours
+    else
+      t = format_timestamptz(inst->t, "Mon DD HH24:MI:SSTZH"); // day_of_month month hour:minutes:seconds+timezone_hours
+  }
+    
+  else if (ptype == P_INTERVAL)
+  {
     TimestampTz reference_tstz = pg_timestamptz_in("2000-01-01 00:00:00", -1);
-    // Interval *diff = (Interval *) pg_timestamp_mi(inst->t, reference_tstz);
     Interval *diff = (Interval *) minus_timestamptz_timestamptz(inst->t, reference_tstz);
     t = pg_interval_out(diff);
   }
@@ -344,7 +372,7 @@ periodic_set_pertype(const Periodic *per, perType ptype)
   Periodic *result;
   if (per->subtype == TINSTANT)
     result = periodic_copy(per);
-  else if (per->subtype == TSEQUENCE) // fixme there is probably a cleaner way of doing this..
+  else if (per->subtype == TSEQUENCE) // fixme there is probably a cleaner way of doing this.. (todo: c.f. lifting)
   {
     PSequence *tempSeq = (PSequence*) per;
     // setting flag for each individual instant composing the sequence
@@ -409,39 +437,26 @@ periodic_get_pertype(const Periodic *per)
 
 /*****************************************************************************
  *  Casting
- * 
- *  TODO obviously a simple cast is not eough
- * 
 *****************************************************************************/
 
+/* useless, but kept for ref */
 // Periodic *
-// tint_to_pint(Temporal *temp)
+// tgeompoint_to_pgeompoint(const Temporal *temp)
 // {
-//   // todo fixme
-//   Periodic *result;
-//   assert(temptype_subtype(temp->subtype));
-//   if (temp->subtype == TINSTANT)
-//     result = (Periodic *) tinstant_copy((TInstant *) temp);
-//   else if (temp->subtype == TSEQUENCE)
-//     result = (Periodic *) tsequence_copy((TSequence *) temp);
-//   else /* temp->subtype == TSEQUENCESET */
-//     result = (Periodic *) tsequenceset_copy((TSequenceSet *) temp);
-//   return result;
-// }
+//   /* Ensure validity of the arguments */
+//   if (! ensure_not_null((void *) temp) ||
+//       ! ensure_temporal_isof_type(temp, T_TINT))
+//     return NULL;
 
-// Temporal *
-// pint_to_tint(Periodic *temp) 
-// {
-//   // todo fixme
-//   Temporal *result;
-//   assert(temptype_subtype(temp->subtype));
-//   if (temp->subtype == TINSTANT)
-//     result = (Temporal *) tinstant_copy((TInstant *) temp);
-//   else if (temp->subtype == TSEQUENCE)
-//     result = (Temporal *) tsequence_copy((TSequence *) temp);
-//   else /* temp->subtype == TSEQUENCESET */
-//     result = (Temporal *) tsequenceset_copy((TSequenceSet *) temp);
-//   return result;
+//   LiftedFunctionInfo lfinfo;
+//   memset(&lfinfo, 0, sizeof(LiftedFunctionInfo));
+//   lfinfo.func = (varfunc) foo;
+//   lfinfo.numparam = 0;
+//   lfinfo.argtype[0] = T_TGEOMPOINT;
+//   lfinfo.restype = T_TGEOMPOINT;
+//   lfinfo.tpfunc_base = NULL;
+//   lfinfo.tpfunc = NULL;
+//   return tfunc_temporal(temp, &lfinfo);
 // }
 
 

@@ -95,6 +95,40 @@ CREATE FUNCTION pgeompointSeq(pgeompoint[], text DEFAULT 'linear',
   LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;
 
 
+
+/*****************************************************************************
+ *  Casts
+*****************************************************************************/
+
+-- temp solution so we can avoid copying all foo from temporal to periodic
+-- todo make periodic as a flag later
+
+CREATE FUNCTION tgeompoint(pgeompoint)
+  RETURNS tgeompoint
+  AS 'MODULE_PATHNAME', 'Periodic_to_temporal'
+  LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;
+CREATE FUNCTION pgeompoint(tgeompoint)
+  RETURNS pgeompoint
+  AS 'MODULE_PATHNAME', 'Temporal_to_periodic'
+  LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;
+
+CREATE CAST (tgeompoint AS pgeompoint) WITH FUNCTION pgeompoint(tgeompoint);
+CREATE CAST (pgeompoint AS tgeompoint) WITH FUNCTION tgeompoint(pgeompoint);
+
+CREATE FUNCTION tint(pint)
+  RETURNS tint
+  AS 'MODULE_PATHNAME', 'Periodic_to_temporal'
+  LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;
+CREATE FUNCTION pint(tint)
+  RETURNS pint
+  AS 'MODULE_PATHNAME', 'Temporal_to_periodic'
+  LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;
+
+CREATE CAST (pint AS tint) WITH FUNCTION tint(pint);
+CREATE CAST (tint AS pint) WITH FUNCTION pint(tint);
+
+
+
 /*****************************************************************************
  * Periodic type / flags
 *****************************************************************************/
@@ -114,6 +148,15 @@ CREATE FUNCTION periodicType(pgeompoint)
   AS 'MODULE_PATHNAME', 'Periodic_get_type'
   LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;
 
+CREATE FUNCTION setPeriodicType(pgeompoint, text)
+  RETURNS pgeompoint
+  AS 'MODULE_PATHNAME', 'Periodic_set_type'
+  LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;
+
+CREATE FUNCTION setPeriodicType(tgeompoint, text)
+  RETURNS tgeompoint
+  AS 'MODULE_PATHNAME', 'Periodic_set_type'
+  LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;
 
 
 

@@ -225,7 +225,7 @@ Datum Periodic_set_type(PG_FUNCTION_ARGS)
   pfree(ptype_str);
   Periodic *result = periodic_set_pertype(per, ptype);
   PG_FREE_IF_COPY(per, 0);
-  PG_RETURN_POINTER(result);
+  PG_RETURN_PERIODIC_P(result);
 }
 
 
@@ -250,6 +250,26 @@ Datum Periodic_get_type(PG_FUNCTION_ARGS)
   Casting
 *****************************************************************************/
 
+/* fixme later (merge both) */
+PGDLLEXPORT Datum Periodic_to_temporal(PG_FUNCTION_ARGS);
+PG_FUNCTION_INFO_V1(Periodic_to_temporal);
+Datum Periodic_to_temporal(PG_FUNCTION_ARGS)
+{
+  Periodic *per = PG_GETARG_PERIODIC_P(0);
+  Temporal *result = (Temporal*) per;
+  // PG_FREE_IF_COPY(per, 0);
+  PG_RETURN_TEMPORAL_P(result);
+}
+
+PGDLLEXPORT Datum Temporal_to_periodic(PG_FUNCTION_ARGS);
+PG_FUNCTION_INFO_V1(Temporal_to_periodic);
+Datum Temporal_to_periodic(PG_FUNCTION_ARGS)
+{
+  Temporal *temp = PG_GETARG_TEMPORAL_P(0);
+  Periodic *result = (Periodic*) temp;
+  // PG_FREE_IF_COPY(temp, 0);
+  PG_RETURN_PERIODIC_P(result);
+}
 
 
 /*****************************************************************************
