@@ -215,19 +215,49 @@ pinstant_to_string(const PInstant *inst, const perType ptype, int maxdd, outfunc
   //        Update to support for instance 01-12h + A.M/P.M format instead of 00-23h depending
   //        on user settings.
 
-  char *t = NULL;
-  bool include_us = (inst->t % 1000000) != 0; // checks if value has trailing microseconds
+  // FIXME (?): When timestamps are greater than their corresponding perType period,
+  //            a counter is added to indicate how many times greater is the timestamp.
+  //            e.g. For a weekly output, the second Monday is marked as #Monday 12:00:00 +1W
+  //                 as it is 1 week later.
+  //            However, for monthly and yearly outputs that number will be inaccurate as 
+  //            1) months can have 28/29/30/31 days
+  //            2) years can have 365/366 days
+  //            Nonetheless, periodic outputs in practice should not go over 1 additional time period,
+  //            as those are used to mark simple overflows.
+  //            e.g. GTFS timetables can be greater than 24h (to account for overnight transport)
+  //                 yet their period should remain <24h.
 
+  // FIXME: add timezones to overflow output computations (atm only works for UTC)
+  //        e.g. P_DAY: 86400000000 + (1000000 * 60 * 60) * TZ_OFFEST
+
+  const size_t pattern_size = sizeof(char) * 128;
+  TimestampTz reference_tstz = pg_timestamptz_in("2000-01-01 00:00:00", -1);
+
+  // TODO/FIXME: Timezones are awesome
+  // elog(NOTICE, "REFERENCE A: %s", pg_timestamptz_out((TimestampTz) (int64) 0)); // 2000-01-01 01:00:00+01
+  // elog(NOTICE, "REFERENCE B: %s", pg_timestamptz_out(reference_tstz));          // 2000-01-01 00:00:00+01
+  
+  char *t = NULL;
+  char *pattern = (char *) palloc(pattern_size); // fixme replace by strlen of int64_to_str
+  bool include_us = (inst->t % 1000000) != 0; // checks if value has trailing microseconds
   if (ptype == P_DAY) 
   {
+    long int no_days = (long int) (inst->t / 86400000000); // microseconds in a day
     if (include_us)
       t = format_timestamptz(inst->t, "HH24:MI:SS.USTZH");  // hour:minutes:seconds.microseconds+timezone_hours
     else
       t = format_timestamptz(inst->t, "HH24:MI:SSTZH");  // hour:minutes:seconds
+    if (no_days > 0) 
+    {
+      snprintf(pattern, pattern_size, "%s+%ldD", t, no_days);
+      pfree(t);
+      t = pattern;
+    }
   }
     
   else if (ptype == P_WEEK)
   {
+    long int no_weeks = (long int) (inst->t / 604800000000); // microseconds in a week
     // Shifting up by 2 days cause 2000-01-01 is actually a Saturday and not a Monday.
     // But we assume that date as Monday 00:00:00. Shifting only affects FMDay output.
     TimestampTz temp_t = add_timestamptz_interval(inst->t, pg_interval_in("2 days", -1));
@@ -235,27 +265,48 @@ pinstant_to_string(const PInstant *inst, const perType ptype, int maxdd, outfunc
       t = format_timestamptz(temp_t, "FMDay HH24:MI:SS.USTZH"); // day_of_week hour:minutes:seconds.microseconds+timezone_hours
     else
       t = format_timestamptz(temp_t, "FMDay HH24:MI:SSTZH"); // day_of_week hour:minutes:seconds+timezone_hours
+    if (no_weeks > 0) 
+    {
+      snprintf(pattern, pattern_size, "%s+%ldW", t, no_weeks);
+      pfree(t);
+      t = pattern;
+    }
   }
 
   else if (ptype == P_MONTH)
   {
+    long int no_months = (long int) (inst->t / 2678400000000 ); // microseconds in 31 days (january) (imprecision if no_months > 1)
     if (include_us)
       t = format_timestamptz(inst->t, "DD HH24:MI:SS.USTZH");  // day_of_month hour:minutes:seconds.microseconds+timezone_hours
     else
       t = format_timestamptz(inst->t, "DD HH24:MI:SSTZH");  // day_of_month hour:minutes:seconds+timezone_hours
+    
+    if (no_months > 0) 
+    {
+      snprintf(pattern, pattern_size, "%s+%ldM", t, no_months);
+      pfree(t);
+      t = pattern;
+    }
   }
     
   else if (ptype == P_YEAR)
   {
+    long int no_years = (long int) (inst->t / 31622400000000); // microseconds in 366 days (as 2000 is leap year)
     if (include_us)
       t = format_timestamptz(inst->t, "Mon DD HH24:MI:SS.USTZH"); // day_of_month month hour:minutes:seconds.microseconds+timezone_hours
     else
       t = format_timestamptz(inst->t, "Mon DD HH24:MI:SSTZH"); // day_of_month month hour:minutes:seconds+timezone_hours
+    
+    if (no_years > 0) 
+    {
+      snprintf(pattern, pattern_size, "%s+%ldY", t, no_years);
+      pfree(t);
+      t = pattern;
+    }
   }
     
   else if (ptype == P_INTERVAL)
   {
-    TimestampTz reference_tstz = pg_timestamptz_in("2000-01-01 00:00:00", -1);
     Interval *diff = (Interval *) minus_timestamptz_timestamptz(inst->t, reference_tstz);
     t = pg_interval_out(diff);
   }
@@ -266,7 +317,7 @@ pinstant_to_string(const PInstant *inst, const perType ptype, int maxdd, outfunc
   meosType basetype = temptype_basetype(inst->temptype);
   char *value = value_out(tinstant_value((TInstant *) inst), basetype, maxdd);
   char *result = palloc(strlen(value) + strlen(t) + 2);
-  sprintf(result, "%s#%s", value, t);
+  snprintf(result, strlen(value) + strlen(t) + 2, "%s#%s", value, t);
   pfree(t);
   pfree(value);
   return result;
