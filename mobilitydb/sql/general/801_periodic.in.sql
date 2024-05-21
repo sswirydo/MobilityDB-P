@@ -200,36 +200,3 @@ CREATE FUNCTION quick_test(timestamptz, text)
   LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;
 
 
-
-
-
-/*****************************************************************************
- *  Cyclic 
-*****************************************************************************/
-
--- CREATE TYPE cyclic; -- (todo rename to periodic later)
-
--- CREATE FUNCTION cyclic_in(cstring)
---   RETURNS pmode
---   AS 'MODULE_PATHNAME', 'Cyclic_in'
---   LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;
-
--- CREATE FUNCTION cyclic_out(pmode)
---   RETURNS cstring
---   AS 'MODULE_PATHNAME', 'Cyclic_out'
---   LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;
-
--- CREATE TYPE cyclic (
---     internallength  = variable,
---     input           = cyclic_in,
---     output          = cyclic_out,
---     storage         = extended,
---     alignment       = double
--- );
-
--- CREATE FUNCTION cyclic(pint, pmode) -- todo replace pint by temporal w/ periodic flag
---   RETURNS cyclic
---   AS 'MODULE_PATHNAME', 'Cyclic_constructor'
---   LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;
-
-

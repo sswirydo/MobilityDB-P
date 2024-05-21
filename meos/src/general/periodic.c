@@ -485,31 +485,6 @@ periodic_get_pertype(const Periodic *per)
 }
 
 
-/*****************************************************************************
- *  Casting
-*****************************************************************************/
-
-/* useless, but kept for ref */
-// Periodic *
-// tgeompoint_to_pgeompoint(const Temporal *temp)
-// {
-//   /* Ensure validity of the arguments */
-//   if (! ensure_not_null((void *) temp) ||
-//       ! ensure_temporal_isof_type(temp, T_TINT))
-//     return NULL;
-
-//   LiftedFunctionInfo lfinfo;
-//   memset(&lfinfo, 0, sizeof(LiftedFunctionInfo));
-//   lfinfo.func = (varfunc) foo;
-//   lfinfo.numparam = 0;
-//   lfinfo.argtype[0] = T_TGEOMPOINT;
-//   lfinfo.restype = T_TGEOMPOINT;
-//   lfinfo.tpfunc_base = NULL;
-//   lfinfo.tpfunc = NULL;
-//   return tfunc_temporal(temp, &lfinfo);
-// }
-
-
 
 /*****************************************************************************
  *  Operations
@@ -618,14 +593,6 @@ anchor(Periodic* per, PMode* pmode)
 
 
 
-/*****************************************************************************
- *  Cyclic
-*****************************************************************************/
-
-
-
-
-
 
 /*****************************************************************************
  *  Other
@@ -639,75 +606,3 @@ format_timestamptz(TimestampTz tstz, const char *fmt)
     char *result = text2cstring(out_text);
     return result;
 }
-
-
-
-// RSequence *
-// repeat_in(const char *str, meosType temptype) 
-// {
-//   RSequence *rseq = (RSequence *) temporal_parse(&str, temptype);
-//   // todo below does not makes sense as we haven't allocate memory for freq not rep
-//   rseq->frequency = *(pg_interval_in("666 days", -1));
-//   rseq->repetitions = 1515; 
-//   return rseq;
-// }
-
-// char *
-// repeat_out(const RSequence *per, int maxdd) 
-// {
-//   char *result;
-//   assert(temptype_subtype(per->subtype));
-//   if (per->subtype == TINSTANT)
-//     result = "SUSHI RINSTANT";
-//   else if (per->subtype == TSEQUENCE) {
-//     result = psequence_out((PSequence *) per, maxdd);
-//     char* temp1 = pg_interval_out(&(per->frequency));
-//     char* temp2 = int4_out(per->repetitions);
-
-//     int new_len = strlen(result) + strlen(temp1) + strlen(temp2) + 1;
-//     result = (char*) repalloc(result, new_len);
-//     strcat(result, temp1);
-//     strcat(result, temp2);
-//   }
-    
-//   else /* temp->subtype == TSEQUENCESET */
-//     result = "SUSHI RSEQUENCESET";
-//   return result;
-// }
-
-// RSequence *
-// r_distance(const RSequence *per, Datum value) 
-// {
-//   // return distance_tint_int(per, value);
-
-//   elog(NOTICE, "SUSHI A: %s", temporal_out(per, 0));
-
-
-//   Temporal *temp = distance_tnumber_number(per, value, T_INT4, T_TINT);
-
-//   elog(NOTICE, "SUSHI A: %s", temporal_out(temp, 0));
-
-
-//   RSequence* rseq = (RSequence*) palloc(sizeof(RSequence));
-//   memcpy(rseq, temp, sizeof(TSequence));
-//   rseq->frequency = per->frequency;
-//   rseq->repetitions = per->repetitions;
-
-
-//   elog(NOTICE, "SUSHI A: %s", temporal_out(rseq, 0));
-
-//   return rseq;
-
-//   // return temp;
-// }
-
-
-// RSequence* create_rsequence_from_tsequence(TSequence* tseq, Interval frequency, int32 repetitions) {
-
-//   RSequence* rseq = (RSequence*) palloc(sizeof(RSequence));
-//   memcpy(rseq, tseq, sizeof(TSequence)); // + instants sizes etc
-//   rseq->frequency = frequency;
-//   rseq->repetitions = repetitions;
-
-//   return rseq;
-// }

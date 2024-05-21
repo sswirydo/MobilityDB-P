@@ -104,21 +104,6 @@ Datum Periodic_int_in(PG_FUNCTION_ARGS)
 }
 
 
-// PGDLLEXPORT Datum Periodic_in(PG_FUNCTION_ARGS);
-// PG_FUNCTION_INFO_V1(Periodic_in);
-// Datum Periodic_in(PG_FUNCTION_ARGS)
-// {
-//   const char *input = PG_GETARG_CSTRING(0);
-//   Oid temptypid = PG_GETARG_OID(1); 
-//   Temporal *result = temporal_in(input, oid_type(temptypid));
-//   int32 temp_typmod = -1;
-//   if (PG_NARGS() > 2 && !PG_ARGISNULL(2))
-//     temp_typmod = PG_GETARG_INT32(2);
-//   if (temp_typmod >= 0)
-//     result = temporal_valid_typmod_temp(result, temp_typmod);
-//   PG_RETURN_POINTER(result);
-// }
-
 
 PGDLLEXPORT Datum Periodic_out(PG_FUNCTION_ARGS);
 PG_FUNCTION_INFO_V1(Periodic_out);
@@ -294,38 +279,3 @@ Datum Quick_test(PG_FUNCTION_ARGS)
   PG_RETURN_TEXT_P(result);
 }
 
-
-
-
-/*****************************************************************************
- *  Cyclic
-*****************************************************************************/
-
-
-// PGDLLEXPORT Datum Cyclic_in(PG_FUNCTION_ARGS);
-// PG_FUNCTION_INFO_V1(Cyclic_in);
-// Datum Cyclic_in(PG_FUNCTION_ARGS)
-// {
-//   const char *str = PG_GETARG_CSTRING(0);
-//   PG_RETURN_CYCLIC_P(cyclic_in(str));
-// }
-
-// PGDLLEXPORT Datum Cyclic_out(PG_FUNCTION_ARGS);
-// PG_FUNCTION_INFO_V1(Cyclic_out);
-// Datum Cyclic_out(PG_FUNCTION_ARGS)
-// {
-//   Cyclic *cycle = PG_GETARG_CYCLIC_P(0);
-//   char *result = cyclic_out(cycle);
-//   PG_FREE_IF_COPY_P(cycle, 0);
-//   PG_RETURN_CSTRING(result);
-// }
-
-
-// PGDLLEXPORT Datum Cyclic_constructor(PG_FUNCTION_ARGS);
-// PG_FUNCTION_INFO_V1(Cyclic_constructor);
-// Datum Cyclic_constructor(PG_FUNCTION_ARGS)
-// {
-//   Periodic *per = PG_GETARG_PERIODIC_P(0);
-//   PMode *pmode = PG_GETARG_PMODE_P(1);
-//   PG_RETURN_CYCLIC_P(cyclic_make(per, pmode));
-// }
