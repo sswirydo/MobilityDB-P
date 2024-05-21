@@ -153,10 +153,6 @@ CREATE FUNCTION setPeriodicType(pgeompoint, text)
   AS 'MODULE_PATHNAME', 'Periodic_set_type'
   LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;
 
-CREATE FUNCTION setPeriodicType(tgeompoint, text)
-  RETURNS tgeompoint
-  AS 'MODULE_PATHNAME', 'Periodic_set_type'
-  LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;
 
 
 
@@ -171,6 +167,10 @@ CREATE FUNCTION anchor(pint, pmode)
   AS 'MODULE_PATHNAME', 'Anchor'
   LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;
 
+CREATE FUNCTION anchor(pgeompoint, pmode)
+  RETURNS tgeompoint
+  AS 'MODULE_PATHNAME', 'Anchor'
+  LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;
 
 -- CREATE FUNCTION anchor(pint, pmode, timestamptz)
 --   RETURNS tint

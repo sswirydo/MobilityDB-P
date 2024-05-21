@@ -133,14 +133,14 @@ Datum Periodic_out(PG_FUNCTION_ARGS)
 
 
 
-// fixme: only testing geometries atm
+
 PGDLLEXPORT Datum Ppoint_in(PG_FUNCTION_ARGS);
 PG_FUNCTION_INFO_V1(Ppoint_in);
 Datum
 Ppoint_in(PG_FUNCTION_ARGS)
 {
   const char *input = PG_GETARG_CSTRING(0);
-  meosType subtype = T_TGEOMPOINT;
+  meosType subtype = T_TGEOMPOINT; //fixme
   PG_RETURN_TEMPORAL_P(ppoint_parse(&input, subtype));
 }
 

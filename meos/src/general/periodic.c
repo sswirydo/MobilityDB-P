@@ -227,22 +227,18 @@ pinstant_to_string(const PInstant *inst, const perType ptype, int maxdd, outfunc
   //            e.g. GTFS timetables can be greater than 24h (to account for overnight transport)
   //                 yet their period should remain <24h.
 
-  // FIXME: add timezones to overflow output computations (atm only works for UTC)
-  //        e.g. P_DAY: 86400000000 + (1000000 * 60 * 60) * TZ_OFFEST
-
   const size_t pattern_size = sizeof(char) * 128;
   TimestampTz reference_tstz = pg_timestamptz_in("2000-01-01 00:00:00", -1);
-
-  // TODO/FIXME: Timezones are awesome
-  // elog(NOTICE, "REFERENCE A: %s", pg_timestamptz_out((TimestampTz) (int64) 0)); // 2000-01-01 01:00:00+01
-  // elog(NOTICE, "REFERENCE B: %s", pg_timestamptz_out(reference_tstz));          // 2000-01-01 00:00:00+01
+  // elog(NOTICE, "REFERENCE UTC: %s", pg_timestamptz_out((TimestampTz) (int64) 0)); // 2000-01-01 01:00:00+01
+  // elog(NOTICE, "REFERENCE ETC: %s", pg_timestamptz_out(reference_tstz));          // 2000-01-01 00:00:00+01
   
   char *t = NULL;
   char *pattern = (char *) palloc(pattern_size); // fixme replace by strlen of int64_to_str
   bool include_us = (inst->t % 1000000) != 0; // checks if value has trailing microseconds
   if (ptype == P_DAY) 
   {
-    long int no_days = (long int) (inst->t / 86400000000); // microseconds in a day
+    long int day_ratio = 86400000000 + (long int) reference_tstz; // microseconds in a day + timezone offset
+    long int no_days = (long int) (inst->t / day_ratio); 
     if (include_us)
       t = format_timestamptz(inst->t, "HH24:MI:SS.USTZH");  // hour:minutes:seconds.microseconds+timezone_hours
     else
@@ -257,7 +253,8 @@ pinstant_to_string(const PInstant *inst, const perType ptype, int maxdd, outfunc
     
   else if (ptype == P_WEEK)
   {
-    long int no_weeks = (long int) (inst->t / 604800000000); // microseconds in a week
+    long int week_ratio = 604800000000 + (long int) reference_tstz;
+    long int no_weeks = (long int) (inst->t / week_ratio); // microseconds in a week
     // Shifting up by 2 days cause 2000-01-01 is actually a Saturday and not a Monday.
     // But we assume that date as Monday 00:00:00. Shifting only affects FMDay output.
     TimestampTz temp_t = add_timestamptz_interval(inst->t, pg_interval_in("2 days", -1));
@@ -275,7 +272,8 @@ pinstant_to_string(const PInstant *inst, const perType ptype, int maxdd, outfunc
 
   else if (ptype == P_MONTH)
   {
-    long int no_months = (long int) (inst->t / 2678400000000 ); // microseconds in 31 days (january) (imprecision if no_months > 1)
+    long int month_ratio = 2678400000000 + (long int) reference_tstz; // microseconds in 31 days (January)
+    long int no_months = (long int) (inst->t / month_ratio); // (WARNING: imprecision if no_months > 1)
     if (include_us)
       t = format_timestamptz(inst->t, "DD HH24:MI:SS.USTZH");  // day_of_month hour:minutes:seconds.microseconds+timezone_hours
     else
@@ -291,7 +289,8 @@ pinstant_to_string(const PInstant *inst, const perType ptype, int maxdd, outfunc
     
   else if (ptype == P_YEAR)
   {
-    long int no_years = (long int) (inst->t / 31622400000000); // microseconds in 366 days (as 2000 is leap year)
+    long int year_ratio = 31622400000000 + (long int) reference_tstz; // microseconds in 366 days (as 2000 is leap year)
+    long int no_years = (long int) (inst->t / year_ratio);  // (WARNING: possible imprecision)
     if (include_us)
       t = format_timestamptz(inst->t, "Mon DD HH24:MI:SS.USTZH"); // day_of_month month hour:minutes:seconds.microseconds+timezone_hours
     else
