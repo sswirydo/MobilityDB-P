@@ -903,7 +903,7 @@ Temporal_valueset(PG_FUNCTION_ARGS)
     PG_FREE_IF_COPY(temp, 0);
     PG_RETURN_ARRAYTYPE_P(result);
   }
-  Set *result = set_make_free(values, count, basetype, ORDERED);
+  Set *result = set_make_free(values, count, basetype, ORDER_NO);
   PG_FREE_IF_COPY(temp, 0);
   PG_RETURN_SET_P(result);
 }
@@ -953,6 +953,26 @@ Temporal_end_value(PG_FUNCTION_ARGS)
   Temporal *temp = PG_GETARG_TEMPORAL_P(0);
   Datum result = temporal_end_value(temp);
   PG_FREE_IF_COPY(temp, 0);
+  PG_RETURN_DATUM(result);
+}
+
+PGDLLEXPORT Datum Temporal_value_n(PG_FUNCTION_ARGS);
+PG_FUNCTION_INFO_V1(Temporal_value_n);
+/**
+ * @ingroup mobilitydb_temporal_accessor
+ * @brief Return the n-th value of a temporal value
+ * @sqlfn valueN()
+ */
+Datum
+Temporal_value_n(PG_FUNCTION_ARGS)
+{
+  Temporal *temp = PG_GETARG_TEMPORAL_P(0);
+  int n = PG_GETARG_INT32(1); /* Assume 1-based */
+  Datum result;
+  bool found = temporal_value_n(temp, n, &result);
+  PG_FREE_IF_COPY(temp, 0);
+  if (! found)
+    PG_RETURN_NULL();
   PG_RETURN_DATUM(result);
 }
 

@@ -97,7 +97,7 @@ tstzset_tprecision(const Set *s, const Interval *duration, TimestampTz torigin)
   /* Loop for each value */
   for (int i = 0; i < s->count; i++)
     values[i] = timestamptz_bucket(SET_VAL_N(s, i), duration, torigin);
-  return set_make_free(values, s->count, T_TIMESTAMPTZ, ORDERED_NO);
+  return set_make_free(values, s->count, T_TIMESTAMPTZ, ORDER);
 }
 
 /**
@@ -169,7 +169,7 @@ tstzspanset_tprecision(const SpanSet *ss, const Interval *duration,
     lower += tunits;
     upper += tunits;
   }
-  return spanset_make_free(spans, nspans, NORMALIZE, ORDERED);
+  return spanset_make_free(spans, nspans, NORMALIZE, ORDER_NO);
 }
 
 /*****************************************************************************
@@ -1337,8 +1337,7 @@ temporal_simplify_min_tdelta(const Temporal *temp, const Interval *mint)
     case TINSTANT:
       return temporal_cp(temp);
     case TSEQUENCE:
-      return ! MEOS_FLAGS_LINEAR_INTERP(temp->flags) ?
-        temporal_cp(temp) :
+      return ! MEOS_FLAGS_LINEAR_INTERP(temp->flags) ? temporal_cp(temp) :
         (Temporal *) tsequence_simplify_min_tdelta((TSequence *) temp, mint);
     default: /* TSEQUENCESET */
       return (Temporal *) tsequenceset_simplify_min_tdelta((TSequenceSet *) temp,
@@ -1673,8 +1672,7 @@ temporal_simplify_max_dist(const Temporal *temp, double dist, bool syncdist)
     case TINSTANT:
       return temporal_cp(temp);
     case TSEQUENCE:
-      return ! MEOS_FLAGS_LINEAR_INTERP(temp->flags) ?
-        temporal_cp(temp) :
+      return ! MEOS_FLAGS_LINEAR_INTERP(temp->flags) ? temporal_cp(temp) :
         (Temporal *) tsequence_simplify_max_dist((TSequence *) temp, dist,
           syncdist, 2);
     default: /* TSEQUENCESET */
@@ -1826,8 +1824,7 @@ temporal_simplify_dp(const Temporal *temp, double dist, bool syncdist)
     case TINSTANT:
       return temporal_cp(temp);
     case TSEQUENCE:
-      return ! MEOS_FLAGS_LINEAR_INTERP(temp->flags) ?
-        temporal_cp(temp) :
+      return ! MEOS_FLAGS_LINEAR_INTERP(temp->flags) ? temporal_cp(temp) :
         (Temporal *) tsequence_simplify_dp((TSequence *) temp, dist, syncdist, 2);
     default: /* TSEQUENCESET */
       return (Temporal *) tsequenceset_simplify_dp((TSequenceSet *) temp, dist,

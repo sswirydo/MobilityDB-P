@@ -874,6 +874,26 @@ tpoint_out(const Temporal *temp, int maxdd)
 }
 #endif /* MEOS */
 
+/*****************************************************************************/
+
+/**
+ * @ingroup meos_internal_temporal_inout
+ * @brief Return the Well-Known Text (WKT) representation of an array of
+ * temporal values
+ * @param[in] temparr Array of temporal value
+ * @param[in] count Number of elements in the input array
+ * @param[in] maxdd Number of decimal digits
+ */
+char **
+temparr_out(const Temporal **temparr, int count, int maxdd)
+{
+  assert(temparr); assert(count > 0); assert(maxdd >=0);
+  char **result = palloc(sizeof(text *) * count);
+  for (int i = 0; i < count; i++)
+    result[i] = temporal_out(temparr[i], maxdd);
+  return result;
+}
+
 /*****************************************************************************
  * Constructor functions
  ****************************************************************************/
@@ -1284,6 +1304,78 @@ tnumber_to_tbox(const Temporal *temp)
 /*****************************************************************************
  * Transformation functions
  *****************************************************************************/
+
+/**
+ * @brief Return a number rounded down to the nearest integer
+ */
+Datum
+datum_floor(Datum value)
+{
+  return Float8GetDatum(floor(DatumGetFloat8(value)));
+}
+
+/**
+ * @brief Return a number rounded up to the nearest integer
+ */
+Datum
+datum_ceil(Datum value)
+{
+  return Float8GetDatum(ceil(DatumGetFloat8(value)));
+}
+
+/**
+ * @ingroup meos_temporal_transf
+ * @brief Return a temporal number rounded down to the nearest integer
+ * @param[in] temp Temporal value
+ * @csqlfn #Tfloat_floor()
+ */
+Temporal *
+tfloat_floor(const Temporal *temp)
+{
+  /* Ensure validity of the arguments */
+  if (! ensure_not_null((void *) temp) ||
+      ! ensure_temporal_isof_type(temp, T_TFLOAT))
+    return NULL;
+
+  /* We only need to fill these parameters for tfunc_temporal */
+  LiftedFunctionInfo lfinfo;
+  memset(&lfinfo, 0, sizeof(LiftedFunctionInfo));
+  lfinfo.func = (varfunc) &datum_floor;
+  lfinfo.numparam = 0;
+  lfinfo.argtype[0] = T_TFLOAT;
+  lfinfo.restype = T_TFLOAT;
+  lfinfo.tpfunc_base = NULL;
+  lfinfo.tpfunc = NULL;
+  return tfunc_temporal(temp, &lfinfo);
+}
+
+/**
+ * @ingroup meos_temporal_transf
+ * @brief Return a temporal number rounded up to the nearest integer
+ * @param[in] temp Temporal value
+ * @csqlfn #Tfloat_ceil()
+ */
+Temporal *
+tfloat_ceil(const Temporal *temp)
+{
+  /* Ensure validity of the arguments */
+  if (! ensure_not_null((void *) temp) ||
+      ! ensure_temporal_isof_type(temp, T_TFLOAT))
+    return NULL;
+
+  /* We only need to fill these parameters for tfunc_temporal */
+  LiftedFunctionInfo lfinfo;
+  memset(&lfinfo, 0, sizeof(LiftedFunctionInfo));
+  lfinfo.func = (varfunc) &datum_ceil;
+  lfinfo.numparam = 0;
+  lfinfo.argtype[0] = T_TFLOAT;
+  lfinfo.restype = T_TFLOAT;
+  lfinfo.tpfunc_base = NULL;
+  lfinfo.tpfunc = NULL;
+  return tfunc_temporal(temp, &lfinfo);
+}
+
+/*****************************************************************************/
 
 /**
  * @ingroup meos_temporal_transf
@@ -2491,6 +2583,162 @@ ttext_max_value(const Temporal *temp)
       ! ensure_temporal_isof_type(temp, T_TTEXT))
     return NULL;
   return DatumGetTextP(temporal_max_value(temp));
+}
+#endif /* MEOS */
+
+/**
+ * @ingroup meos_temporal_accessor
+ * @brief Return a copy of the n-th value of a temporal value in the last
+ * argument
+ * @param[in] temp Temporal value
+ * @param[in] n Number
+ * @param[out] result Resulting timestamp
+ * @return On error return false
+ * @note n is assumed 1-based
+ * @csqlfn #Temporal_value_n()
+ */
+bool
+temporal_value_n(const Temporal *temp, int n, Datum *result)
+{
+  /* Ensure validity of the arguments */
+  if (! ensure_not_null((void *) temp) || ! ensure_not_null((void *) result))
+    return false;
+
+  assert(temptype_subtype(temp->subtype));
+  switch (temp->subtype)
+  {
+    case TINSTANT:
+    {
+      if (n == 1)
+      {
+        *result = tinstant_value((TInstant *) temp);
+        return true;
+      }
+      return false;
+    }
+    case TSEQUENCE:
+    {
+      if (n >= 1 && n <= ((TSequence *) temp)->count)
+      {
+        *result = tinstant_value(TSEQUENCE_INST_N((TSequence *) temp, n - 1));
+        return true;
+      }
+      return false;
+    }
+    default: /* TSEQUENCESET */
+      return tsequenceset_value_n((TSequenceSet *) temp, n, result);
+  }
+}
+
+#if MEOS
+/**
+ * @ingroup meos_temporal_accessor
+ * @brief Return the n-th value of a temporal boolean
+ * @param[in] temp Temporal value
+ * @param[in] n Number
+ * @param[out] result Value
+ * @csqlfn #Temporal_value_n()
+ */
+bool
+tbool_value_n(const Temporal *temp, int n, bool *result)
+{
+  /* Ensure validity of the arguments */
+  if (! ensure_not_null((void *) temp) ||
+      ! ensure_temporal_isof_type(temp, T_TBOOL))
+    return false;
+  Datum dresult;
+  if (! temporal_value_n(temp, n, &dresult))
+    return false;
+  *result = DatumGetBool(dresult);
+  return true;
+}
+
+/**
+ * @ingroup meos_temporal_accessor
+ * @brief Return the n-th value of a temporal integer
+ * @param[in] temp Temporal value
+ * @param[in] n Number
+ * @param[out] result Value
+ * @csqlfn #Temporal_value_n()
+ */
+bool
+tint_value_n(const Temporal *temp, int n, int *result)
+{
+  /* Ensure validity of the arguments */
+  if (! ensure_not_null((void *) temp) ||
+      ! ensure_temporal_isof_type(temp, T_TINT))
+    return false;
+  Datum dresult;
+  if (! temporal_value_n(temp, n, &dresult))
+    return false;
+  *result = DatumGetInt32(dresult);
+  return true;
+}
+
+/**
+ * @ingroup meos_temporal_accessor
+ * @brief Return the n-th value of a temporal float
+ * @param[in] temp Temporal value
+ * @param[in] n Number
+ * @param[out] result Value
+ * @csqlfn #Temporal_value_n()
+ */
+bool
+tfloat_value_n(const Temporal *temp, int n, double *result)
+{
+  /* Ensure validity of the arguments */
+  if (! ensure_not_null((void *) temp) ||
+      ! ensure_temporal_isof_type(temp, T_TFLOAT))
+    return false;
+  Datum dresult;
+  if (! temporal_value_n(temp, n, &dresult))
+    return false;
+  *result = DatumGetFloat8(dresult);
+  return true;
+}
+
+/**
+ * @ingroup meos_temporal_accessor
+ * @brief Return a copy of the n-th value of a temporal text
+ * @param[in] temp Temporal value
+ * @param[in] n Number
+ * @param[out] result Value
+ * @csqlfn #Temporal_value_n()
+ */
+bool
+ttext_value_n(const Temporal *temp, int n, text **result)
+{
+  /* Ensure validity of the arguments */
+  if (! ensure_not_null((void *) temp) ||
+      ! ensure_temporal_isof_type(temp, T_TTEXT))
+    return false;
+  Datum dresult;
+  if (! temporal_value_n(temp, n, &dresult))
+    return false;
+  *result = DatumGetTextP(dresult);
+  return true;
+}
+
+/**
+ * @ingroup meos_temporal_accessor
+ * @brief Return a copy of the n-th value of a temporal point
+ * @param[in] temp Temporal value
+ * @param[in] n Number
+ * @param[out] result Value
+ * @csqlfn #Temporal_value_n()
+ */
+bool
+tpoint_value_n(const Temporal *temp, int n, GSERIALIZED **result)
+{
+  /* Ensure validity of the arguments */
+  if (! ensure_not_null((void *) temp) ||
+      ! ensure_tgeo_type(temp->temptype))
+    return false;
+  Datum dresult;
+  if (! temporal_value_n(temp, n, &dresult))
+    return false;
+  *result = DatumGetGserializedP(dresult);
+  return true;
 }
 #endif /* MEOS */
 

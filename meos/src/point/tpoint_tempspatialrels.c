@@ -211,7 +211,7 @@ tinterrel_tpointseq_simple_geom(const TSequence *seq, Datum geom,
     return result;
   }
 
-  Datum traj = PointerGetDatum(tpointcontseq_trajectory(seq));
+  Datum traj = PointerGetDatum(tpointseq_trajectory(seq));
   Datum inter = geom_intersection2d(traj, geom);
   GSERIALIZED *gsinter = DatumGetGserializedP(inter);
   if (gserialized_is_empty(gsinter))
@@ -258,8 +258,7 @@ tinterrel_tpointseq_simple_geom(const TSequence *seq, Datum geom,
   else
   {
     /* It is necessary to sort the periods */
-    SpanSet *ps1 = spanset_make_exp(periods, npers, npers, NORMALIZE,
-      ORDERED_NO);
+    SpanSet *ps1 = spanset_make_exp(periods, npers, npers, NORMALIZE, ORDER);
     ss = minus_span_spanset(&seq->period, ps1);
     pfree(ps1);
   }
