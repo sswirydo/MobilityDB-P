@@ -88,6 +88,19 @@ Datum Anchor(PG_FUNCTION_ARGS)
   PG_RETURN_POINTER(anchor(per, pmode));
 }
 
+// PGDLLEXPORT Datum Anchor_with_exceptions(PG_FUNCTION_ARGS);
+// PG_FUNCTION_INFO_V1(Anchor_with_exceptions);
+// Datum Anchor_with_exceptions(PG_FUNCTION_ARGS)
+// {
+//   Periodic *per = PG_GETARG_PERIODIC_P(0);
+//   PMode *pmode = PG_GETARG_PMODE_P(1);
+//   Set *dates2add = PG_GETARG_SET_P(2);
+//   Set *dates2remove = PG_GETARG_SET_P(3);
+//   PG_RETURN_POINTER(anchor_with_exceptions(per, pmode, dates2add, dates2remove));
+// }
+
+
+
 
 
 // TODO MODIFY WITH OID LOGIC LATER,
@@ -255,6 +268,30 @@ Datum Temporal_to_periodic(PG_FUNCTION_ARGS)
   // PG_FREE_IF_COPY(temp, 0);
   PG_RETURN_PERIODIC_P(result);
 }
+
+
+
+
+/*****************************************************************************
+  Operations
+*****************************************************************************/
+
+// PGDLLEXPORT Datum Periodic_value_at_timestamp(PG_FUNCTION_ARGS);
+// PG_FUNCTION_INFO_V1(PeriodicValueAtTimestamp);
+// Datum PeriodicValueAtTimestamp(PG_FUNCTION_ARGS)
+// {
+//   Periodic *per = PG_GETARG_PERIODIC_P(0);
+//   PMode *pmode = PG_GETARG_PMODE_P(1);
+//   TimestampTz tstz = PG_GETARG_TIMESTAMPTZ(2);
+//   Datum result;
+//   bool found = periodic_value_at_timestamptz(per, tstz, true, &result);
+//   // bool found = temporal_value_at_timestamptz(temp, t, true, &result);
+//   PG_FREE_IF_COPY(per, 0);
+//   if (! found)
+//     PG_RETURN_NULL();
+//   PG_RETURN_DATUM(result);
+// }
+
 
 
 /*****************************************************************************

@@ -493,34 +493,16 @@ periodic_get_pertype(const Periodic *per)
 
 // Temporal * anchor(Periodic* per, PMode* pmode, TimestampTz start, TimestampTz end, bool upper_inc) 
 Temporal * 
-anchor(Periodic* per, PMode* pmode) 
+anchor(Periodic *per, PMode *pmode) 
 {
   // todo update description and functions cause not up to date anymore
 
   /** PARAMETERS:
    * Frequency: after how long should the sequence repeat itself (interval relative to the start of the sequence)
    *  If is empty, repeat directly
-   * Repetitions: how many times should the sequence repeat ()
+   * Repetitions: how many times should the sequence repeat
    *  If empty, repeat until end of span range
    * Range: start and end of the created sequence
-  */
-
-  /** WARNING:
-   * Ensure FREQUENCY is > than the length of sequence
-   * Ensure REPETITIONS and END of range are not empty at the same time
-   */
-
- /** TODO:
-  * Is there a clean way to specify upper bound inclusion?
-  *   Maybe replace (start, end) by tstz span (s.t. we can have low_up_inc) ? 
-  *   But what if we don't want an upper bound (empty tstz end) ?
-  *   Can be set to PG_INT64_MAX
-  */
-
- /** TBD:
-  * Must the whole pattern occurn at the end or can the pattern be trimmed if does not fit ?
-  *   Both for upper_bound and interval.  
-  * 
   */
 
   Temporal *result;
@@ -548,12 +530,21 @@ anchor(Periodic* per, PMode* pmode)
   uint8 spantype = pmode->period.spantype; // todo?
   (void)lower_inc;(void)keep_pattern;(void)spantype; // fixme quiet compiler for now
 
+  Interval *duration = temporal_duration((Temporal*) per, true);
+
+  if (pg_interval_cmp(duration, frequency) > 0) 
+  {
+    meos_error(ERROR, MEOS_ERR_INVALID_ARG_VALUE,
+      "Anchor(): Frequency (%s) must be greater than the time range of the periodic sequence (%s).",
+      pg_interval_out(duration), pg_interval_out(frequency));
+    // QUESTION: What if we simply trim if the psequence overflows and issue a warning instead of an error?
+  }
+
   // Create basic temporal sequence.
   temp = (Temporal*) periodic_copy(per);
   MEOS_FLAGS_SET_PERIODIC(temp->flags, P_NONE);
 
   // Shift it s.t. it starts at "start".
-  // Interval *diff = pg_timestamp_mi(start, reference_tstz);
   Interval *diff = minus_timestamptz_timestamptz(start, reference_tstz);
   base_temp = (Temporal*) temporal_shift_scale_time(temp, diff, NULL);
 
@@ -561,7 +552,6 @@ anchor(Periodic* per, PMode* pmode)
   for (int32 i = 1; i < repetitions; i++)
   {
     // Incrementing frequency. 
-    // work_freq = pg_interval_pl(work_freq, frequency);
     work_freq = add_interval_interval(work_freq, frequency);
 
     // Shifts new seq accordingly.
@@ -585,11 +575,34 @@ anchor(Periodic* per, PMode* pmode)
   }
   // Trim if necessary
   Span *trim_span = span_make(TimestampGetDatum(start), TimestampGetDatum(end), true, upper_inc, T_TIMESTAMPTZ);
-  // base_temp = temporal_restrict_period(base_temp, trim_span, REST_AT);
   base_temp = temporal_restrict_tstzspan(base_temp, trim_span, REST_AT);
   result = base_temp;
   return result;
 }
+
+
+
+
+// bool
+// periodic_value_at_timestamptz(const Periodic *per, PMode *pmode, TimestampTz tstz, bool strict, Datum *result)
+// {
+//   assert(per); assert(pmode); assert(result);
+//   assert(temptype_subtype(temp->subtype));
+//   switch (temp->subtype)
+//   {
+//     case TINSTANT:
+//       return tinstant_value_at_timestamptz((TInstant *) temp, t, result);
+//     case TSEQUENCE:
+//       return tsequence_value_at_timestamptz((TSequence *) temp, t, strict, result);
+//       // return MEOS_FLAGS_DISCRETE_INTERP(temp->flags) ?
+//       //   tdiscseq_value_at_timestamptz((TSequence *) temp, t, result) :
+//       //   tsequence_value_at_timestamptz((TSequence *) temp, t, strict, result);
+//     default: /* TSEQUENCESET */
+//       return false;
+//       // return tsequenceset_value_at_timestamptz((TSequenceSet *) temp, t,
+//       //   strict, result);
+//   }
+// }
 
 
 

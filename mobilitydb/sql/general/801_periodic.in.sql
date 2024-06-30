@@ -172,6 +172,11 @@ CREATE FUNCTION anchor(pgeompoint, pmode)
   AS 'MODULE_PATHNAME', 'Anchor'
   LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;
 
+-- CREATE FUNCTION anchor_with_exceptions(pgeompoint, pmode, dateset, dateset)
+--   RETURNS tgeompoint
+--   AS 'MODULE_PATHNAME', 'Anchor_with_exceptions'
+--   LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;
+
 -- CREATE FUNCTION anchor(pint, pmode, timestamptz)
 --   RETURNS tint
 --   AS 'MODULE_PATHNAME', 'Anchor'
@@ -187,6 +192,14 @@ CREATE FUNCTION anchor(pgeompoint, pmode)
 --   AS 'MODULE_PATHNAME', 'Anchor_end_inc'
 --   LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;
 
+
+/*****************************************************************************
+ *  Operations
+*****************************************************************************/
+-- CREATE FUNCTION periodicValueAtTimestamp(pint, pmode, timestamptz)
+--   RETURNS int
+--   AS 'MODULE_PATHNAME', 'Periodic_value_at_timestamp'
+--   LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;
 
 
 

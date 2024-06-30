@@ -54,7 +54,7 @@ typedef struct
   Interval frequency;
   int32 repetitions;
   bool keep_pattern;
-  Span period; // <-- keep in PMode or separate for operations ?
+  Span period;
 } PMode;
 
 
@@ -239,16 +239,19 @@ char *periodic_get_pertype(const Periodic *per);
  *  Operations
 *****************************************************************************/
 
-Temporal *anchor(Periodic* per, PMode* pmode);
+Temporal *anchor(Periodic *per, PMode *pmode);
+// Temporal *anchor_with_exceptions(Periodic *per, PMode *pmode, Set *date2add, Set *date2remove);
 // Temporal *anchor_interval(Periodic* per, Interval *frequency, int32 repetitions, TimestampTz start, TimestampTz end, bool upper_inc);
 // Temporal *anchor_fixed(Periodic* per, PMode* pmode, TimestampTz start, TimestampTz end, bool upper_inc);
 
+// bool periodic_value_at_timestamptz(const Periodic *per, PMode *pmode, TimestampTz tstz, bool strict, Datum *result);
+// extern bool temporal_value_at_timestamptz(const Temporal *temp, TimestampTz t, bool strict, Datum *result);
 
 /*****************************************************************************
  *  Other
 *****************************************************************************/
 
-char *format_timestamptz(TimestampTz tstz, const char* fmt);
+char *format_timestamptz(TimestampTz tstz, const char *fmt);
 
 
 
