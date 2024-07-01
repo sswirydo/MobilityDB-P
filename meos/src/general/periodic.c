@@ -228,9 +228,14 @@ pinstant_to_string(const PInstant *inst, const perType ptype, int maxdd, outfunc
   //                 yet their period should remain <24h.
 
   const size_t pattern_size = sizeof(char) * 128;
-  TimestampTz reference_tstz = pg_timestamptz_in("2000-01-01 00:00:00", -1);
+
+  TimestampTz reference_tstz;
+  // reference_tstz = pg_timestamptz_in("2000-01-01 00:00:00", -1); // with locale time zone offset
+  reference_tstz = (TimestampTz) (int64) 0; // i.e., 2000-01-01 00:00:00 UTC
+  
+
   // elog(NOTICE, "REFERENCE UTC: %s", pg_timestamptz_out((TimestampTz) (int64) 0)); // 2000-01-01 01:00:00+01
-  // elog(NOTICE, "REFERENCE ETC: %s", pg_timestamptz_out(reference_tstz));          // 2000-01-01 00:00:00+01
+  // elog(NOTICE, "REFERENCE CET: %s", pg_timestamptz_out(reference_tstz));          // 2000-01-01 00:00:00+01
   
   char *t = NULL;
   char *pattern = (char *) palloc(pattern_size); // fixme replace by strlen of int64_to_str
@@ -240,7 +245,9 @@ pinstant_to_string(const PInstant *inst, const perType ptype, int maxdd, outfunc
     long int day_ratio = 86400000000 + (long int) reference_tstz; // microseconds in a day + timezone offset
     long int no_days = (long int) (inst->t / day_ratio); 
     if (include_us)
+    {
       t = format_timestamptz(inst->t, "HH24:MI:SS.USTZH");  // hour:minutes:seconds.microseconds+timezone_hours
+    }
     else
       t = format_timestamptz(inst->t, "HH24:MI:SSTZH");  // hour:minutes:seconds
     if (no_days > 0) 
@@ -259,9 +266,15 @@ pinstant_to_string(const PInstant *inst, const perType ptype, int maxdd, outfunc
     // But we assume that date as Monday 00:00:00. Shifting only affects FMDay output.
     TimestampTz temp_t = add_timestamptz_interval(inst->t, pg_interval_in("2 days", -1));
     if (include_us)
-      t = format_timestamptz(temp_t, "FMDay HH24:MI:SS.USTZH"); // day_of_week hour:minutes:seconds.microseconds+timezone_hours
+    {
+      // t = format_timestamptz(temp_t, "FMDay HH24:MI:SS.USTZH"); // day_of_week hour:minutes:seconds.microseconds+timezone_hours
+      t = format_timestamptz(temp_t, "FMDay HH24:MI:SS.US"); // day_of_week hour:minutes:seconds.microseconds+timezone_hours
+    }
     else
-      t = format_timestamptz(temp_t, "FMDay HH24:MI:SSTZH"); // day_of_week hour:minutes:seconds+timezone_hours
+    {
+      // t = format_timestamptz(temp_t, "FMDay HH24:MI:SSTZH"); // day_of_week hour:minutes:seconds+timezone_hours
+      t = format_timestamptz(temp_t, "FMDay HH24:MI:SS"); // day_of_week hour:minutes:seconds+timezone_hours
+    }
     if (no_weeks > 0) 
     {
       snprintf(pattern, pattern_size, "%s+%ldW", t, no_weeks);
@@ -311,7 +324,11 @@ pinstant_to_string(const PInstant *inst, const perType ptype, int maxdd, outfunc
   }
     
   else 
-    t = pg_timestamptz_out(inst->t); // default
+  {
+    // t = pg_timestamptz_out(inst->t); // default
+    t = pg_timestamp_out(inst->t); // default
+  }
+   
 
   meosType basetype = temptype_basetype(inst->temptype);
   char *value = value_out(tinstant_value((TInstant *) inst), basetype, maxdd);
@@ -582,6 +599,51 @@ anchor(Periodic *per, PMode *pmode)
 
 
 
+// Temporal *
+// anchor_rework(Periodic *per, PMode *pmode) 
+// {
+//   Temporal *result;
+//   Temporal *temp;
+//   Temporal *base_temp;
+//   Temporal *work_temp;
+
+//   if (!ensure_not_null(per) || !ensure_not_null(pmode))
+//     return NULL;
+
+//   Interval *frequency = &(pmode->frequency);
+//   int32 repetitions = pmode->repetitions;
+//   TimestampTz start_tstz = pmode->period.lower;
+//   TimestampTz end_tstz = pmode->period.upper;
+//   bool lower_inc = pmode->period.upper_inc;
+//   bool upper_inc = pmode->period.upper_inc;
+//   bool keep_pattern = pmode->keep_pattern;
+//   uint8 spantype = pmode->period.spantype;
+
+//   Interval *duration = temporal_duration((Temporal*) per, true);
+
+//   /* Some basic validity checks */
+
+//   if (spantype != T_DATESPAN || spantype != T_TSTZSPAN)
+//     return NULL;
+  
+//   if (pg_interval_cmp(duration, frequency) > 0) 
+//   {
+//     meos_error(ERROR, MEOS_ERR_INVALID_ARG_VALUE,
+//       "Anchor(): Frequency (%s) must be greater or equal than the time range of the periodic sequence (%s).",
+//       pg_interval_out(frequency), pg_interval_out(duration));
+//     return NULL;
+//   }
+
+//   // 
+//   temp = (Temporal *) periodic_copy(per);
+//   MEOS_FLAGS_SET_PERIODIC(temp->flags, P_NONE);
+
+//   Interval *diff = minus_timestamptz_timestamptz(start_tstz, (TimestampTz) 0);
+//   base_temp = (Temporal*) temporal_shift_scale_time(temp, diff, NULL);
+
+// }
+
+
 
 // bool
 // periodic_value_at_timestamptz(const Periodic *per, PMode *pmode, TimestampTz tstz, bool strict, Datum *result)
@@ -614,8 +676,26 @@ anchor(Periodic *per, PMode *pmode)
 char * 
 format_timestamptz(TimestampTz tstz, const char *fmt) 
 {
+    /*
+     *	Small trick to convert TimestampTz output to Timestamp output
+     *  as pg_timestamptz_to_char() assumes input timestamp has time zone
+     *  (although we want to format using UTC only, without tz)
+     *  the idea is to remove the equivalent tz_offset beforehand
+     *	e.g.,
+     *  initial timestamptz: 
+     *    Oct 01 10:00:00 -- UTC
+     *    Oct 01 12:00:00+02 -- CEST (output)
+     *  pg_timestamp_out('Oct 01 12:00:00+02'):
+     *    Oct 01 10:00:00
+     *  pg_timestamptz_in('Oct 01 10:00:00'):
+     *    Oct 01 10:00:00+02 -- CEST
+     *    Oct 01 08:00:00 -- UTC
+     *  pg_timestamptz_to_char('Oct 01 08:00:00')
+     *    Oct 01 10:00:00 -- expected final output
+     */
+    Timestamp ts_without_tz = pg_timestamp_in(pg_timestamp_out(pg_timestamptz_in(pg_timestamp_out((Timestamp) tstz), -1)), -1);
     text *fmt_text = cstring2text(fmt);
-    text *out_text = pg_timestamptz_to_char(tstz, fmt_text);
+    text *out_text = pg_timestamptz_to_char(ts_without_tz, fmt_text);
     char *result = text2cstring(out_text);
     return result;
 }

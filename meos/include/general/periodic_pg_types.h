@@ -14,5 +14,8 @@ text *pg_timestamptz_to_char(TimestampTz dt, text *fmt);
 Interval *pg_interval_in(const char *str, int32 typmod);
 TimestampTz pg_to_timestamp(text *date_txt, text *fmt);
 
+char *pg_timestamp_out(Timestamp t);
+Timestamp pg_timestamp_in(const char *str, int32 prec);
+
 
 #endif /* __PERIODIC_PG_TYPES_H__ */

@@ -251,6 +251,13 @@ periodic_timestamp_parse(const char **str, perType pertype)
 
   TimestampTz result;
 
+
+  TimestampTz reference_tstz;
+  // reference_tstz = pg_timestamptz_in("2000-01-01 00:00:00", -1); // with TZ offset
+  reference_tstz = (TimestampTz) (int64) 0; // i.e., 2000-01-01 00:00:00 UTC
+  
+  Interval *tz_offset = (Interval *) minus_timestamptz_timestamptz((TimestampTz) (int64) 0, pg_timestamptz_in("2000-01-01 00:00:00", -1));
+
   // Prefixing 2000 to certain inputs cause to_timestamp by default creates timestamps at year 0000.
   const char* parsePrefix = "2000 ";
   char *date2parse = palloc(strlen(parsePrefix) + strlen(str1) + 1);
@@ -274,17 +281,38 @@ periodic_timestamp_parse(const char **str, perType pertype)
     result = add_timestamptz_interval(result2shift, week_shift);
   }
   else if (pertype == P_MONTH) 
+  {
     result = pg_to_timestamp(cstring2text(date2parse), cstring2text("YYYY DD HH24:MI:SS")); // day_of_month hour:minutes:seconds
+  }
   else if (pertype == P_YEAR) 
+  {
     result = pg_to_timestamp(cstring2text(date2parse), cstring2text("YYYY Mon DD HH24:MI:SS")); // month day_of_month hour:minutes:seconds
+  }
   else if (pertype == P_INTERVAL) 
   {
     Interval *diff = pg_interval_in(str1, -1);
-    TimestampTz reference_tstz = pg_timestamptz_in("2000-01-01 00:00:00", -1);
     result = add_timestamptz_interval(reference_tstz, diff);
   }
   else // P_DEFAULT, P_NONE
+  {
     result = pg_timestamptz_in(str1, -1);
+    // result = pg_timestamp_in(str1, -1);
+  }
+  
+
+  /*
+   *	Small trick to convert TimestampTz input to Timestamp input
+   *	because PostgreSQL pg_to_timestamp() returns a ts WITH time zone.
+   *	e.g.,
+   *  user input: 
+   *    Oct 01 10:00:00
+   *  converted to UTC due to Europe/Brussels locale:
+   *    Oct 01 10:00:00+02 -- CEST
+   *    Oct 01 08:00:00    -- UTC
+   *  pg_timestamp_in() of Oct 01 10:00:00+02:
+   *    Oct 01 10:00:00    -- UTC
+   */
+  result = pg_timestamp_in(pg_timestamptz_out(result), -1);
 
   pfree(date2parse);
   pfree(str1);

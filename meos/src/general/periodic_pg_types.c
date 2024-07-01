@@ -49,6 +49,10 @@
   extern Datum interval_out(PG_FUNCTION_ARGS);
   extern Datum to_timestamp(PG_FUNCTION_ARGS);
 
+  extern Datum timestamp_out(PG_FUNCTION_ARGS);
+  extern Datum timestamp_in(PG_FUNCTION_ARGS);
+  
+
 #endif /* ! MEOS */
 
 
@@ -79,6 +83,23 @@
     Datum arg1 = PointerGetDatum(date_txt);
     Datum arg2 = PointerGetDatum(fmt);
     TimestampTz result = DatumGetTimestampTz(call_function2(to_timestamp, arg1, arg2));
+    return result;
+  }
+
+  char *
+  pg_timestamp_out(Timestamp t)
+  {
+    Datum d = TimestampGetDatum(t);
+    return DatumGetCString(call_function1(timestamp_out, d));
+  }
+
+  Timestamp
+  pg_timestamp_in(const char *str, int32 prec)
+  {
+    Datum arg1 = CStringGetDatum(str);
+    Datum arg3 = Int32GetDatum(prec);
+    Timestamp result = DatumGetTimestamp(call_function3(timestamp_in, arg1,
+      (Datum) 0, arg3));
     return result;
   }
 
