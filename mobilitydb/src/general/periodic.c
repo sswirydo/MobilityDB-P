@@ -65,12 +65,20 @@ PGDLLEXPORT Datum PMode_constructor(PG_FUNCTION_ARGS);
 PG_FUNCTION_INFO_V1(PMode_constructor);
 Datum PMode_constructor(PG_FUNCTION_ARGS)
 {
+  if (PG_ARGISNULL(1) && PG_ARGISNULL(3))
+    PG_RETURN_NULL();
+
+  // Interval *frequency = PG_ARGISNULL(0) ? NULL : PG_GETARG_INTERVAL_P(0);
+  // int repetitions = PG_ARGISNULL(1) ? -1 : PG_GETARG_INT32(1);
+  // bool keep_pattern = PG_ARGISNULL(2) ? true : PG_GETARG_BOOL(2);
+  // Span *anchor = PG_ARGISNULL(3) ? NULL : PG_GETARG_SPAN_P(3);
+
   Interval *frequency = PG_GETARG_INTERVAL_P(0);
   int repetitions = PG_GETARG_INT32(1);
   bool keep_pattern = PG_GETARG_BOOL(2);
-  Span *period = PG_GETARG_SPAN_P(3);
-  // if ((PG_NARGS() > 2) && ! PG_ARGISNULL(n))
-  PG_RETURN_PMODE_P(pmode_make(frequency, repetitions, keep_pattern, period));
+  Span *anchor = PG_GETARG_SPAN_P(3);
+  
+  PG_RETURN_PMODE_P(pmode_make(frequency, repetitions, keep_pattern, anchor));
 }
 
 

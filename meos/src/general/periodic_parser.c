@@ -255,8 +255,6 @@ periodic_timestamp_parse(const char **str, perType pertype)
   TimestampTz reference_tstz;
   // reference_tstz = pg_timestamptz_in("2000-01-01 00:00:00", -1); // with TZ offset
   reference_tstz = (TimestampTz) (int64) 0; // i.e., 2000-01-01 00:00:00 UTC
-  
-  Interval *tz_offset = (Interval *) minus_timestamptz_timestamptz((TimestampTz) (int64) 0, pg_timestamptz_in("2000-01-01 00:00:00", -1));
 
   // Prefixing 2000 to certain inputs cause to_timestamp by default creates timestamps at year 0000.
   const char* parsePrefix = "2000 ";
@@ -265,7 +263,7 @@ periodic_timestamp_parse(const char **str, perType pertype)
   strcat(date2parse, str1);
 
   if (pertype == P_DAY)
-    result = pg_to_timestamp(cstring2text(date2parse), cstring2text("YYYY HH24:MI:SS")); // hour:minutes:seconds
+    result = pg_to_timestamp(cstring2text(date2parse), cstring2text("YYYY HH24:MI:SS.US")); // hour:minutes:seconds.microseconds
   else if (pertype == P_WEEK)
   {
     // Checking for day_of_week manually as FMDay is ignored in to_timestamp
@@ -277,17 +275,17 @@ periodic_timestamp_parse(const char **str, perType pertype)
     else if (pg_strncasecmp(str1, "Fri", 3) == 0) week_shift = pg_interval_in("4 days", -1);
     else if (pg_strncasecmp(str1, "Sat", 3) == 0) week_shift = pg_interval_in("5 days", -1); 
     else week_shift = pg_interval_in("6 days", -1);
-    TimestampTz result2shift = pg_to_timestamp(cstring2text(date2parse), cstring2text("YYYY FMDay HH24:MI:SS")); // day_of_week hour:minutes:seconds
+    TimestampTz result2shift = pg_to_timestamp(cstring2text(date2parse), cstring2text("YYYY FMDay HH24:MI:SS.US")); // day_of_week hour:minutes:seconds.microseconds
     result = add_timestamptz_interval(result2shift, week_shift);
   }
-  else if (pertype == P_MONTH) 
-  {
-    result = pg_to_timestamp(cstring2text(date2parse), cstring2text("YYYY DD HH24:MI:SS")); // day_of_month hour:minutes:seconds
-  }
-  else if (pertype == P_YEAR) 
-  {
-    result = pg_to_timestamp(cstring2text(date2parse), cstring2text("YYYY Mon DD HH24:MI:SS")); // month day_of_month hour:minutes:seconds
-  }
+  // else if (pertype == P_MONTH) 
+  // {
+  //   result = pg_to_timestamp(cstring2text(date2parse), cstring2text("YYYY DD HH24:MI:SS")); // day_of_month hour:minutes:seconds
+  // }
+  // else if (pertype == P_YEAR) 
+  // {
+  //   result = pg_to_timestamp(cstring2text(date2parse), cstring2text("YYYY Mon DD HH24:MI:SS")); // month day_of_month hour:minutes:seconds
+  // }
   else if (pertype == P_INTERVAL) 
   {
     Interval *diff = pg_interval_in(str1, -1);
@@ -295,8 +293,8 @@ periodic_timestamp_parse(const char **str, perType pertype)
   }
   else // P_DEFAULT, P_NONE
   {
-    result = pg_timestamptz_in(str1, -1);
-    // result = pg_timestamp_in(str1, -1);
+    //result = pg_timestamptz_in(str1, -1);
+    result = pg_timestamp_in(str1, -1);
   }
   
 
@@ -312,7 +310,8 @@ periodic_timestamp_parse(const char **str, perType pertype)
    *  pg_timestamp_in() of Oct 01 10:00:00+02:
    *    Oct 01 10:00:00    -- UTC
    */
-  result = pg_timestamp_in(pg_timestamptz_out(result), -1);
+  if (pertype == P_DAY ||pertype == P_WEEK)
+    result = pg_timestamp_in(pg_timestamptz_out(result), -1);
 
   pfree(date2parse);
   pfree(str1);
@@ -375,7 +374,7 @@ periodic_basetype_parse(const char **str, meosType basetype, Datum *result)
 PSequence*
 normalize_periodic_sequence(PSequence *pseq) 
 {
-  TimestampTz reference_tstz = pg_timestamptz_in("2000-01-01 00:00:00", -1);
+  TimestampTz reference_tstz = (TimestampTz) (int64) 0;
   TimestampTz start_tstz = temporal_start_timestamptz((Temporal*)pseq);
   Interval *diff = (Interval*) minus_timestamptz_timestamptz(reference_tstz, start_tstz);
   PSequence* result = (PSequence *) temporal_shift_scale_time((Temporal*) pseq, diff, NULL);

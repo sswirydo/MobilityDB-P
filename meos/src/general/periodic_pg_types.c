@@ -45,6 +45,7 @@
   extern Datum call_function2(PGFunction func, Datum arg1, Datum arg2);
   extern Datum call_function3(PGFunction func, Datum arg1, Datum arg2, Datum arg3);
   extern Datum timestamptz_to_char(PG_FUNCTION_ARGS);
+  extern Datum timestamp_to_char(PG_FUNCTION_ARGS);
   extern Datum interval_in(PG_FUNCTION_ARGS);
   extern Datum interval_out(PG_FUNCTION_ARGS);
   extern Datum to_timestamp(PG_FUNCTION_ARGS);
@@ -64,6 +65,15 @@
     Datum arg1 = TimestampTzGetDatum(dt);
     Datum arg2 = PointerGetDatum(fmt);
     text *result = DatumGetTextP(call_function2(timestamptz_to_char, arg1, arg2));
+    return result;
+  }
+
+  text *
+  pg_timestamp_to_char(Timestamp dt, text *fmt)
+  {
+    Datum arg1 = TimestampGetDatum(dt);
+    Datum arg2 = PointerGetDatum(fmt);
+    text *result = DatumGetTextP(call_function2(timestamp_to_char, arg1, arg2));
     return result;
   }
 

@@ -54,7 +54,7 @@ typedef struct
   Interval frequency;
   int32 repetitions;
   bool keep_pattern;
-  Span period;
+  Span anchor;
 } PMode;
 
 
@@ -65,7 +65,7 @@ typedef struct
 
 extern PMode *pmode_in(const char *str);
 extern PMode *pmode_parse(const char **str);
-extern PMode *pmode_make(Interval *frequency, int32 repetitions, bool keep_pattern, Span *period);
+extern PMode *pmode_make(Interval *frequency, int32 repetitions, bool keep_pattern, Span *anchor);
 // extern PMode *pmode_make(Interval *frequency, int32 repetitions, TimestampTz start_date, TimestampTz end_date, bool upper_inc, bool keep_pattern);
 extern char *pmode_out(const PMode *pmode);
 

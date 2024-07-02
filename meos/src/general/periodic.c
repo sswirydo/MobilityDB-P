@@ -111,13 +111,13 @@ pmode_parse(const char **str)
 }
 
 PMode *
-pmode_make(Interval *frequency, int32 repetitions, bool keep_pattern, Span *period)
+pmode_make(Interval *frequency, int32 repetitions, bool keep_pattern, Span *anchor)
 {
   PMode *pmode = palloc(sizeof(PMode));
   pmode->frequency = *frequency;
   pmode->repetitions = repetitions;
   pmode->keep_pattern = keep_pattern;
-  pmode->period = *period;
+  pmode->anchor = *anchor;
   return pmode;
 }
 
@@ -283,39 +283,39 @@ pinstant_to_string(const PInstant *inst, const perType ptype, int maxdd, outfunc
     }
   }
 
-  else if (ptype == P_MONTH)
-  {
-    long int month_ratio = 2678400000000 + (long int) reference_tstz; // microseconds in 31 days (January)
-    long int no_months = (long int) (inst->t / month_ratio); // (WARNING: imprecision if no_months > 1)
-    if (include_us)
-      t = format_timestamptz(inst->t, "DD HH24:MI:SS.USTZH");  // day_of_month hour:minutes:seconds.microseconds+timezone_hours
-    else
-      t = format_timestamptz(inst->t, "DD HH24:MI:SSTZH");  // day_of_month hour:minutes:seconds+timezone_hours
+  // else if (ptype == P_MONTH)
+  // {
+  //   long int month_ratio = 2678400000000 + (long int) reference_tstz; // microseconds in 31 days (January)
+  //   long int no_months = (long int) (inst->t / month_ratio); // (WARNING: imprecision if no_months > 1)
+  //   if (include_us)
+  //     t = format_timestamptz(inst->t, "DD HH24:MI:SS.USTZH");  // day_of_month hour:minutes:seconds.microseconds+timezone_hours
+  //   else
+  //     t = format_timestamptz(inst->t, "DD HH24:MI:SSTZH");  // day_of_month hour:minutes:seconds+timezone_hours
     
-    if (no_months > 0) 
-    {
-      snprintf(pattern, pattern_size, "%s+%ldM", t, no_months);
-      pfree(t);
-      t = pattern;
-    }
-  }
+  //   if (no_months > 0) 
+  //   {
+  //     snprintf(pattern, pattern_size, "%s+%ldM", t, no_months);
+  //     pfree(t);
+  //     t = pattern;
+  //   }
+  // }
     
-  else if (ptype == P_YEAR)
-  {
-    long int year_ratio = 31622400000000 + (long int) reference_tstz; // microseconds in 366 days (as 2000 is leap year)
-    long int no_years = (long int) (inst->t / year_ratio);  // (WARNING: possible imprecision)
-    if (include_us)
-      t = format_timestamptz(inst->t, "Mon DD HH24:MI:SS.USTZH"); // day_of_month month hour:minutes:seconds.microseconds+timezone_hours
-    else
-      t = format_timestamptz(inst->t, "Mon DD HH24:MI:SSTZH"); // day_of_month month hour:minutes:seconds+timezone_hours
+  // else if (ptype == P_YEAR)
+  // {
+  //   long int year_ratio = 31622400000000 + (long int) reference_tstz; // microseconds in 366 days (as 2000 is leap year)
+  //   long int no_years = (long int) (inst->t / year_ratio);  // (WARNING: possible imprecision)
+  //   if (include_us)
+  //     t = format_timestamptz(inst->t, "Mon DD HH24:MI:SS.USTZH"); // day_of_month month hour:minutes:seconds.microseconds+timezone_hours
+  //   else
+  //     t = format_timestamptz(inst->t, "Mon DD HH24:MI:SSTZH"); // day_of_month month hour:minutes:seconds+timezone_hours
     
-    if (no_years > 0) 
-    {
-      snprintf(pattern, pattern_size, "%s+%ldY", t, no_years);
-      pfree(t);
-      t = pattern;
-    }
-  }
+  //   if (no_years > 0) 
+  //   {
+  //     snprintf(pattern, pattern_size, "%s+%ldY", t, no_years);
+  //     pfree(t);
+  //     t = pattern;
+  //   }
+  // }
     
   else if (ptype == P_INTERVAL)
   {
@@ -325,7 +325,7 @@ pinstant_to_string(const PInstant *inst, const perType ptype, int maxdd, outfunc
     
   else 
   {
-    // t = pg_timestamptz_out(inst->t); // default
+    //t = pg_timestamptz_out(inst->t); // default
     t = pg_timestamp_out(inst->t); // default
   }
    
@@ -507,141 +507,112 @@ periodic_get_pertype(const Periodic *per)
  *  Operations
 *****************************************************************************/
 
-
-// Temporal * anchor(Periodic* per, PMode* pmode, TimestampTz start, TimestampTz end, bool upper_inc) 
-Temporal * 
+/*
+ * TODOS
+ * - support anchor low/up inclusion 
+ */
+Temporal *
 anchor(Periodic *per, PMode *pmode) 
 {
-  // todo update description and functions cause not up to date anymore
-
-  /** PARAMETERS:
-   * Frequency: after how long should the sequence repeat itself (interval relative to the start of the sequence)
-   *  If is empty, repeat directly
-   * Repetitions: how many times should the sequence repeat
-   *  If empty, repeat until end of span range
-   * Range: start and end of the created sequence
-  */
+  
 
   Temporal *result;
+  Temporal *temp;
+  Temporal *base_temp;
+  Temporal *work_temp;
 
   if (!ensure_not_null(per) || !ensure_not_null(pmode))
     return NULL;
 
-  Temporal *temp;
-  Temporal *base_temp;
-  Temporal *work_temp;
-  TimestampTz reference_tstz = pg_timestamptz_in("2000-01-01 00:00:00", -1);
-  Interval *work_freq = pg_interval_in("0 days", -1);
-
-  perType ptype = MEOS_FLAGS_GET_PERIODIC(per->flags);
-  (void)ptype;
-  
   Interval *frequency = &(pmode->frequency);
   int32 repetitions = pmode->repetitions;
-  TimestampTz start = pmode->period.lower;
-  TimestampTz end = pmode->period.upper;
-  bool upper_inc = pmode->period.upper_inc;
-
-  bool lower_inc = pmode->period.lower_inc; // todo
-  bool keep_pattern = pmode->keep_pattern; // todo
-  uint8 spantype = pmode->period.spantype; // todo?
-  (void)lower_inc;(void)keep_pattern;(void)spantype; // fixme quiet compiler for now
+  TimestampTz start_tstz = pmode->anchor.lower;
+  TimestampTz end_tstz = pmode->anchor.upper;
+  bool lower_inc = pmode->anchor.upper_inc;
+  bool upper_inc = pmode->anchor.upper_inc;
+  bool keep_pattern = pmode->keep_pattern;
+  uint8 spantype = pmode->anchor.spantype;
 
   Interval *duration = temporal_duration((Temporal*) per, true);
 
+  /* Some basic validity checks */
+  if (spantype != T_DATESPAN && spantype != T_TSTZSPAN)
+    return NULL;
+  
+  
   if (pg_interval_cmp(duration, frequency) > 0) 
   {
     meos_error(ERROR, MEOS_ERR_INVALID_ARG_VALUE,
-      "Anchor(): Frequency (%s) must be greater than the time range of the periodic sequence (%s).",
-      pg_interval_out(duration), pg_interval_out(frequency));
-    // QUESTION: What if we simply trim if the psequence overflows and issue a warning instead of an error?
+      "Anchor(): Frequency (%s) must be greater or equal than the time range of the periodic sequence (%s).",
+      pg_interval_out(frequency), pg_interval_out(duration));
+    return NULL;
   }
 
-  // Create basic temporal sequence.
-  temp = (Temporal*) periodic_copy(per);
+  if (repetitions == -1)
+    repetitions = INT32_MAX;
+  
+  if (end_tstz < start_tstz)
+    end_tstz = INT64_MAX;
+  
+  if (repetitions == INT32_MAX && end_tstz == INT64_MAX)
+  {
+    meos_error(ERROR, MEOS_ERR_INVALID_ARG_VALUE,
+    "Anchor(): Periodic sequence must have either repetitions or end timestamp defined.");
+    return NULL;
+  }
+
+  /* Creates first anchored temporal sequence. */
+  temp = (Temporal *) periodic_copy(per);
   MEOS_FLAGS_SET_PERIODIC(temp->flags, P_NONE);
 
-  // Shift it s.t. it starts at "start".
-  Interval *diff = minus_timestamptz_timestamptz(start, reference_tstz);
-  base_temp = (Temporal*) temporal_shift_scale_time(temp, diff, NULL);
+  TimestampTz anchor_reference = (TimestampTz) (int64) 0; // 2000 UTC
+  TimestampTz frequency_reference = temporal_start_timestamptz(temp);
 
-  // Repeat until repetition is empty or end is reached.
+  Interval *frequency_interval = pg_interval_in("0 days", -1);
+
+  /* Shift the copy s.t. it begins at start_tstz */
+  Interval *anchor_interval = minus_timestamptz_timestamptz(start_tstz, anchor_reference);
+
+  base_temp = (Temporal*) temporal_shift_scale_time(temp, anchor_interval, NULL);
+
   for (int32 i = 1; i < repetitions; i++)
   {
-    // Incrementing frequency. 
-    work_freq = add_interval_interval(work_freq, frequency);
+    /* Incrementing frequency */
+    frequency_interval = add_interval_interval(frequency_interval, frequency);
+    Interval *shift_interval = add_interval_interval(anchor_interval, frequency_interval);
 
-    // Shifts new seq accordingly.
+    /* Shifts new seq accordingly */
     temp = (Temporal*) periodic_copy(per);
     MEOS_FLAGS_SET_PERIODIC(temp->flags, P_NONE);
-    work_temp = (Temporal*) temporal_shift_scale_time(temp, diff, NULL); 
-    work_temp = (Temporal*) temporal_shift_scale_time(work_temp, work_freq, NULL);
-    // (note: keeping diff and work_freq separate to avoid mixing interval days and months etc.)
+    temp = (Temporal*) temporal_shift_scale_time(temp, shift_interval, NULL); 
 
-    // TODO Trim if frequency is month based and overflow into the next month.
-    // ...
-
-    // Merge new seq and seq.
-    base_temp = temporal_merge(base_temp, work_temp);
-
-    // Stop if reached end.
-    if (temporal_end_timestamptz(base_temp) >= end) { 
+    /* Stop if reached upper anchor bound */
+    if (temporal_end_timestamptz(temp) >= end_tstz) {
+      pfree(temp);
       break;
     }
 
+    // Merge new seq and seq.
+    work_temp = base_temp;
+    base_temp = temporal_merge(work_temp, temp);
+    pfree(work_temp);
+    pfree(temp);
   }
-  // Trim if necessary
-  Span *trim_span = span_make(TimestampGetDatum(start), TimestampGetDatum(end), true, upper_inc, T_TIMESTAMPTZ);
-  base_temp = temporal_restrict_tstzspan(base_temp, trim_span, REST_AT);
+
+  /* Do not include last pattern occurrence if it does not fit */
+  if (! keep_pattern || temporal_end_timestamptz(temp) == end_tstz)
+    base_temp = temporal_merge(base_temp, temp);
+
+  /* Trim if the trajectory is longer than anchor span */
+  if (temporal_end_timestamptz(temp) > end_tstz) 
+  {
+    Span *trim_span = span_make(TimestampGetDatum(start_tstz), TimestampGetDatum(end_tstz), true, upper_inc, T_TIMESTAMPTZ);
+    base_temp = temporal_restrict_tstzspan(base_temp, trim_span, REST_AT);
+  }
+  
   result = base_temp;
   return result;
 }
-
-
-
-// Temporal *
-// anchor_rework(Periodic *per, PMode *pmode) 
-// {
-//   Temporal *result;
-//   Temporal *temp;
-//   Temporal *base_temp;
-//   Temporal *work_temp;
-
-//   if (!ensure_not_null(per) || !ensure_not_null(pmode))
-//     return NULL;
-
-//   Interval *frequency = &(pmode->frequency);
-//   int32 repetitions = pmode->repetitions;
-//   TimestampTz start_tstz = pmode->period.lower;
-//   TimestampTz end_tstz = pmode->period.upper;
-//   bool lower_inc = pmode->period.upper_inc;
-//   bool upper_inc = pmode->period.upper_inc;
-//   bool keep_pattern = pmode->keep_pattern;
-//   uint8 spantype = pmode->period.spantype;
-
-//   Interval *duration = temporal_duration((Temporal*) per, true);
-
-//   /* Some basic validity checks */
-
-//   if (spantype != T_DATESPAN || spantype != T_TSTZSPAN)
-//     return NULL;
-  
-//   if (pg_interval_cmp(duration, frequency) > 0) 
-//   {
-//     meos_error(ERROR, MEOS_ERR_INVALID_ARG_VALUE,
-//       "Anchor(): Frequency (%s) must be greater or equal than the time range of the periodic sequence (%s).",
-//       pg_interval_out(frequency), pg_interval_out(duration));
-//     return NULL;
-//   }
-
-//   // 
-//   temp = (Temporal *) periodic_copy(per);
-//   MEOS_FLAGS_SET_PERIODIC(temp->flags, P_NONE);
-
-//   Interval *diff = minus_timestamptz_timestamptz(start_tstz, (TimestampTz) 0);
-//   base_temp = (Temporal*) temporal_shift_scale_time(temp, diff, NULL);
-
-// }
 
 
 
@@ -693,9 +664,10 @@ format_timestamptz(TimestampTz tstz, const char *fmt)
      *  pg_timestamptz_to_char('Oct 01 08:00:00')
      *    Oct 01 10:00:00 -- expected final output
      */
-    Timestamp ts_without_tz = pg_timestamp_in(pg_timestamp_out(pg_timestamptz_in(pg_timestamp_out((Timestamp) tstz), -1)), -1);
+    // Timestamp ts_without_tz = pg_timestamp_in(pg_timestamp_out(pg_timestamptz_in(pg_timestamp_out((Timestamp) tstz), -1)), -1);
     text *fmt_text = cstring2text(fmt);
-    text *out_text = pg_timestamptz_to_char(ts_without_tz, fmt_text);
+    // text *out_text = pg_timestamptz_to_char(ts_without_tz, fmt_text);
+    text *out_text = pg_timestamp_to_char((Timestamp) tstz, fmt_text);
     char *result = text2cstring(out_text);
     return result;
 }

@@ -11,6 +11,7 @@
 #include <utils/timestamp.h>
 
 text *pg_timestamptz_to_char(TimestampTz dt, text *fmt);
+text *pg_timestamp_to_char(Timestamp dt, text *fmt);
 Interval *pg_interval_in(const char *str, int32 typmod);
 TimestampTz pg_to_timestamp(text *date_txt, text *fmt);
 
