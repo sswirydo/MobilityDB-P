@@ -22,32 +22,11 @@
 // int32 v1_len_; <-- exactly 4 bytes to add at start for variable-length types, do not modify
 
 
-/*****************************************************************************
- *  Cyclic
-*****************************************************************************/
-
-// typedef struct
-// {
-//   Periodic *temp; // todo replace by Temporal later
-//   PMode repetition;
-// } Cyclic; // for computations only
-
 
 
 /*****************************************************************************
  *  PMode
 *****************************************************************************/
-
-// typedef struct
-// {
-//   Interval frequency;
-//   int32 repetitions;
-//   bool keep_pattern;
-//   TimestampTz start_date;
-//   TimestampTz end_date;
-//   bool upper_inc;
-// } PMode;
-
 
 typedef struct
 {
@@ -76,6 +55,17 @@ extern char *pmode_out(const PMode *pmode);
  *  Note that below Periodic structures have the same definition 
  *  as Temporal structures in order to enable easy casting between them. 
 *****************************************************************************/
+
+/* TODO TODO TODO TODO TODO TODO TODO
+ * 
+ * MERGE PERIODIC (et al.) BELOW WITH TEMPORAL
+ * -> C.F. MASTER THESIS PAPER 
+ * 
+ * ONLY DIFFERENCE WITH TEMPORAL 
+ * IS AT INPUT/OUTPUT
+ * 
+ * TODO TODO TODO TODO TODO TODO TODO
+ */
 
 typedef struct
 {
@@ -140,13 +130,6 @@ typedef struct
 
 #define PSEQUENCESET_BBOX_PTR(ss)      ((void *)(&(ss)->period))
 
-// todo
-// #if MEOS
-//   #define DatumGetPeriodicP(X)       ((Periodic *) DatumGetPointer(X))
-// #else
-//   #define DatumGetPeriodicP(X)       ((Periodic *) PG_DETOAST_DATUM(X))
-// #endif /* MEOS */
-
 #define DatumGetPeriodicP(X)       ((Periodic *) DatumGetPointer(X))
 #define PG_GETARG_PERIODIC_P(X)    ((Periodic *) PG_GETARG_VARLENA_P(X))
 #define PG_GETARG_PINSTANT_P(X)    ((PInstant *) PG_GETARG_VARLENA_P(X))
@@ -164,12 +147,11 @@ typedef enum
   P_DEFAULT   = 1,
   P_DAY       = 2,
   P_WEEK      = 3,
-  P_MONTH     = 4,
-  P_YEAR      = 5,
-  P_INTERVAL  = 6,
+  P_INTERVAL  = 4,
+  // P_MONTH     = 5,
+  // P_YEAR      = 6,
 } perType;
 // todo: perhaps just change perType (output style) automatically based on the span of the sequence
-//       and only specify it for inputs (at least atm)
 
 
 /*****************************************************************************
@@ -239,7 +221,10 @@ char *periodic_get_pertype(const Periodic *per);
  *  Operations
 *****************************************************************************/
 
-Temporal *anchor(Periodic *per, PMode *pmode);
+Temporal *anchor_pmode(const Periodic *per, PMode *pmode);
+Temporal *anchor(const Temporal *periodic, const Span *ts_anchor, const Interval *frequency, const bool strict_pattern);
+Temporal *anchor_array(const Temporal *periodic, const Span *ts_anchor, const Interval *frequency, const bool strict_pattern, const Datum *service_array, const int array_count);
+
 // Temporal *anchor_with_exceptions(Periodic *per, PMode *pmode, Set *date2add, Set *date2remove);
 // Temporal *anchor_interval(Periodic* per, Interval *frequency, int32 repetitions, TimestampTz start, TimestampTz end, bool upper_inc);
 // Temporal *anchor_fixed(Periodic* per, PMode* pmode, TimestampTz start, TimestampTz end, bool upper_inc);

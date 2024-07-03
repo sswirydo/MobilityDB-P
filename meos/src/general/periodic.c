@@ -483,12 +483,12 @@ periodic_get_pertype(const Periodic *per)
     case P_WEEK:
       strcpy(result, "week");
       break;
-    case P_MONTH:
-      strcpy(result, "month");
-      break;
-    case P_YEAR:
-      strcpy(result, "year");
-      break;
+    // case P_MONTH:
+    //   strcpy(result, "month");
+    //   break;
+    // case P_YEAR:
+    //   strcpy(result, "year");
+    //   break;
     case P_INTERVAL:
       strcpy(result, "interval");
       break;
@@ -507,40 +507,45 @@ periodic_get_pertype(const Periodic *per)
  *  Operations
 *****************************************************************************/
 
-/*
- * TODOS
- * - support anchor low/up inclusion 
+/* 
+ * TODO 
+ * - possible missing edge cases with keep_pattern and sequence/anchor low/up bound inclusion
  */
 Temporal *
-anchor(Periodic *per, PMode *pmode) 
+anchor_pmode(const Periodic *per, PMode *pmode) 
 {
-  
+  const Temporal *relative = (Temporal *) per;
 
-  Temporal *result;
-  Temporal *temp;
-  Temporal *base_temp;
-  Temporal *work_temp;
+  Temporal *result = NULL;
+  Temporal *temp = NULL;
+  Temporal *base_temp = NULL;
+  Temporal *work_temp = NULL;
 
-  if (!ensure_not_null(per) || !ensure_not_null(pmode))
+  if (! per && ! pmode)
     return NULL;
+  
+  if (MEOS_FLAGS_GET_PERIODIC(per->flags) == P_NONE)
+  {
+    meos_error(ERROR, MEOS_ERR_INVALID_ARG_VALUE,
+    "Anchor(): Temporal is not periodic.");
+    return NULL;
+  }
 
-  Interval *frequency = &(pmode->frequency);
+  const Interval *frequency = &(pmode->frequency);
   int32 repetitions = pmode->repetitions;
-  TimestampTz start_tstz = pmode->anchor.lower;
+  const Span *anchor = &(pmode->anchor);
+  const TimestampTz start_tstz = pmode->anchor.lower;
   TimestampTz end_tstz = pmode->anchor.upper;
-  bool lower_inc = pmode->anchor.upper_inc;
-  bool upper_inc = pmode->anchor.upper_inc;
-  bool keep_pattern = pmode->keep_pattern;
-  uint8 spantype = pmode->anchor.spantype;
-
-  Interval *duration = temporal_duration((Temporal*) per, true);
+  const bool keep_pattern = pmode->keep_pattern;
+  const uint8 spantype = pmode->anchor.spantype;
 
   /* Some basic validity checks */
-  if (spantype != T_DATESPAN && spantype != T_TSTZSPAN)
+
+  if (spantype != T_TSTZSPAN)
     return NULL;
-  
-  
-  if (pg_interval_cmp(duration, frequency) > 0) 
+
+  Interval *duration = temporal_duration(relative, true);
+  if (pg_interval_cmp(duration, frequency) > 0)
   {
     meos_error(ERROR, MEOS_ERR_INVALID_ARG_VALUE,
       "Anchor(): Frequency (%s) must be greater or equal than the time range of the periodic sequence (%s).",
@@ -548,10 +553,10 @@ anchor(Periodic *per, PMode *pmode)
     return NULL;
   }
 
-  if (repetitions == -1)
+  if (repetitions < 0)
     repetitions = INT32_MAX;
   
-  if (end_tstz < start_tstz)
+  if (end_tstz <= start_tstz)
     end_tstz = INT64_MAX;
   
   if (repetitions == INT32_MAX && end_tstz == INT64_MAX)
@@ -562,34 +567,40 @@ anchor(Periodic *per, PMode *pmode)
   }
 
   /* Creates first anchored temporal sequence. */
-  temp = (Temporal *) periodic_copy(per);
+  temp = temporal_copy(relative);
   MEOS_FLAGS_SET_PERIODIC(temp->flags, P_NONE);
 
   TimestampTz anchor_reference = (TimestampTz) (int64) 0; // 2000 UTC
-  TimestampTz frequency_reference = temporal_start_timestamptz(temp);
 
   Interval *frequency_interval = pg_interval_in("0 days", -1);
-
-  /* Shift the copy s.t. it begins at start_tstz */
   Interval *anchor_interval = minus_timestamptz_timestamptz(start_tstz, anchor_reference);
 
   base_temp = (Temporal*) temporal_shift_scale_time(temp, anchor_interval, NULL);
 
-  for (int32 i = 1; i < repetitions; i++)
+  int32 i;
+  for (i = 0; i < repetitions; i++)
   {
     /* Incrementing frequency */
     frequency_interval = add_interval_interval(frequency_interval, frequency);
     Interval *shift_interval = add_interval_interval(anchor_interval, frequency_interval);
 
     /* Shifts new seq accordingly */
-    temp = (Temporal*) periodic_copy(per);
+    temp = temporal_copy(relative);
     MEOS_FLAGS_SET_PERIODIC(temp->flags, P_NONE);
-    temp = (Temporal*) temporal_shift_scale_time(temp, shift_interval, NULL); 
+    temp = (Temporal *) temporal_shift_scale_time(temp, shift_interval, NULL); 
 
     /* Stop if reached upper anchor bound */
-    if (temporal_end_timestamptz(temp) >= end_tstz) {
-      pfree(temp);
-      break;
+    if (temporal_end_timestamptz(temp) >= end_tstz)
+    {
+      bool check1 = temporal_end_timestamptz(temp) > end_tstz && keep_pattern;
+      bool check2 = temporal_end_timestamptz(temp) == end_tstz && keep_pattern && (! anchor->upper_inc && temporal_upper_inc(temp)); // i.e., when seq upper bound is inclusive but anchor's is not
+      /* Do not include last pattern occurrence if it does not fit */
+      if (check1 || check2)
+      {
+        pfree(temp);
+        break;
+      }
+      i = repetitions;
     }
 
     // Merge new seq and seq.
@@ -599,21 +610,230 @@ anchor(Periodic *per, PMode *pmode)
     pfree(temp);
   }
 
-  /* Do not include last pattern occurrence if it does not fit */
-  if (! keep_pattern || temporal_end_timestamptz(temp) == end_tstz)
-    base_temp = temporal_merge(base_temp, temp);
-
   /* Trim if the trajectory is longer than anchor span */
-  if (temporal_end_timestamptz(temp) > end_tstz) 
-  {
-    Span *trim_span = span_make(TimestampGetDatum(start_tstz), TimestampGetDatum(end_tstz), true, upper_inc, T_TIMESTAMPTZ);
-    base_temp = temporal_restrict_tstzspan(base_temp, trim_span, REST_AT);
-  }
-  
+  work_temp = base_temp;
+  base_temp = temporal_restrict_tstzspan(base_temp, anchor, REST_AT);
+
+  pfree(work_temp);
   result = base_temp;
   return result;
 }
 
+
+Temporal *
+anchor(const Temporal *periodic, const Span *ts_anchor, const Interval *frequency, const bool strict_pattern)
+{
+  Temporal *result = NULL;
+  Temporal *temp = NULL;
+  Temporal *base_temp = NULL;
+  Temporal *work_temp = NULL;
+
+  if (! periodic || ! ts_anchor)
+    return NULL;
+    
+  if (MEOS_FLAGS_GET_PERIODIC(periodic->flags) == P_NONE)
+  {
+    meos_error(ERROR, MEOS_ERR_INVALID_ARG_VALUE,
+    "Anchor(): Temporal is not periodic.");
+    return NULL;
+  }
+
+  if (ts_anchor->spantype != T_TSTZSPAN) 
+  {
+    meos_error(ERROR, MEOS_ERR_INVALID_ARG_VALUE,
+    "Anchor(): SPAN type must be a TSTZSPAN");
+    return NULL;
+  }
+    
+  if (! frequency)
+    frequency = temporal_duration(periodic, true);
+  
+  TimestampTz start_tstz = ts_anchor->lower;
+  TimestampTz end_tstz = ts_anchor->upper;
+
+  if (end_tstz <= start_tstz)
+    end_tstz = INT64_MAX;
+
+  /* Return if anchor is shorter than the base sequence */
+  Interval *anchor_range = minus_timestamptz_timestamptz(end_tstz, start_tstz);
+  Interval *duration = temporal_duration(periodic, true);
+  if (strict_pattern && pg_interval_cmp(duration, anchor_range) > 0)
+    return NULL;
+    
+  TimestampTz anchor_reference = (TimestampTz) (int64) 0; // 2000 UTC
+  Interval *frequency_interval = pg_interval_in("0 days", -1);
+  Interval *anchor_interval = minus_timestamptz_timestamptz(start_tstz, anchor_reference);
+  Interval *shift_interval = add_interval_interval(anchor_interval, frequency_interval);
+
+  bool finished = false;
+  do 
+  {
+    /* Copy base pattern */
+    temp = temporal_copy(periodic);
+    MEOS_FLAGS_SET_PERIODIC(temp->flags, P_NONE);
+    /* Shift pattern copy */
+    temp = (Temporal *) temporal_shift_scale_time(temp, shift_interval, NULL); 
+
+    /* Checking stop condition */
+    if (temporal_end_timestamptz(temp) >= end_tstz)
+    {
+      /* Do not include last pattern occurrence if it does not fit */
+      bool check1 = temporal_end_timestamptz(temp) > end_tstz && strict_pattern;
+      bool check2 = temporal_end_timestamptz(temp) == end_tstz && strict_pattern && (! ts_anchor->upper_inc && temporal_upper_inc(temp));
+      // bool check3 = temporal_start_timestamptz(temp) >= end_tstz;
+      if (check1 || check2)
+      {
+        pfree(temp);
+        break;
+      }
+      finished = true;
+    }
+
+    /* Merge copied pattern with the currently built temporal */
+    if (base_temp)
+    {
+      work_temp = base_temp;
+      base_temp = temporal_merge(work_temp, temp);
+      pfree(work_temp); pfree(temp);
+    }
+    else // NULL
+    {
+      base_temp = temp;
+    }
+
+    /* Incrementing frequency */
+    if (! finished) 
+    {
+      frequency_interval = add_interval_interval(frequency_interval, frequency);
+      shift_interval = add_interval_interval(anchor_interval, frequency_interval);
+    }
+  } 
+  while (! finished);
+
+  /* Trim the trajectory if longer than anchor span */
+  work_temp = base_temp;
+  base_temp = (Temporal *) temporal_restrict_tstzspan(base_temp, ts_anchor, REST_AT);   
+  if (work_temp != base_temp)
+    pfree(work_temp);
+
+  result = base_temp;
+  return result;
+}
+
+// todo todo todo 
+/*
+ * TODO TODO TODO
+ * merge with other anchor functions
+ * FIXME duplicate code
+ */
+Temporal *
+anchor_array(const Temporal *periodic, const Span *ts_anchor, const Interval *frequency, const bool strict_pattern, const Datum *service_array, const int array_count)
+{
+  Temporal *result = NULL;
+  Temporal *temp = NULL;
+  Temporal *base_temp = NULL;
+  Temporal *work_temp = NULL;
+
+  if (! periodic || ! ts_anchor)
+    return NULL;
+    
+  if (MEOS_FLAGS_GET_PERIODIC(periodic->flags) == P_NONE)
+  {
+    meos_error(ERROR, MEOS_ERR_INVALID_ARG_VALUE,
+    "Anchor(): Temporal is not periodic.");
+    return NULL;
+  }
+
+  if (ts_anchor->spantype != T_TSTZSPAN) 
+  {
+    meos_error(ERROR, MEOS_ERR_INVALID_ARG_VALUE,
+    "Anchor(): SPAN type must be a TSTZSPAN");
+    return NULL;
+  }
+    
+  if (! frequency)
+    frequency = temporal_duration(periodic, true);
+  
+  TimestampTz start_tstz = ts_anchor->lower;
+  TimestampTz end_tstz = ts_anchor->upper;
+
+  if (end_tstz <= start_tstz)
+    end_tstz = INT64_MAX;
+
+  /* Return if anchor is shorter than the base sequence */
+  Interval *anchor_range = minus_timestamptz_timestamptz(end_tstz, start_tstz);
+  Interval *duration = temporal_duration(periodic, true);
+  if (strict_pattern && pg_interval_cmp(duration, anchor_range) > 0)
+    return NULL;
+    
+  TimestampTz anchor_reference = (TimestampTz) (int64) 0; // 2000 UTC
+  Interval *frequency_interval = pg_interval_in("0 days", -1);
+  Interval *anchor_interval = minus_timestamptz_timestamptz(start_tstz, anchor_reference);
+  Interval *shift_interval = add_interval_interval(anchor_interval, frequency_interval);
+
+  int service_i = 0;
+  bool finished = false;
+  while (! finished) 
+  {
+    /* Copy base pattern */
+    temp = temporal_copy(periodic);
+    MEOS_FLAGS_SET_PERIODIC(temp->flags, P_NONE);
+    /* Shift pattern copy */
+    temp = (Temporal *) temporal_shift_scale_time(temp, shift_interval, NULL); 
+
+    /* Checking stop condition */
+    if (temporal_end_timestamptz(temp) >= end_tstz)
+    {
+      /* Do not include last pattern occurrence if it does not fit */
+      bool check1 = temporal_end_timestamptz(temp) > end_tstz && strict_pattern;
+      bool check2 = temporal_end_timestamptz(temp) == end_tstz && strict_pattern && (! ts_anchor->upper_inc && temporal_upper_inc(temp));
+      // bool check3 = temporal_start_timestamptz(temp) >= end_tstz;
+      if (check1 || check2)
+      {
+        pfree(temp);
+        break;
+      }
+      finished = true;
+    }
+
+    /* Merge copied pattern with the currently built temporal */
+    if (DatumGetInt32(service_array[service_i % array_count]))
+    {
+      if (base_temp)
+      {
+        work_temp = base_temp;
+        base_temp = temporal_merge(work_temp, temp);
+        pfree(work_temp); pfree(temp);
+      }
+      else // NULL
+      {
+        base_temp = temp;
+      }
+    }
+    service_i += 1;
+
+    /* Incrementing frequency */
+    if (! finished) 
+    {
+      frequency_interval = add_interval_interval(frequency_interval, frequency);
+      shift_interval = add_interval_interval(anchor_interval, frequency_interval);
+    }
+  }
+
+  if (!base_temp) 
+    return NULL;
+
+  /* Trim the trajectory if longer than anchor span */
+  work_temp = base_temp;
+  base_temp = (Temporal *) temporal_restrict_tstzspan(base_temp, ts_anchor, REST_AT);   
+  if (work_temp != base_temp)
+    pfree(work_temp);
+
+  result = base_temp;
+  return result;
+  
+  return NULL;
+}
 
 
 // bool

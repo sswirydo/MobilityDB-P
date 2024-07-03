@@ -162,15 +162,35 @@ CREATE FUNCTION setPeriodicType(pgeompoint, text)
 *****************************************************************************/
 
 
-CREATE FUNCTION anchor(pint, pmode)
+CREATE FUNCTION anchor_pmode(pint, pmode)
   RETURNS tint
-  AS 'MODULE_PATHNAME', 'Anchor'
+  AS 'MODULE_PATHNAME', 'Anchor_pmode'
   LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;
 
-CREATE FUNCTION anchor(pgeompoint, pmode)
+CREATE FUNCTION anchor_pmode(pgeompoint, pmode)
+  RETURNS tgeompoint
+  AS 'MODULE_PATHNAME', 'Anchor_pmode'
+  LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;
+
+CREATE FUNCTION anchor(pint, tstzspan, interval, boolean)
+  RETURNS tint
+  AS 'MODULE_PATHNAME', 'Anchor'
+  LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;  
+
+CREATE FUNCTION anchor(pgeompoint, tstzspan, interval, boolean)
   RETURNS tgeompoint
   AS 'MODULE_PATHNAME', 'Anchor'
+  LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE; 
+
+CREATE FUNCTION anchor_array(pint, tstzspan, interval, boolean, integer[])
+  RETURNS tint
+  AS 'MODULE_PATHNAME', 'Anchor_array'
   LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;
+
+CREATE FUNCTION anchor_array(pgeompoint, tstzspan, interval, boolean, integer[])
+  RETURNS tgeompoint
+  AS 'MODULE_PATHNAME', 'Anchor_array'
+  LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE; 
 
 -- CREATE FUNCTION anchor_with_exceptions(pgeompoint, pmode, dateset, dateset)
 --   RETURNS tgeompoint

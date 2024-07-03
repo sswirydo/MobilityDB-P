@@ -99,16 +99,16 @@ periodic_parse(const char **str, meosType temptype)
     *str += 14;
     pertype = P_WEEK;
   }
-  else if (pg_strncasecmp(*str, "Periodic=Month;", 15) == 0)
-  {
-    *str += 15;
-    pertype = P_MONTH;
-  }
-  else if (pg_strncasecmp(*str, "Periodic=Year;", 14) == 0)
-  {
-    *str += 14;
-    pertype = P_YEAR;
-  }
+  // else if (pg_strncasecmp(*str, "Periodic=Month;", 15) == 0)
+  // {
+  //   *str += 15;
+  //   pertype = P_MONTH;
+  // }
+  // else if (pg_strncasecmp(*str, "Periodic=Year;", 14) == 0)
+  // {
+  //   *str += 14;
+  //   pertype = P_YEAR;
+  // }
   else if (pg_strncasecmp(*str, "Periodic=Interval;", 18) == 0)
   {
     *str += 18;
@@ -452,16 +452,16 @@ ppoint_parse(const char **str, meosType temptype)
     *str += 14;
     pertype = P_WEEK;
   }
-  else if (pg_strncasecmp(*str, "Periodic=Month;", 15) == 0)
-  {
-    *str += 15;
-    pertype = P_MONTH;
-  }
-  else if (pg_strncasecmp(*str, "Periodic=Year;", 14) == 0)
-  {
-    *str += 14;
-    pertype = P_YEAR;
-  }
+  // else if (pg_strncasecmp(*str, "Periodic=Month;", 15) == 0)
+  // {
+  //   *str += 15;
+  //   pertype = P_MONTH;
+  // }
+  // else if (pg_strncasecmp(*str, "Periodic=Year;", 14) == 0)
+  // {
+  //   *str += 14;
+  //   pertype = P_YEAR;
+  // }
   else if (pg_strncasecmp(*str, "Periodic=Interval;", 18) == 0)
   {
     *str += 18;

@@ -87,25 +87,61 @@ Datum PMode_constructor(PG_FUNCTION_ARGS)
  *  Periodic
 *****************************************************************************/
 
+PGDLLEXPORT Datum Anchor_pmode(PG_FUNCTION_ARGS);
+PG_FUNCTION_INFO_V1(Anchor_pmode);
+Datum Anchor_pmode(PG_FUNCTION_ARGS)
+{
+  Periodic *per = PG_GETARG_PERIODIC_P(0);
+  PMode *pmode = PG_GETARG_PMODE_P(1);
+  Temporal *result = anchor_pmode(per, pmode);
+  if (! result)
+    PG_RETURN_NULL();
+  PG_RETURN_TEMPORAL_P(result);
+}
+
 PGDLLEXPORT Datum Anchor(PG_FUNCTION_ARGS);
 PG_FUNCTION_INFO_V1(Anchor);
 Datum Anchor(PG_FUNCTION_ARGS)
 {
   Periodic *per = PG_GETARG_PERIODIC_P(0);
-  PMode *pmode = PG_GETARG_PMODE_P(1);
-  PG_RETURN_POINTER(anchor(per, pmode));
+  Span *ts_anchor = PG_GETARG_SPAN_P(1);
+  Interval *frequency = PG_GETARG_INTERVAL_P(2);
+  bool strict_pattern = PG_GETARG_BOOL(3);
+  Temporal *result = anchor((Temporal*) per, ts_anchor, frequency, strict_pattern);
+  if (! result)
+    PG_RETURN_NULL();
+  PG_RETURN_TEMPORAL_P(result);
 }
 
-// PGDLLEXPORT Datum Anchor_with_exceptions(PG_FUNCTION_ARGS);
-// PG_FUNCTION_INFO_V1(Anchor_with_exceptions);
-// Datum Anchor_with_exceptions(PG_FUNCTION_ARGS)
-// {
-//   Periodic *per = PG_GETARG_PERIODIC_P(0);
-//   PMode *pmode = PG_GETARG_PMODE_P(1);
-//   Set *dates2add = PG_GETARG_SET_P(2);
-//   Set *dates2remove = PG_GETARG_SET_P(3);
-//   PG_RETURN_POINTER(anchor_with_exceptions(per, pmode, dates2add, dates2remove));
-// }
+PGDLLEXPORT Datum Anchor_array(PG_FUNCTION_ARGS);
+PG_FUNCTION_INFO_V1(Anchor_array);
+Datum Anchor_array(PG_FUNCTION_ARGS)
+{
+  Periodic *per = PG_GETARG_PERIODIC_P(0);
+  Span *ts_anchor = PG_GETARG_SPAN_P(1);
+  Interval *frequency = PG_GETARG_INTERVAL_P(2);
+  bool strict_pattern = PG_GETARG_BOOL(3);
+
+  ArrayType *array = PG_GETARG_ARRAYTYPE_P(4);
+  ensure_not_empty_array(array);
+
+  if (ARR_ELEMTYPE(array) != INT4OID)
+  {
+    ereport(ERROR, (errcode(ERRCODE_ARRAY_ELEMENT_ERROR),
+      errmsg("The input array must contain integer values")));
+  }
+
+  int count;
+  Datum *values = datumarr_extract(array, &count);
+
+  Temporal *result = anchor_array((Temporal*) per, ts_anchor, frequency, strict_pattern, values, count);
+
+  pfree(values);
+  if (! result)
+    PG_RETURN_NULL();
+  PG_RETURN_TEMPORAL_P(result);
+}
+
 
 
 
@@ -198,8 +234,8 @@ static const char *_perType_names[] =
   [P_DEFAULT] = "default",
   [P_DAY] = "day",
   [P_WEEK] = "week",
-  [P_MONTH] = "month",
-  [P_YEAR] = "year",
+  // [P_MONTH] = "month",
+  // [P_YEAR] = "year",
   [P_INTERVAL] = "interval"
 };
 
