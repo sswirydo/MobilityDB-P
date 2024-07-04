@@ -202,9 +202,9 @@ pcontseq_parse(const char **str, meosType temptype, perType pertype, interpType 
   if (result)
     *result = (PSequence*)tsequence_make_free((TInstant**)instants, count, lower_inc, upper_inc, interp, NORMALIZE); // todo
   
-  if (contains_at) {
-    *result = normalize_periodic_sequence(*result);
-  }
+  // if (contains_at) {
+  //   *result = normalize_periodic_sequence(*result);
+  // }
 
   MEOS_FLAGS_SET_PERIODIC((*result)->flags, pertype);
   
@@ -367,19 +367,7 @@ periodic_basetype_parse(const char **str, meosType basetype, Datum *result)
   return true;
 }
 
-/**
- * @brief Ensures the first PSequence element starts at 2000 UTC and shifts the sequence accordingly.
- * FIXME probably will not be used anymore
- */
-PSequence*
-normalize_periodic_sequence(PSequence *pseq) 
-{
-  TimestampTz reference_tstz = (TimestampTz) (int64) 0;
-  TimestampTz start_tstz = temporal_start_timestamptz((Temporal*)pseq);
-  Interval *diff = (Interval*) minus_timestamptz_timestamptz(reference_tstz, start_tstz);
-  PSequence* result = (PSequence *) temporal_shift_scale_time((Temporal*) pseq, diff, NULL);
-  return result;
-}
+
 
 
 

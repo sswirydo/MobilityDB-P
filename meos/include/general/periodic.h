@@ -217,20 +217,6 @@ char *periodic_get_pertype(const Periodic *per);
 // Temporal *pint_to_tint(Periodic *temp);
 
 
-/*****************************************************************************
- *  Operations
-*****************************************************************************/
-
-Temporal *anchor_pmode(const Periodic *per, PMode *pmode);
-Temporal *anchor(const Temporal *periodic, const Span *ts_anchor, const Interval *frequency, const bool strict_pattern);
-Temporal *anchor_array(const Temporal *periodic, const Span *ts_anchor, const Interval *frequency, const bool strict_pattern, const Datum *service_array, const int array_count);
-
-// Temporal *anchor_with_exceptions(Periodic *per, PMode *pmode, Set *date2add, Set *date2remove);
-// Temporal *anchor_interval(Periodic* per, Interval *frequency, int32 repetitions, TimestampTz start, TimestampTz end, bool upper_inc);
-// Temporal *anchor_fixed(Periodic* per, PMode* pmode, TimestampTz start, TimestampTz end, bool upper_inc);
-
-// bool periodic_value_at_timestamptz(const Periodic *per, PMode *pmode, TimestampTz tstz, bool strict, Datum *result);
-// extern bool temporal_value_at_timestamptz(const Temporal *temp, TimestampTz t, bool strict, Datum *result);
 
 /*****************************************************************************
  *  Other

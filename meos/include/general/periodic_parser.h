@@ -13,7 +13,6 @@ bool pcontseq_parse(const char **str, meosType temptype, perType pertype, interp
 bool pinstant_parse(const char **str, meosType temptype, perType pertype, bool end, PInstant **result);
 bool periodic_basetype_parse(const char **str, meosType basetype, Datum *result);
 TimestampTz periodic_timestamp_parse(const char **str, perType pertype);
-PSequence* normalize_periodic_sequence(PSequence *pseq);
 
 Periodic *ppoint_parse(const char **str, meosType temptype);
 bool ppointinst_parse(const char **str, meosType temptype, perType pertype, bool end, int *tpoint_srid, PInstant **result);

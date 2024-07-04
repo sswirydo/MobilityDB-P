@@ -8,6 +8,8 @@
 #include "pg_general/periodic.h"
 #include "general/periodic.h"
 #include "general/periodic_parser.h"
+#include "general/periodic_ops.h"
+
 
 #include "pg_general/temporal.h"
 
@@ -86,64 +88,6 @@ Datum PMode_constructor(PG_FUNCTION_ARGS)
 /*****************************************************************************
  *  Periodic
 *****************************************************************************/
-
-PGDLLEXPORT Datum Anchor_pmode(PG_FUNCTION_ARGS);
-PG_FUNCTION_INFO_V1(Anchor_pmode);
-Datum Anchor_pmode(PG_FUNCTION_ARGS)
-{
-  Periodic *per = PG_GETARG_PERIODIC_P(0);
-  PMode *pmode = PG_GETARG_PMODE_P(1);
-  Temporal *result = anchor_pmode(per, pmode);
-  if (! result)
-    PG_RETURN_NULL();
-  PG_RETURN_TEMPORAL_P(result);
-}
-
-PGDLLEXPORT Datum Anchor(PG_FUNCTION_ARGS);
-PG_FUNCTION_INFO_V1(Anchor);
-Datum Anchor(PG_FUNCTION_ARGS)
-{
-  Periodic *per = PG_GETARG_PERIODIC_P(0);
-  Span *ts_anchor = PG_GETARG_SPAN_P(1);
-  Interval *frequency = PG_GETARG_INTERVAL_P(2);
-  bool strict_pattern = PG_GETARG_BOOL(3);
-  Temporal *result = anchor((Temporal*) per, ts_anchor, frequency, strict_pattern);
-  if (! result)
-    PG_RETURN_NULL();
-  PG_RETURN_TEMPORAL_P(result);
-}
-
-PGDLLEXPORT Datum Anchor_array(PG_FUNCTION_ARGS);
-PG_FUNCTION_INFO_V1(Anchor_array);
-Datum Anchor_array(PG_FUNCTION_ARGS)
-{
-  Periodic *per = PG_GETARG_PERIODIC_P(0);
-  Span *ts_anchor = PG_GETARG_SPAN_P(1);
-  Interval *frequency = PG_GETARG_INTERVAL_P(2);
-  bool strict_pattern = PG_GETARG_BOOL(3);
-
-  ArrayType *array = PG_GETARG_ARRAYTYPE_P(4);
-  ensure_not_empty_array(array);
-
-  if (ARR_ELEMTYPE(array) != INT4OID)
-  {
-    ereport(ERROR, (errcode(ERRCODE_ARRAY_ELEMENT_ERROR),
-      errmsg("The input array must contain integer values")));
-  }
-
-  int count;
-  Datum *values = datumarr_extract(array, &count);
-
-  Temporal *result = anchor_array((Temporal*) per, ts_anchor, frequency, strict_pattern, values, count);
-
-  pfree(values);
-  if (! result)
-    PG_RETURN_NULL();
-  PG_RETURN_TEMPORAL_P(result);
-}
-
-
-
 
 
 
@@ -320,21 +264,94 @@ Datum Temporal_to_periodic(PG_FUNCTION_ARGS)
   Operations
 *****************************************************************************/
 
-// PGDLLEXPORT Datum Periodic_value_at_timestamp(PG_FUNCTION_ARGS);
-// PG_FUNCTION_INFO_V1(PeriodicValueAtTimestamp);
-// Datum PeriodicValueAtTimestamp(PG_FUNCTION_ARGS)
-// {
-//   Periodic *per = PG_GETARG_PERIODIC_P(0);
-//   PMode *pmode = PG_GETARG_PMODE_P(1);
-//   TimestampTz tstz = PG_GETARG_TIMESTAMPTZ(2);
-//   Datum result;
-//   bool found = periodic_value_at_timestamptz(per, tstz, true, &result);
-//   // bool found = temporal_value_at_timestamptz(temp, t, true, &result);
-//   PG_FREE_IF_COPY(per, 0);
-//   if (! found)
-//     PG_RETURN_NULL();
-//   PG_RETURN_DATUM(result);
-// }
+/* PERIODIC ANCHOR */
+PGDLLEXPORT Datum Anchor_pmode(PG_FUNCTION_ARGS);
+PG_FUNCTION_INFO_V1(Anchor_pmode);
+Datum Anchor_pmode(PG_FUNCTION_ARGS)
+{
+  Periodic *per = PG_GETARG_PERIODIC_P(0);
+  PMode *pmode = PG_GETARG_PMODE_P(1);
+  Temporal *result = anchor_pmode(per, pmode);
+  if (! result)
+    PG_RETURN_NULL();
+  PG_RETURN_TEMPORAL_P(result);
+}
+
+
+PGDLLEXPORT Datum Anchor(PG_FUNCTION_ARGS);
+PG_FUNCTION_INFO_V1(Anchor);
+Datum Anchor(PG_FUNCTION_ARGS)
+{
+  Periodic *per = PG_GETARG_PERIODIC_P(0);
+  Span *ts_anchor = PG_GETARG_SPAN_P(1);
+  Interval *frequency = PG_GETARG_INTERVAL_P(2);
+  bool strict_pattern = PG_GETARG_BOOL(3);
+  Temporal *result = anchor((Temporal*) per, ts_anchor, frequency, strict_pattern);
+  if (! result)
+    PG_RETURN_NULL();
+  PG_RETURN_TEMPORAL_P(result);
+}
+
+
+PGDLLEXPORT Datum Anchor_array(PG_FUNCTION_ARGS);
+PG_FUNCTION_INFO_V1(Anchor_array);
+Datum Anchor_array(PG_FUNCTION_ARGS)
+{
+  Periodic *per = PG_GETARG_PERIODIC_P(0);
+  Span *ts_anchor = PG_GETARG_SPAN_P(1);
+  Interval *frequency = PG_GETARG_INTERVAL_P(2);
+  bool strict_pattern = PG_GETARG_BOOL(3);
+
+  ArrayType *array = PG_GETARG_ARRAYTYPE_P(4);
+  ensure_not_empty_array(array);
+
+  if (ARR_ELEMTYPE(array) != INT4OID)
+  {
+    ereport(ERROR, (errcode(ERRCODE_ARRAY_ELEMENT_ERROR),
+      errmsg("The input array must contain integer values")));
+  }
+
+  int count;
+  Datum *values = datumarr_extract(array, &count);
+
+  Temporal *result = anchor_array((Temporal*) per, ts_anchor, frequency, strict_pattern, values, count);
+
+  pfree(values);
+  if (! result)
+    PG_RETURN_NULL();
+  PG_RETURN_TEMPORAL_P(result);
+}
+
+/* PERIODIC ALIGN */
+PGDLLEXPORT Datum Periodic_align(PG_FUNCTION_ARGS);
+PG_FUNCTION_INFO_V1(Periodic_align);
+Datum Periodic_align(PG_FUNCTION_ARGS)
+{
+  Periodic *per = PG_GETARG_PERIODIC_P(0);
+  Timestamp ts = PG_GETARG_TIMESTAMP(1);
+  Periodic *result = periodic_align(per, ts);
+  if (! result)
+    PG_RETURN_NULL();
+  PG_RETURN_PERIODIC_P(result);
+}
+
+/* PERIODIC VALUE AT TIMESTAMP */
+PGDLLEXPORT Datum Periodic_value_at_timestamp(PG_FUNCTION_ARGS);
+PG_FUNCTION_INFO_V1(Periodic_value_at_timestamp);
+Datum Periodic_value_at_timestamp(PG_FUNCTION_ARGS)
+{
+  Periodic *per = PG_GETARG_PERIODIC_P(0);
+  Span *span = PG_GETARG_SPAN_P(1);
+  Interval *frequency = PG_GETARG_INTERVAL_P(2);
+  TimestampTz tstz = PG_GETARG_TIMESTAMPTZ(3);
+
+  Datum result;
+  bool found = periodic_value_at_timestamptz(per, span, frequency, tstz, true, &result);
+  PG_FREE_IF_COPY(per, 0);
+  if (! found)
+    PG_RETURN_NULL();
+  PG_RETURN_DATUM(result);
+}
 
 
 

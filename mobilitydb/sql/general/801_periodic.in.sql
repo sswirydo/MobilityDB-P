@@ -192,35 +192,34 @@ CREATE FUNCTION anchor_array(pgeompoint, tstzspan, interval, boolean, integer[])
   AS 'MODULE_PATHNAME', 'Anchor_array'
   LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE; 
 
--- CREATE FUNCTION anchor_with_exceptions(pgeompoint, pmode, dateset, dateset)
---   RETURNS tgeompoint
---   AS 'MODULE_PATHNAME', 'Anchor_with_exceptions'
---   LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;
 
--- CREATE FUNCTION anchor(pint, pmode, timestamptz)
---   RETURNS tint
---   AS 'MODULE_PATHNAME', 'Anchor'
---   LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;
-
--- CREATE FUNCTION anchor(pint, pmode, timestamptz, timestamptz)
---   RETURNS tint
---   AS 'MODULE_PATHNAME', 'Anchor_end'
---   LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;
-
--- CREATE FUNCTION anchor(pint, pmode, timestamptz, timestamptz, boolean)
---   RETURNS tint
---   AS 'MODULE_PATHNAME', 'Anchor_end_inc'
---   LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;
 
 
 /*****************************************************************************
  *  Operations
 *****************************************************************************/
--- CREATE FUNCTION periodicValueAtTimestamp(pint, pmode, timestamptz)
---   RETURNS int
---   AS 'MODULE_PATHNAME', 'Periodic_value_at_timestamp'
---   LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;
 
+/* PERIODIC ALIGN */
+CREATE FUNCTION periodic_align(pint, timestamp DEFAULT '2000-01-01 00:00:00')
+  RETURNS pint
+  AS 'MODULE_PATHNAME', 'Periodic_align'
+  LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;  
+
+CREATE FUNCTION periodic_align(pgeompoint, timestamp DEFAULT '2000-01-01 00:00:00')
+  RETURNS pgeompoint
+  AS 'MODULE_PATHNAME', 'Periodic_align'
+  LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE; 
+
+/* PERIODIC VALUE AT TIMESTAMP */
+CREATE FUNCTION periodicValueAtTimestamp(pint, tstzspan, interval, timestamptz)
+  RETURNS int
+  AS 'MODULE_PATHNAME', 'Periodic_value_at_timestamp'
+  LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;
+
+CREATE FUNCTION periodicValueAtTimestamp(pgeompoint, tstzspan, interval, timestamptz)
+  RETURNS geometry(Point)
+  AS 'MODULE_PATHNAME', 'Periodic_value_at_timestamp'
+  LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;
 
 
 /*****************************************************************************

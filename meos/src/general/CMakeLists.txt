@@ -38,6 +38,7 @@ add_library(general OBJECT
   periodic.c
   periodic_parser.c
   periodic_pg_types.c
+  periodic_ops.c
 )
 
 add_library(general_meos OBJECT
