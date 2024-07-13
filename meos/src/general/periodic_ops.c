@@ -9,6 +9,7 @@
 #include "general/temporal.h"
 #include "general/periodic_parser.h"
 #include "general/periodic_pg_types.h"
+#include "general/periodic_ops.h"
 
 /* C */
 #include <assert.h>
@@ -265,7 +266,7 @@ anchor(const Temporal *periodic, const Span *ts_anchor, const Interval *frequenc
  * FIXME duplicate code
  */
 Temporal *
-anchor_array(const Temporal *periodic, const Span *ts_anchor, const Interval *frequency, const bool strict_pattern, const Datum *service_array, const int array_count)
+anchor_array(const Temporal *periodic, const Span *ts_anchor, const Interval *frequency, const bool strict_pattern, const Datum *service_array, const int array_shift, const int array_count)
 {
   Temporal *result = NULL;
   Temporal *temp = NULL;
@@ -309,7 +310,7 @@ anchor_array(const Temporal *periodic, const Span *ts_anchor, const Interval *fr
   Interval *anchor_interval = minus_timestamptz_timestamptz(start_tstz, anchor_reference);
   Interval *shift_interval = add_interval_interval(anchor_interval, frequency_interval);
 
-  int service_i = 0;
+  int service_i = array_shift;
   bool finished = false;
   while (! finished) 
   {
@@ -390,9 +391,7 @@ periodic_align(const Periodic *per, const Timestamp ts)
   return result;
 }
 
-/* TODO
- * - add strict pattern check
- */
+
 bool
 periodic_value_at_timestamptz(
   const Periodic *per, 
@@ -404,8 +403,39 @@ periodic_value_at_timestamptz(
 {
   assert(per); assert(anchor_ts); assert(frequency); 
   assert(result);
-  assert(temptype_subtype(temp->subtype));
 
+  TimestampTz goal_ts;
+
+  TimestampTz low_bound = anchor_ts->lower;
+  TimestampTz up_bound = anchor_ts->upper;
+
+  if (tstz < low_bound || tstz > up_bound) 
+    return false;
+
+  TimestampTz start_tstz = temporal_start_timestamptz((Temporal*) per);
+  goal_ts = start_tstz + periodic_timestamptz_to_relative(low_bound + start_tstz, frequency, tstz);
+  
+  /* Call temporal value_at_timestamptz() */
+  return temporal_value_at_timestamptz((Temporal*) per, goal_ts, strict, result);
+}
+
+
+
+Timestamp periodic_timestamptz_to_relative(const Timestamp reference_ts, const Interval *frequency, const TimestampTz tstz) 
+{
+  int64 ts_freq = (int64) add_timestamptz_interval(reference_ts, frequency);
+  int64 tstz_norm = tstz - reference_ts;
+  int64 freq_norm = ts_freq - reference_ts;
+  return (Timestamp) (tstz_norm % freq_norm);
+}
+
+
+/* todo
+ * would it be more efficient if we used a simple modulo ? f(tstz mod frequency)
+ */
+bool periodic_timestamptz_to_relative_old(const Span *anchor_ts, const Interval *frequency, TimestampTz tstz, Timestamp *result) 
+{
+  assert(anchor_ts); assert(frequency);
   TimestampTz limit_ts = anchor_ts->upper;
   TimestampTz search_ts = anchor_ts->lower;
   TimestampTz previous_ts;
@@ -424,7 +454,6 @@ periodic_value_at_timestamptz(
     search_ts = add_timestamptz_interval(search_ts, frequency);
   } while (search_ts < tstz);
   TimestampTz goal_ts = tstz - previous_ts;
-
-  /* Call temporal value_at_timestamptz() */
-  return temporal_value_at_timestamptz((Temporal*) per, goal_ts, strict, result);
+  *result = goal_ts;
+  return true;
 }

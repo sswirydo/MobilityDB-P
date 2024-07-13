@@ -182,15 +182,26 @@ CREATE FUNCTION anchor(pgeompoint, tstzspan, interval, boolean)
   AS 'MODULE_PATHNAME', 'Anchor'
   LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE; 
 
-CREATE FUNCTION anchor_array(pint, tstzspan, interval, boolean, integer[])
+CREATE FUNCTION anchor_array(pint, tstzspan, interval, boolean, integer[], integer DEFAULT 0)
   RETURNS tint
   AS 'MODULE_PATHNAME', 'Anchor_array'
   LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;
 
-CREATE FUNCTION anchor_array(pgeompoint, tstzspan, interval, boolean, integer[])
+CREATE FUNCTION anchor_array(pgeompoint, tstzspan, interval, boolean, integer[], integer DEFAULT 0)
   RETURNS tgeompoint
   AS 'MODULE_PATHNAME', 'Anchor_array'
   LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE; 
+
+
+-- CREATE FUNCTION periodic_compress(pint)
+--   RETURNS tint
+--   AS 'MODULE_PATHNAME', 'Periodic_compress'
+--   LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;  
+
+-- CREATE FUNCTION periodic_compress(pgeompoint)
+--   RETURNS tgeompoint
+--   AS 'MODULE_PATHNAME', 'Periodic_compress'
+--   LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE; 
 
 
 
@@ -220,6 +231,12 @@ CREATE FUNCTION periodicValueAtTimestamp(pgeompoint, tstzspan, interval, timesta
   RETURNS geometry(Point)
   AS 'MODULE_PATHNAME', 'Periodic_value_at_timestamp'
   LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;
+
+/* TIMESTAMPTZ TO RELATIVE */
+-- CREATE FUNCTION periodicTimestamptzToRelative(tstzspan, interval, timestamptz)
+--   RETURNS timestamp
+--   AS 'MODULE_PATHNAME', 'Periodic_timestamptz_to_relative'
+--   LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;
 
 
 /*****************************************************************************

@@ -310,11 +310,13 @@ Datum Anchor_array(PG_FUNCTION_ARGS)
     ereport(ERROR, (errcode(ERRCODE_ARRAY_ELEMENT_ERROR),
       errmsg("The input array must contain integer values")));
   }
+  
+  int array_shift = PG_GETARG_INT32(5);
 
   int count;
   Datum *values = datumarr_extract(array, &count);
 
-  Temporal *result = anchor_array((Temporal*) per, ts_anchor, frequency, strict_pattern, values, count);
+  Temporal *result = anchor_array((Temporal*) per, ts_anchor, frequency, strict_pattern, values, array_shift, count);
 
   pfree(values);
   if (! result)
@@ -352,6 +354,21 @@ Datum Periodic_value_at_timestamp(PG_FUNCTION_ARGS)
     PG_RETURN_NULL();
   PG_RETURN_DATUM(result);
 }
+
+// PGDLLEXPORT Datum Periodic_timestamptz_to_relative(PG_FUNCTION_ARGS);
+// PG_FUNCTION_INFO_V1(Periodic_timestamptz_to_relative);
+// Datum Periodic_timestamptz_to_relative(PG_FUNCTION_ARGS)
+// {
+//   Span *span = PG_GETARG_SPAN_P(0);
+//   Interval *frequency = PG_GETARG_INTERVAL_P(1);
+//   TimestampTz tstz = PG_GETARG_TIMESTAMPTZ(2);
+
+//   Timestamp result;
+//   bool found = periodic_timestamptz_to_relative(span, frequency, tstz, &result);
+//   if (! found)
+//     PG_RETURN_NULL();
+//   PG_RETURN_TIMESTAMP(result);
+// }
 
 
 

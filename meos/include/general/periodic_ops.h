@@ -12,10 +12,22 @@
 *****************************************************************************/
 
 Temporal *anchor_pmode(const Periodic *per, PMode *pmode);
-Temporal *anchor(const Temporal *periodic, const Span *ts_anchor, const Interval *frequency, const bool strict_pattern);
-Temporal *anchor_array(const Temporal *periodic, const Span *ts_anchor, const Interval *frequency, const bool strict_pattern, const Datum *service_array, const int array_count);
+Temporal *anchor(
+  const Temporal *periodic, 
+  const Span *ts_anchor, 
+  const Interval *frequency, 
+  const bool strict_pattern);
+Temporal *anchor_array(
+  const Temporal *periodic, 
+  const Span *ts_anchor, 
+  const Interval *frequency, 
+  const bool strict_pattern, 
+  const Datum *service_array, 
+  const int array_shift,
+  const int array_count);
 
 Periodic *periodic_align(const Periodic *per, const Timestamp ts);
+
 bool periodic_value_at_timestamptz(
   const Periodic *per, 
   const Span *anchor_ts, 
@@ -23,9 +35,20 @@ bool periodic_value_at_timestamptz(
   TimestampTz tstz, 
   bool strict, 
   Datum *result);
+// bool periodic_array_value_at_timestamptz(
+//   const Periodic *per, 
+//   const Span *anchor_ts, 
+//   const Interval *frequency,
+//   TimestampTz tstz, 
+//   bool strict,
+//   const Datum *service_array, 
+//   const int array_count,
+//   Datum *result);
 
-// bool periodic_value_at_timestamptz(const Periodic *per, PMode *pmode, TimestampTz tstz, bool strict, Datum *result);
-// extern bool temporal_value_at_timestamptz(const Temporal *temp, TimestampTz t, bool strict, Datum *result);
+Timestamp periodic_timestamptz_to_relative(
+  const Timestamp reference_ts, 
+  const Interval *frequency, 
+  const TimestampTz tstz);
 
 
 
