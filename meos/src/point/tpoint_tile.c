@@ -441,6 +441,9 @@ stbox_tile_state_make(const Temporal *temp, const STBox *box, double xsize,
   state->box.flags = box->flags;
   state->x = state->box.xmin;
   state->y = state->box.ymin;
+  /* Notice that the dimensions are "compacted", that is, for both XYZ and XYT
+   * the last dimension Z or T are in coords[2] */
+  int dim = 2;
   if (MEOS_FLAGS_GET_Z(box->flags))
   {
     if (zsize > 0)
@@ -449,11 +452,12 @@ stbox_tile_state_make(const Temporal *temp, const STBox *box, double xsize,
       state->zsize = zsize;
       state->box.zmin = float_bucket(box->zmin, zsize, sorigin.z);
       state->box.zmax = float_bucket(box->zmax, zsize, sorigin.z);
-      state->max_coords[2] = ceil((state->box.zmax - state->box.zmin) / zsize);
+      state->max_coords[dim] = ceil((state->box.zmax - state->box.zmin) / zsize);
       if (border_inc)
-        state->max_coords[2] += 1;
-      state->ntiles *= (state->max_coords[2] + 1);
+        state->max_coords[dim] += 1;
+      state->ntiles *= (state->max_coords[dim] + 1);
       state->z = state->box.zmin;
+      dim++;
     }
     else
       MEOS_FLAGS_SET_Z(state->box.flags, false);
@@ -468,11 +472,11 @@ stbox_tile_state_make(const Temporal *temp, const STBox *box, double xsize,
         DatumGetTimestampTz(box->period.lower), tunits, torigin));
       state->box.period.upper = TimestampTzGetDatum(timestamptz_bucket1(
         DatumGetTimestampTz(box->period.upper), tunits, torigin));
-      state->max_coords[3] =
+      state->max_coords[dim] =
         ceil((state->box.period.upper - state->box.period.lower) / tunits);
       if (border_inc)
-        state->max_coords[3] += 1;
-      state->ntiles *= (state->max_coords[3] + 1);
+        state->max_coords[dim] += 1;
+      state->ntiles *= (state->max_coords[dim] + 1);
       state->t = DatumGetTimestampTz(state->box.period.lower);
     }
     else
@@ -492,8 +496,10 @@ stbox_tile_state_next(STboxGridState *state)
 {
   if (! state || state->done)
     return;
-  /* Move to the next cell. We need to take into account whether
-   * hasz and/or hast and thus there are 4 possible cases */
+  /* Move to the next cell. We need to take into account whether hasz and/or
+   * hast and thus there are 4 possible cases.
+   * Notice that the dimensions are "compacted", that is, for both XYZ and XYT
+   * the last dimension Z or T are in coords[2] */
   state->i++;
   state->x += state->xsize;
   state->coords[0]++;
@@ -543,8 +549,8 @@ stbox_tile_state_next(STboxGridState *state)
           state->y = state->box.ymin;
           state->coords[1] = 0;
           state->t += state->tunits;
-          state->coords[3]++;
-          if (state->coords[3] >= state->max_coords[3])
+          state->coords[2]++;
+          if (state->coords[2] >= state->max_coords[2])
           {
             state->done = true;
             return;
@@ -659,7 +665,7 @@ stbox_tile_list(const STBox *bounds, double xsize, double ysize, double zsize,
     zsize, tunits, pt, torigin, border_inc);
   bool hasz = MEOS_FLAGS_GET_Z(state->box.flags);
   bool hast = MEOS_FLAGS_GET_T(state->box.flags);
-  int *cellcount = palloc0(sizeof(int) * MAXDIMS);
+  int cellcount[MAXDIMS];
   cellcount[0] = ceil((state->box.xmax - state->box.xmin) / state->xsize) + 1;
   cellcount[1] = ceil((state->box.ymax - state->box.ymin) / state->ysize) + 1;
   int count1 = cellcount[0] * cellcount[1];
@@ -670,8 +676,9 @@ stbox_tile_list(const STBox *bounds, double xsize, double ysize, double zsize,
   }
   if (hast)
   {
-    cellcount[3] = ceil((DatumGetTimestampTz(state->box.period.upper) -
-      DatumGetTimestampTz(state->box.period.lower)) / state->tunits) + 1;
+    TimestampTz duration = (DatumGetTimestampTz(state->box.period.upper) -
+                            DatumGetTimestampTz(state->box.period.lower));
+    cellcount[3] = ceil((double) duration / state->tunits) + 1;
     count1 *= cellcount[3];
   }
   STBox *result = palloc0(sizeof(STBox) * count1);
@@ -684,6 +691,8 @@ stbox_tile_list(const STBox *bounds, double xsize, double ysize, double zsize,
     stbox_tile_state_next(state);
   }
   *count = count1;
+  if (state->bm) pfree(state->bm);
+  pfree(state);
   return result;
 }
 #endif /* MEOS */
@@ -972,9 +981,9 @@ tpoint_set_tiles(const Temporal *temp, const STboxGridState *state,
  * @param[out] ntiles Number of tiles
  */
 STboxGridState *
-tpoint_space_time_split_init(Temporal *temp, float xsize, float ysize,
-  float zsize, Interval *duration, GSERIALIZED *sorigin, TimestampTz torigin,
-  bool bitmatrix, bool border_inc, int *ntiles)
+tpoint_space_time_split_init(const Temporal *temp, float xsize, float ysize,
+  float zsize, const Interval *duration, const GSERIALIZED *sorigin,
+  TimestampTz torigin, bool bitmatrix, bool border_inc, int *ntiles)
 {
   /* The usage of bitmatrix is disallowed for instantaneous temporal values */
   assert(! bitmatrix || temporal_num_instants(temp) > 1);
@@ -1029,7 +1038,7 @@ tpoint_space_time_split_init(Temporal *temp, float xsize, float ysize,
   /* Create function state */
   STboxGridState *state = stbox_tile_state_make(temp, &bounds, xsize, ysize,
     zsize, tunits, pt, torigin, border_inc);
-  int ndims = 2 + hasz ? 1 : 0 + state->tunits ? 1 : 0;
+  int ndims = 2 + (hasz ? 1 : 0) + (state->tunits ? 1 : 0);
   /* If a bit matrix is used to speed up the process */
   if (bitmatrix)
   {
@@ -1080,6 +1089,8 @@ tpoint_space_split(Temporal *temp, float xsize, float ysize, float zsize,
  * @param[out] space_buckets Array of space buckets
  * @param[out] time_buckets Array of time buckets
  * @param[out] count Number of elements in the output arrays
+ * @note This function in MEOS corresponds to the MobilityDB function 
+ * #Tpoint_space_time_split_ext
  */
 Temporal **
 tpoint_space_time_split(Temporal *temp, float xsize, float ysize, float zsize,
@@ -1109,7 +1120,7 @@ tpoint_space_time_split(Temporal *temp, float xsize, float ysize, float zsize,
     if (state->done)
     {
       if (state->bm)
-         pfree(state->bm);
+        pfree(state->bm);
       pfree(state);
       break;
     }
@@ -1121,7 +1132,8 @@ tpoint_space_time_split(Temporal *temp, float xsize, float ysize, float zsize,
     bool found = stbox_tile_state_get(state, &box);
     if (! found)
     {
-      if (state->bm) pfree(state->bm);
+      if (state->bm)
+        pfree(state->bm);
       pfree(state);
       break;
     }

@@ -183,6 +183,28 @@ Set_to_span(PG_FUNCTION_ARGS)
   PG_RETURN_SPAN_P(result);
 }
 
+PGDLLEXPORT Datum Set_spans(PG_FUNCTION_ARGS);
+PG_FUNCTION_INFO_V1(Set_spans);
+/**
+ * @ingroup mobilitydb_setspan_conversion
+ * @brief Return a set converted to a span
+ * @sqlfn spans()
+ */
+Datum
+Set_spans(PG_FUNCTION_ARGS)
+{
+  Set *s = PG_GETARG_SET_P(0);
+  int max_count = PG_GETARG_INT32(1);
+  int count;
+  Span *spans = set_spans(s, max_count, &count);
+  PG_FREE_IF_COPY(s, 0);
+  if (! spans)
+    PG_RETURN_NULL();
+  ArrayType *result = spanarr_to_array(spans, count);
+  pfree(spans);
+  PG_RETURN_ARRAYTYPE_P(result);
+}
+
 PGDLLEXPORT Datum Intspan_to_floatspan(PG_FUNCTION_ARGS);
 PG_FUNCTION_INFO_V1(Intspan_to_floatspan);
 /**
@@ -257,8 +279,8 @@ Datum
 Span_to_range(PG_FUNCTION_ARGS)
 {
   Span *s = PG_GETARG_SPAN_P(0);
-  assert(s->basetype == T_INT4 || s->basetype == T_DATE ||
-    s->basetype == T_TIMESTAMPTZ);
+  assert(s->basetype == T_INT4 || s->basetype == T_INT8 || 
+    s->basetype == T_DATE || s->basetype == T_TIMESTAMPTZ);
   RangeType *range = range_make(s->lower, s->upper, s->lower_inc, s->upper_inc,
     s->basetype);
   PG_RETURN_POINTER(range);
@@ -282,10 +304,13 @@ range_set_span(RangeType *range, TypeCacheEntry *typcache, Span *result)
   bool empty;
   range_deserialize(typcache, range, &lower, &upper, &empty);
   Oid type_id = typcache->rngelemtype->type_id;
-  assert(type_id == INT4OID || type_id == DATEOID || type_id == TIMESTAMPTZOID);
+  assert(type_id == INT4OID || type_id == INT8OID || type_id == DATEOID || 
+    type_id == TIMESTAMPTZOID);
   meosType basetype;
   if (type_id == INT4OID)
     basetype = T_INT4;
+  else if (type_id == INT8OID)
+    basetype = T_INT8;
   else if (type_id == DATEOID)
     basetype = T_DATE;
   else /* type_id == TIMESTAMPTZOID */
@@ -310,6 +335,7 @@ Range_to_span(PG_FUNCTION_ARGS)
   RangeType *range = PG_GETARG_RANGE_P(0);
   TypeCacheEntry *typcache = range_get_typcache(fcinfo, RangeTypeGetOid(range));
   assert(typcache->rngelemtype->type_id == INT4OID ||
+    typcache->rngelemtype->type_id == INT8OID ||
     typcache->rngelemtype->type_id == DATEOID ||
     typcache->rngelemtype->type_id == TIMESTAMPTZOID);
   Span *result = palloc(sizeof(Span));

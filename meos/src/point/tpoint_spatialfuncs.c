@@ -1176,7 +1176,7 @@ geopoint_make(double x, double y, double z, bool hasz, bool geodetic,
     lwpoint_make3dz(srid, x, y, z) : lwpoint_make2d(srid, x, y);
   FLAGS_SET_GEODETIC(point->flags, geodetic);
   GSERIALIZED *result = geo_serialize((LWGEOM *) point);
-  // We CANNOT lwpoint_free(point);
+  lwpoint_free(point);
   return result;
 }
 
@@ -1780,9 +1780,8 @@ geopointarr_make_trajectory(GSERIALIZED **points, int count, const STBox *box,
 
 /**
  * @brief Write in the buffer a GBOX from a spatiotemporal box
- * @param[in] box Array of points
- * @param[in] count Number of elements in the input array
- * @param[in] box Spatiotemporal bounding box of the input points
+ * @param[in] box Spatiotemporal bounding box
+ * @param[out] buf Output buffer where the GBOX is written
  * @result Number of bytes written into the buffer
  * @note Implements the logic of PostGIS function gserialized2_from_gbox
  */
@@ -1816,7 +1815,6 @@ gbox_from_stbox(const STBox *box, uint8_t *buf)
  * @param[in] lines Array of lines
  * @param[in] nlines Number of elements in the lines array
  * @param[in] box Spatiotemporal bounding box of the input points
- * @param[in] interp Interpolation
  * @note This function creates directly the GSERIALIZED result WITHOUT passing
  * through the createtion of the LWPOINT to speed up the process
  * @note The function does not remove duplicate points, that is, repeated
@@ -1991,7 +1989,10 @@ tpointseq_trajectory(const TSequence *seq)
   STBox box;
   memset(&box, 0, sizeof(box));
   tsequence_set_bbox(seq, &box);
-  return geopointarr_make_trajectory(points, npoints, &box, interp);
+  GSERIALIZED *result = geopointarr_make_trajectory(points, npoints, &box,
+    interp);
+  pfree(points);
+  return result;
 }
 
 /**
@@ -3952,7 +3953,7 @@ tpointseq_speed(const TSequence *seq)
   /* The resulting sequence has step interpolation */
   TSequence *result = tsequence_make((const TInstant **) instants, seq->count,
     seq->period.lower_inc, seq->period.upper_inc, STEP, NORMALIZE);
-  pfree_array((void **) instants, seq->count - 1);
+  pfree_array((void **) instants, seq->count);
   return result;
 }
 
@@ -5202,6 +5203,20 @@ tpointseq_discstep_find_splits(const TSequence *seq, int *count)
   return bitarr;
 }
 
+static void gbox_merge_point2d(const POINT2D *p, GBOX *gbox)
+{
+  if ( gbox->xmin > p->x ) gbox->xmin = p->x;
+  if ( gbox->ymin > p->y ) gbox->ymin = p->y;
+  if ( gbox->xmax < p->x ) gbox->xmax = p->x;
+  if ( gbox->ymax < p->y ) gbox->ymax = p->y;
+}
+
+static void gbox_init_point2d(const POINT2D *p, GBOX *gbox)
+{
+  gbox->xmin = gbox->xmax = p->x;
+  gbox->ymin = gbox->ymax = p->y;
+}
+
 /**
  * @brief Return a temporal point sequence with linear interpolation split into
  * an array of non self-intersecting fragments
@@ -5257,28 +5272,26 @@ tpointseq_linear_find_splits(const TSequence *seq, int *count)
     /* Find intersections in the piece defined by start and end in a
      * breadth-first search */
     int i = start, j = start + 1;
+    GBOX box;
+    gbox_init_point2d(points[i], &box);
+    gbox_merge_point2d(points[j], &box);
     while (j < end)
     {
-      /* If the bounding boxes of the segments intersect */
-      if (lw_seg_interact(points[i], points[i + 1], points[j],
-        points[j + 1]))
+      /* Candidate for intersection */
+      POINT2D p = { 0 }; /* make compiler quiet */
+      int intertype = seg2d_intersection(points[i], points[i + 1],
+        points[j], points[j + 1], &p);
+      if (intertype > 0 &&
+        /* Exclude the case when two consecutive segments that
+         * necessarily touch each other in their common point */
+        (intertype != MEOS_SEG_TOUCH_END || j != i + 1 ||
+         p.x != points[j]->x || p.y != points[j]->y))
       {
-        /* Candidate for intersection */
-        POINT2D p = { 0 }; /* make compiler quiet */
-        int intertype = seg2d_intersection(points[i], points[i + 1],
-          points[j], points[j + 1], &p);
-        if (intertype > 0 &&
-          /* Exclude the case when two consecutive segments that
-           * necessarily touch each other in their common point */
-          (intertype != MEOS_SEG_TOUCH_END || j != i + 1 ||
-           p.x != points[j]->x || p.y != points[j]->y))
-        {
-          /* Set the new end */
-          end = j;
-          bitarr[end] = true;
-          numsplits++;
-          break;
-        }
+        /* Set the new end */
+        end = j;
+        bitarr[end] = true;
+        numsplits++;
+        break;
       }
       if (i < j - 1)
         i++;
@@ -5286,6 +5299,41 @@ tpointseq_linear_find_splits(const TSequence *seq, int *count)
       {
         j++;
         i = start;
+
+        /* Shortcut */
+        if (!gbox_contains_point2d(&box, points[j]))
+        {
+          while (j < end) {
+            bool out = false;
+            if ( box.xmin > points[j]->x )
+            {
+              box.xmin = points[j]->x;
+              if ( box.xmin > points[j+1]->x )
+                out = true;
+            }
+            else if ( box.xmax < points[j]->x )
+            {
+              box.xmax = points[j]->x;
+              if ( box.xmax < points[j+1]->x )
+                out = true;
+            }
+            if ( box.ymin > points[j]->y )
+            {
+              box.ymin = points[j]->y;
+              if ( box.ymin > points[j+1]->y )
+                out = true;
+            }
+            else if ( box.ymax < points[j]->y )
+            {
+              box.ymax = points[j]->y;
+              if ( box.ymax < points[j+1]->y )
+                out = true;
+            }
+            if ( !out )
+              break;
+            j++;
+          }
+        }
       }
     }
     /* Process the next split */

@@ -33,6 +33,36 @@
  */
 
 /*****************************************************************************
+ * Boxes functions
+ *****************************************************************************/
+
+CREATE FUNCTION spans(tbool, int DEFAULT 0)
+  RETURNS tstzspan[]
+  AS 'MODULE_PATHNAME', 'Temporal_spans'
+  LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;
+CREATE FUNCTION spans(tint, int DEFAULT 0)
+  RETURNS tstzspan[]
+  AS 'MODULE_PATHNAME', 'Temporal_spans'
+  LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;
+CREATE FUNCTION spans(tfloat, int DEFAULT 0)
+  RETURNS tstzspan[]
+  AS 'MODULE_PATHNAME', 'Temporal_spans'
+  LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;
+CREATE FUNCTION spans(ttext, int DEFAULT 0)
+  RETURNS tstzspan[]
+  AS 'MODULE_PATHNAME', 'Temporal_spans'
+  LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;
+
+CREATE FUNCTION tboxes(tint, int DEFAULT 0)
+  RETURNS tbox[]
+  AS 'MODULE_PATHNAME', 'Tnumber_tboxes'
+  LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;
+CREATE FUNCTION tboxes(tfloat, int DEFAULT 0)
+  RETURNS tbox[]
+  AS 'MODULE_PATHNAME', 'Tnumber_tboxes'
+  LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;
+
+/*****************************************************************************
  * Temporal boolean
  *****************************************************************************/
 

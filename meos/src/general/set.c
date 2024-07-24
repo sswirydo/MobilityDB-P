@@ -358,7 +358,7 @@ set_out_fn(const Set *s, int maxdd, outfunc value_out)
 
   /* Get the SRID if it is a geo set  */
   int32 srid;
-  char str1[13];
+  char str1[18];
   str1[0] = '\0';
   outfunc value_out1 = value_out;
   if (geoset_type(s->settype) && value_out == ewkt_out)
@@ -808,7 +808,6 @@ set_make_exp(const Datum *values, int count, int maxcount, meosType basetype,
   return result;
 }
 
-#if MEOS
 /**
  * @ingroup meos_internal_setspan_constructor
  * @brief Return a set from an array of values
@@ -826,6 +825,7 @@ set_make(const Datum *values, int count, meosType basetype, bool order)
   return set_make_exp(values, count, count, basetype, order);
 }
 
+#if MEOS
 /**
  * @ingroup meos_setspan_constructor
  * @brief Return an integer set from an array of values
@@ -985,8 +985,10 @@ set_make_free(Datum *values, int count, meosType basetype, bool order)
   assert(values); assert(count >= 0);
   Set *result = NULL;
   if (count > 0)
+  {
     result = set_make_exp(values, count, count, basetype, order);
-  pfree(values);
+    pfree(values);
+  }
   return result;
 }
 

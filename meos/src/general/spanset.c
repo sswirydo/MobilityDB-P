@@ -1589,13 +1589,12 @@ spanset_sps(const SpanSet *ss)
 #if MEOS
 /**
  * @ingroup meos_setspan_accessor
- * @brief Return an array copies of the spans of a span set
+ * @brief Return a C array with copies of the spans of a span set
  * @param[in] ss Span set
  * @return On error return @p NULL
- * @csqlfn #Spanset_spans()
  */
 Span **
-spanset_spans(const SpanSet *ss)
+spanset_spanarr(const SpanSet *ss)
 {
   /* Ensure validity of the arguments */
   if (! ensure_not_null((void *) ss))
@@ -1693,19 +1692,26 @@ numspanset_shift_scale(const SpanSet *ss, Datum shift, Datum width,
     return NULL;
 
   /* Copy the input span set to the output span set */
-  SpanSet *result = spanset_cp(ss);
+  SpanSet *copy = spanset_cp(ss);
 
   /* Shift and/or scale the bounding span */
   Datum delta;
   double scale;
-  numspan_shift_scale1(&result->span, shift, width, hasshift, haswidth,
+  numspan_shift_scale1(&copy->span, shift, width, hasshift, haswidth,
     &delta, &scale);
-  Datum origin = result->span.lower;
+  Datum origin = copy->span.lower;
 
   /* Shift and/or scale the span set */
   for (int i = 0; i < ss->count; i++)
-    numspan_delta_scale_iter(&result->elems[i], origin, delta, hasshift,
+    numspan_delta_scale_iter(&copy->elems[i], origin, delta, hasshift,
       scale);
+
+  /* Normalization is required after scaling */
+  Span *spans = palloc(sizeof(Span) * ss->count);
+  for (int i = 0; i < ss->count; i++)
+    memcpy(&spans[i], &copy->elems[i], sizeof(Span));
+  SpanSet *result = spanset_make_exp(spans, ss->count, ss->count, true, true);
+  pfree(copy); pfree(spans);
   return result;
 }
 
@@ -1830,6 +1836,62 @@ tstzspanset_shift_scale(const SpanSet *ss, const Interval *shift,
   for (int i = 0; i < ss->count; i++)
     tstzspan_delta_scale_iter(&result->elems[i], origin, delta, scale);
   return result;
+}
+
+/*****************************************************************************
+ * Spans function
+ *****************************************************************************/
+
+/**
+ * @ingroup meos_setspan_bbox
+ * @brief Return an array of spans from the composing spans of a spanset
+ * @param[in] ss Span set
+ * @param[in] max_count Maximum number of elements in the output array.
+ * If the value is < 1, the result is one span per composing span.
+ * @param[out] count Number of elements in the output array
+ */
+Span *
+spanset_spans(const SpanSet *ss, int max_count, int *count)
+{
+  assert(ss); assert(count); assert(spanset_type(ss->spansettype));
+  int nspans = (max_count < 1) ? ss->count : max_count;
+  Span *result = palloc(sizeof(Span) * nspans);
+  if (max_count < 1 || ss->count <= max_count)
+  {
+    /* Output the composing spans */
+    for (int i = 0; i < ss->count; i++)
+      memcpy(&result[i], SPANSET_SP_N(ss, i), sizeof(Span));
+    *count = ss->count;
+    return result;
+  }
+  else
+  {
+    /* Merge consecutive spans to reach the maximum number of span */
+    /* Minimum number of spans merged together in an output span */
+    int size = ss->count / max_count;
+    /* Number of output spans that result from merging (size + 1) spans */
+    int remainder = ss->count % max_count;
+    int i = 0; /* Loop variable for input spans */
+    int k = 0; /* Loop variable for output spans */
+    while (k < max_count)
+    {
+      int j = i + size - 1;
+      if (k < remainder)
+        j++;
+      if (i < j)
+      {
+        const Span *from = SPANSET_SP_N(ss, i);
+        const Span *to = SPANSET_SP_N(ss, j);
+        span_set(from->lower, to->upper, from->lower_inc, to->upper_inc,
+          from->basetype, to->spantype, &result[k++]);
+        i = j + 1;
+      }
+      else
+        memcpy(&result[k++], SPANSET_SP_N(ss, i++), sizeof(Span));
+    }
+    *count = max_count;
+    return result;
+  }
 }
 
 /*****************************************************************************

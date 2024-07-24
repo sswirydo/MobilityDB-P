@@ -29,8 +29,8 @@
 
 /**
  * @file
- * @brief Create a cache of PostgreSQL type and operator Oids in global arrays
- * to avoid (slow) lookups
+ * @brief Create a cache of PostgreSQL type and operator Oids in global 
+ * variable arrays to avoid (slow) lookups
  *
  * The arrays are initialized when the extension is loaded.
  *
@@ -117,29 +117,29 @@ typedef struct
  * @brief Global variable that states whether the type and operator Oid caches
  * have been initialized
  */
-static bool _TYPEOID_CACHE_READY = false;
-static bool _OPEROID_CACHE_READY = false;
+static bool MOBDB_TYPEOID_CACHE_READY = false;
+static bool MOBDB_OPEROID_CACHE_READY = false;
 
 /**
- * @brief Global array that keeps the type Oids used in MobilityDB
+ * @brief Global variable array that keeps the type Oids used in MobilityDB
  */
-static Oid _TYPE_OID[NO_MEOS_TYPES];
+static Oid MOBDB_TYPE_OID[NO_MEOS_TYPES];
 
 /**
  * @brief Global hash table that keeps the operator Oids used in MobilityDB
  */
-struct opertable_hash *_OID_OPER = NULL;
+struct opertable_hash *MOBDB_OPER_OID = NULL;
 
 /**
- * @brief Global 3-dimensional array that keeps the operator Oids used in
- * MobilityDB
+ * @brief Global variable 3-dimensional array that keeps the operator Oids used
+ * in MobilityDB
  *
  * The first dimension corresponds to the operator class (e.g., <=), the second
  * and third dimensions correspond, respectively, to the left and right
  * arguments of the operator. A value 0 is stored in the cell of the array if
  * the operator class is not defined for the left and right types.
  */
-static Oid _OPER_OID[NO_MEOS_TYPES][NO_MEOS_TYPES][NO_MEOS_TYPES];
+static Oid MOBDB_OPER_OID_ARGS[NO_MEOS_TYPES][NO_MEOS_TYPES][NO_MEOS_TYPES];
 
 /*****************************************************************************
  * Catalog functions
@@ -249,19 +249,19 @@ populate_typeoid_cache()
   for (int i = 0; i < NO_MEOS_TYPES; i++)
   {
     /* Depending on the PG version some types may not exist (e.g.,
-     * multirangetype) and in this case _MEOSTYPE_NAMES[i] will be equal to 0 */
+     * multirangetype) and in this case MEOS_TYPE_NAMES[i] will be equal to 0 */
     const char *name = meostype_name(i);
     if (name && ! internal_type(name))
     {
       /* Search for type oid in extension namespace */
-      _TYPE_OID[i] = TypenameNspGetTypid(name, nsp_oid);
+      MOBDB_TYPE_OID[i] = TypenameNspGetTypid(name, nsp_oid);
       /* If not found, search default namespace */
-      if (_TYPE_OID[i] == InvalidOid)
-        _TYPE_OID[i] = TypenameGetTypid(name);
+      if (MOBDB_TYPE_OID[i] == InvalidOid)
+        MOBDB_TYPE_OID[i] = TypenameGetTypid(name);
     }
   }
   /* Mark that the cache has been initialized */
-  _TYPEOID_CACHE_READY = true;
+  MOBDB_TYPEOID_CACHE_READY = true;
 }
 
 /**
@@ -269,17 +269,17 @@ populate_typeoid_cache()
  * stored in table `mobilitydb_opcache`
  *
  * This table is filled by function #fill_oid_cache when the extension is created.
- * @note Due to some memory context issues, the _OPER_OID array should be
+ * @note Due to some memory context issues, the MOBDB_OPER_OID_ARGS array should be
  * filled again even if it is already filled during the extension creation.
  */
 static void
 populate_operoid_cache()
 {
   /* Create the operator hash table */
-  _OID_OPER = opertable_create(CacheMemoryContext, 2048, NULL);
+  MOBDB_OPER_OID = opertable_create(CacheMemoryContext, 2048, NULL);
 
   /* Initialize the operator array */
-  memset(_OPER_OID, 0, sizeof(_OPER_OID));
+  memset(MOBDB_OPER_OID_ARGS, 0, sizeof(MOBDB_OPER_OID_ARGS));
   /* Fetch the rows of the table containing the MobilityDB operator cache */
   Oid nsp_oid = mobilitydb_nsp_oid();
   Oid catalog = RelnameNspGetRelid("mobilitydb_opcache", nsp_oid);
@@ -301,7 +301,7 @@ populate_operoid_cache()
     Oid oproid = DatumGetObjectId(heap_getattr(tuple, 4, tupDesc, &isnull));
     /* Fill the struct to be added to the hash table */
     bool found;
-    oid_oper_entry *entry = opertable_insert(_OID_OPER, oproid, &found);
+    oid_oper_entry *entry = opertable_insert(MOBDB_OPER_OID, oproid, &found);
     if (! found)
     {
       entry->oproid = oproid;
@@ -310,7 +310,7 @@ populate_operoid_cache()
       entry->rtype = k;
     }
     /* Fill the operator Oid array */
-    _OPER_OID[i][j][k] = oproid;
+    MOBDB_OPER_OID_ARGS[i][j][k] = oproid;
     /* Read next tuple from table */
     tuple = heap_getnext(scan, ForwardScanDirection);
   }
@@ -321,7 +321,7 @@ populate_operoid_cache()
   table_close(rel, AccessShareLock);
 #endif
   /* Mark that the cache has been initialized */
-  _OPEROID_CACHE_READY = true;
+  MOBDB_OPEROID_CACHE_READY = true;
 }
 
 /*****************************************************************************/
@@ -333,9 +333,9 @@ populate_operoid_cache()
 Oid
 type_oid(meosType type)
 {
-  if (!_TYPEOID_CACHE_READY)
+  if (! MOBDB_TYPEOID_CACHE_READY)
     populate_typeoid_cache();
-  Oid result = _TYPE_OID[type];
+  Oid result = MOBDB_TYPE_OID[type];
   if (! result)
     ereport(ERROR, (errcode(ERRCODE_INTERNAL_ERROR),
       errmsg("Unknown MEOS type; %d", type)));
@@ -352,11 +352,11 @@ type_oid(meosType type)
 meosType
 oid_type(Oid typid)
 {
-  if (!_TYPEOID_CACHE_READY)
+  if (! MOBDB_TYPEOID_CACHE_READY)
     populate_typeoid_cache();
   for (int i = 0; i < NO_MEOS_TYPES; i++)
   {
-    if (_TYPE_OID[i] == typid)
+    if (MOBDB_TYPE_OID[i] == typid)
       return i;
   }
   return T_UNKNOWN;
@@ -373,16 +373,16 @@ oid_type(Oid typid)
 Oid
 oper_oid(meosOper oper, meosType lt, meosType rt)
 {
-  if (!_OPEROID_CACHE_READY)
+  if (! MOBDB_OPEROID_CACHE_READY)
     populate_operoid_cache();
-  Oid result = _OPER_OID[oper][lt][rt];
+  Oid result = MOBDB_OPER_OID_ARGS[oper][lt][rt];
   if (! result)
   {
     ereport(ERROR, (errcode(ERRCODE_INTERNAL_ERROR),
       errmsg("Unknown MEOS operator: %s, ltype; %s, rtype; %s",
         meosoper_name(oper), meostype_name(lt), meostype_name(rt))));
   }
-  return _OPER_OID[oper][lt][rt];
+  return MOBDB_OPER_OID_ARGS[oper][lt][rt];
 }
 
 /**
@@ -393,9 +393,9 @@ oper_oid(meosOper oper, meosType lt, meosType rt)
 meosOper
 oid_oper(Oid oproid, meosType *ltype, meosType *rtype)
 {
-  if (!_OPEROID_CACHE_READY)
+  if (! MOBDB_OPEROID_CACHE_READY)
     populate_operoid_cache();
-  oid_oper_entry *entry = opertable_lookup(_OID_OPER, oproid);
+  oid_oper_entry *entry = opertable_lookup(MOBDB_OPER_OID, oproid);
   if (! entry)
   {
     ereport(ERROR, (errcode(ERRCODE_INTERNAL_ERROR),
@@ -534,7 +534,8 @@ fill_oid_cache(PG_FUNCTION_ARGS __attribute__((unused)))
 bool
 range_basetype(meosType type)
 {
-  if (type == T_TIMESTAMPTZ || type == T_DATE || type == T_INT4)
+  if (type == T_TIMESTAMPTZ || type == T_DATE || type == T_INT4 || 
+      type == T_INT8)
     return true;
   return false;
 }
@@ -563,17 +564,17 @@ basetype_rangetype(meosType type)
   ensure_range_basetype(type);
   if (type == T_INT4)
     return type_oid(T_INT4RANGE);
-  else if (type == T_DATE)
+  if (type == T_INT8)
+    return type_oid(T_INT8RANGE);
+  if (type == T_DATE)
     return type_oid(T_DATERANGE);
-  else if (type ==  T_TIMESTAMPTZ)
+  if (type ==  T_TIMESTAMPTZ)
     return type_oid(T_TSTZRANGE);
-  else
-  {
-    /* We only arrive here on error */
-    meos_error(ERROR, MEOS_ERR_INTERNAL_TYPE_ERROR,
-      "Type %s is not a base type of a range type", meostype_name(type));
-    return T_UNKNOWN;
-  }
+
+  /* We only arrive here on error */
+  meos_error(ERROR, MEOS_ERR_INTERNAL_TYPE_ERROR,
+    "Type %s is not a base type of a range type", meostype_name(type));
+  return T_UNKNOWN;
 }
 
 /**
@@ -585,17 +586,17 @@ basetype_multirangetype(meosType type)
   ensure_range_basetype(type);
   if (type == T_INT4)
     return type_oid(T_INT4MULTIRANGE);
-  else if (type == T_DATE)
+  if (type == T_INT8)
+    return type_oid(T_INT8MULTIRANGE);
+  if (type == T_DATE)
     return type_oid(T_DATEMULTIRANGE);
-  else if (type ==  T_TIMESTAMPTZ)
+  if (type ==  T_TIMESTAMPTZ)
     return type_oid(T_TSTZMULTIRANGE);
-  else
-  {
-    /* We only arrive here on error */
-    meos_error(ERROR, MEOS_ERR_INTERNAL_TYPE_ERROR,
-      "type %s is not a base type of a multirange type", meostype_name(type));
-    return T_UNKNOWN;
-  }
+
+  /* We only arrive here on error */
+  meos_error(ERROR, MEOS_ERR_INTERNAL_TYPE_ERROR,
+    "type %s is not a base type of a multirange type", meostype_name(type));
+  return T_UNKNOWN;
 }
 
 /*****************************************************************************/

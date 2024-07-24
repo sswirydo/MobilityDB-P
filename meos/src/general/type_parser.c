@@ -505,12 +505,14 @@ set_parse(const char **str, meosType settype)
   Datum d;
   if (! elem_parse(str, basetype, &d))
     return NULL;
+  DATUM_FREE(d, basetype);
   int count = 1;
   while (p_comma(str))
   {
     count++;
     if (! elem_parse(str, basetype, &d))
       return NULL;
+    DATUM_FREE(d, basetype);
   }
   if (! ensure_cbrace(str, type_str) ||
       ! ensure_end_input(str, type_str))
@@ -530,7 +532,11 @@ set_parse(const char **str, meosType settype)
     for (int i = 0; i < count; i++)
       gserialized_set_srid(DatumGetGserializedP(values[i]), set_srid);
   }
-  return set_make_free(values, count, basetype, ORDER);
+  Set *result = set_make(values, count, basetype, ORDER);
+  for (int i = 0; i < count; ++i)
+    DATUM_FREE(values[i], basetype);
+  pfree(values);
+  return result;
 }
 
 /**
@@ -596,9 +602,8 @@ span_parse(const char **str, meosType spantype, bool end, Span *span)
   if (end && ! ensure_end_input(str, "span"))
     return false;
 
-  if (! span)
-    return true;
-  span_set(lower, upper, lower_inc, upper_inc, basetype, spantype, span);
+  if (span)
+    span_set(lower, upper, lower_inc, upper_inc, basetype, spantype, span);
   return true;
 }
 
@@ -663,13 +668,16 @@ tinstant_parse(const char **str, meosType temptype, bool end,
   if (! temporal_basetype_parse(str, basetype, &elem))
     return false;
   TimestampTz t = timestamp_parse(str);
-  if (t == DT_NOEND)
+  if (t == DT_NOEND ||
+    /* Ensure there is no more input */
+    (end && ! ensure_end_input(str, "temporal")))
+  {
+    DATUM_FREE(elem, basetype);
     return false;
-  /* Ensure there is no more input */
-  if (end && ! ensure_end_input(str, "temporal"))
-    return false;
+  }
   if (result)
-    *result = tinstant_make_free(elem, temptype, t);
+    *result = tinstant_make(elem, temptype, t);
+  DATUM_FREE(elem, basetype);
   return true;
 }
 
@@ -774,8 +782,9 @@ tcontseq_parse(const char **str, meosType temptype, interpType interp,
   p_cbracket(str);
   p_cparen(str);
   if (result)
-    *result = tsequence_make_free(instants, count, lower_inc, upper_inc,
-      interp, NORMALIZE);
+    *result = tsequence_make((const TInstant **) instants, count,
+      lower_inc, upper_inc, interp, NORMALIZE);
+  pfree_array((void **) instants, count);
   return true;
 }
 

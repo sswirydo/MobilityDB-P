@@ -101,7 +101,10 @@ int main(void)
     sprintf(inst_buffer, "Point(%d %d)@%s", value, value, time_str);
     instants[i] = (TInstant *) tgeompoint_in(inst_buffer);
 #endif
+    free(time_str);
   }
+
+  printf("\nAssembing the instants ...\n");
 
   seq = (Temporal *) tsequence_make((const TInstant **) instants, MAX_INSTANTS,
     true, true, LINEAR, true);
@@ -111,7 +114,7 @@ int main(void)
     temporal_num_instants(seq), tpoint_length(seq));
 
   /* Free memory */
-  free(seq);
+  free(seq); free(oneday);
   for (i = 0; i < MAX_INSTANTS; i++)
     free(instants[i]);
 

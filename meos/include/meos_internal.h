@@ -38,10 +38,28 @@
 #include <stddef.h>
 /* JSON-C */
 #include <json-c/json.h>
+/* GSL */
+#include <gsl/gsl_rng.h>
+#include <gsl/gsl_randist.h>
+/* PROJ */
+#include <proj.h>
 /* PostgreSQL */
 /* MEOS */
 #include <meos.h>
 #include "general/meos_catalog.h" /* For meosType */
+
+/*****************************************************************************
+ * Internal function accessing the Gnu Scientic Library (GSL)
+ *****************************************************************************/
+
+extern gsl_rng *gsl_get_generation_rng(void);
+extern gsl_rng *gsl_get_aggregation_rng(void);
+
+/*****************************************************************************
+ * Internal function accessing the PROJ library
+ *****************************************************************************/
+
+extern PJ_CONTEXT *proj_get_context(void);
 
 /*****************************************************************************
  * Direct access to a single point in the GSERIALIZED struct
@@ -320,7 +338,8 @@ extern Datum numspan_width(const Span *s);
 extern Datum numspanset_width(const SpanSet *ss, bool boundspan);
 extern Datum set_end_value(const Set *s);
 extern int set_mem_size(const Set *s);
-extern void set_set_span(const Set *s, Span *sp);
+extern void set_set_subspan(const Set *s, int minidx, int maxidx, Span *result);
+extern void set_set_span(const Set *s, Span *result);
 extern Span *set_span(const Set *s);
 extern Datum set_start_value(const Set *s);
 extern bool set_value_n(const Set *s, int n, Datum *result);
@@ -349,6 +368,7 @@ extern SpanSet *numspanset_shift_scale(const SpanSet *ss, Datum shift, Datum wid
 extern Set *set_compact(const Set *s);
 extern void span_expand(const Span *s1, Span *s2);
 extern SpanSet *spanset_compact(const SpanSet *ss);
+extern Span *spanset_spans(const SpanSet *ss, int max_count, int *count);
 extern Set *textcat_textset_text_int(const Set *s, const text *txt, bool invert);
 extern void tstzspan_set_datespan(const Span *s1, Span *s2);
 
@@ -416,7 +436,6 @@ extern bool right_value_span(Datum value, const Span *s);
 extern bool right_value_spanset(Datum value, const SpanSet *ss);
 extern bool right_span_value(const Span *s, Datum value);
 extern bool right_spanset_value(const SpanSet *ss, Datum value);
-
 
 /*****************************************************************************/
 
@@ -487,6 +506,7 @@ extern void tbox_set(const Span *s, const Span *p, TBox *box);
 extern STBox *box3d_to_stbox(const BOX3D *box);
 extern STBox *gbox_to_stbox(const GBOX *box);
 extern void float_set_tbox(double d, TBox *box);
+extern void gbox_set_stbox(const GBOX *box, int srid, STBox *result);
 extern STBox *gbox_to_stbox(const GBOX *box);
 extern bool geo_set_stbox(const GSERIALIZED *gs, STBox *box);
 extern void geoarr_set_stbox(const Datum *values, int count, STBox *box);
@@ -946,14 +966,14 @@ extern bool tpointseq_is_simple(const TSequence *seq);
 extern double tpointseq_length(const TSequence *seq);
 extern TSequence *tpointseq_speed(const TSequence *seq);
 extern int tpointseq_srid(const TSequence *seq);
-extern STBox *tpointseq_stboxes(const TSequence *seq, int *count);
+extern STBox *tpointseq_stboxes(const TSequence *seq, int max_count, int *count);
 extern TSequenceSet *tpointseqset_azimuth(const TSequenceSet *ss);
 extern TSequenceSet *tpointseqset_cumulative_length(const TSequenceSet *ss);
 extern bool tpointseqset_is_simple(const TSequenceSet *ss);
 extern double tpointseqset_length(const TSequenceSet *ss);
 extern TSequenceSet *tpointseqset_speed(const TSequenceSet *ss);
 extern int tpointseqset_srid(const TSequenceSet *ss);
-extern STBox *tpointseqset_stboxes(const TSequenceSet *ss, int *count);
+extern STBox *tpointseqset_stboxes(const TSequenceSet *ss, int max_count, int *count);
 extern GSERIALIZED *tpointseqset_trajectory(const TSequenceSet *ss);
 extern Temporal *tpoint_get_coord(const Temporal *temp, int coord);
 

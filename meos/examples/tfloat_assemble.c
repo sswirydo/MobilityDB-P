@@ -84,12 +84,15 @@ int main(void)
 
   seq = (Temporal *) tsequence_make((const TInstant **) instants, MAX_INSTANTS,
     true, true, STEP, true);
+  for (i = 0; i < MAX_INSTANTS; i++)
+    free(instants[i]);
 
   /* Print information about the sequence */
   printf("Number of generated instants: %d, Time-weighted average: %f\n",
     temporal_num_instants(seq), tnumber_twavg(seq));
 
   /* Free memory */
+  free(oneday);
   free(seq);
 
   /* Finalize MEOS */

@@ -30,18 +30,129 @@
 /**
  * @file
  * @brief Functions for managing the MEOS extension and its global variables
+ * and constants
  */
 
 /* C */
 #include <string.h>
 /* PostgreSQL */
 #include <postgres.h>
+/* GSL */
+#include <gsl/gsl_rng.h>
+#include <gsl/gsl_randist.h>
 /* Proj */
 #include <proj.h>
 /* MEOS */
 #include <meos.h>
 // #include <meos_internal.h>
 
+/***************************************************************************
+ * Functions for the Gnu Scientific Library (GSL)
+ ***************************************************************************/
+
+/* Global variables */
+
+static bool MEOS_GSL_INITIALIZED = false;
+static gsl_rng *MEOS_GENERATION_RNG = NULL;
+static gsl_rng *MEOS_AGGREGATION_RNG = NULL;
+
+/**
+ * @brief Initialize the Gnu Scientific Library
+ */
+static void
+gsl_initialize(void)
+{
+  if (! MEOS_GSL_INITIALIZED)
+  {
+    gsl_rng_env_setup();
+    MEOS_GENERATION_RNG = gsl_rng_alloc(gsl_rng_default);
+    MEOS_AGGREGATION_RNG = gsl_rng_alloc(gsl_rng_ranlxd1);
+    MEOS_GSL_INITIALIZED = true;
+  }
+  return;
+}
+
+#if MEOS
+/**
+ * @brief Finalize the Gnu Scientific Library
+ */
+static void
+gsl_finalize(void)
+{
+  gsl_rng_free(MEOS_GENERATION_RNG);
+  gsl_rng_free(MEOS_AGGREGATION_RNG);
+  MEOS_GSL_INITIALIZED = false;
+  return;
+}
+#endif /* MEOS */
+
+/**
+ * @brief Get the random generator used by the data generator
+ */
+gsl_rng *
+gsl_get_generation_rng(void)
+{
+  if (! MEOS_GSL_INITIALIZED)
+    gsl_initialize();
+  return MEOS_GENERATION_RNG;
+}
+
+/**
+ * @brief Get the random generator used by temporal aggregation
+ */
+gsl_rng *
+gsl_get_aggregation_rng(void)
+{
+  if (! MEOS_GSL_INITIALIZED)
+    gsl_initialize();
+  return MEOS_AGGREGATION_RNG;
+}
+
+/***************************************************************************
+ * Functions for the PROJ library
+ ***************************************************************************/
+
+/* Global variables keeping Proj context */
+
+PJ_CONTEXT *MEOS_PJ_CONTEXT = NULL;
+
+/**
+ * @brief Initialize the PROJ library
+ */
+static void
+proj_initialize(void)
+{
+  if (! MEOS_PJ_CONTEXT)
+    MEOS_PJ_CONTEXT = proj_context_create();
+  return;
+}
+
+#if MEOS
+/**
+ * @brief Finalize the PROJ library
+ */
+static void
+proj_finalize(void)
+{
+  proj_context_destroy(MEOS_PJ_CONTEXT);
+  proj_cleanup();
+  MEOS_PJ_CONTEXT = NULL;
+  return;
+}
+#endif /* MEOS */
+
+/**
+ * @brief Get the random generator used by temporal aggregation
+ */
+PJ_CONTEXT *
+proj_get_context(void)
+{
+  if (! MEOS_PJ_CONTEXT)
+    proj_initialize();
+  return MEOS_PJ_CONTEXT;
+}
+
+/*****************************************************************************/
 #if MEOS
 /*****************************************************************************/
 
@@ -77,10 +188,6 @@ int DateStyle = USE_ISO_DATES;
 int DateOrder = DATEORDER_MDY;
 int IntervalStyle = INTSTYLE_POSTGRES;
 
-/* Global variables keeping Proj context */
-
-PJ_CONTEXT *_PJ_CONTEXT;
-
 /***************************************************************************
  * Definitions taken from pg_regress.h/c
  ***************************************************************************/
@@ -95,7 +202,7 @@ typedef struct _stringlist
 /*
  * Add an item at the end of a stringlist.
  */
-void
+static void
 add_stringlist_item(_stringlist **listhead, const char *str)
 {
   _stringlist *newentry = palloc(sizeof(_stringlist));
@@ -157,7 +264,7 @@ split_to_stringlist(const char *s, const char *delim, _stringlist **listhead)
 #define INTERVALSTYLE_STR_MAXLEN 32
 
 /**
- * @brief Global array containing the datestyle strings
+ * @brief Global constant array containing the datestyle strings
  */
 static const char * _DATESTYLE_STRINGS[] =
 {
@@ -169,7 +276,7 @@ static const char * _DATESTYLE_STRINGS[] =
 };
 
 /**
- * @brief Global array containing the dateorder strings
+ * @brief Global constant array containing the dateorder strings
  */
 static const char * _DATEORDER_STRINGS[] =
 {
@@ -179,7 +286,7 @@ static const char * _DATEORDER_STRINGS[] =
 };
 
 /**
- * @brief Global array containing the intervalstyle string
+ * @brief Global constant array containing the intervalstyle string
  */
 static const char * _INTERVALSTYLE_STRINGS[] =
 {
@@ -461,7 +568,9 @@ meos_initialize(const char *tz_str, error_handler_fn err_handler)
   meos_initialize_error_handler(err_handler);
   meos_initialize_timezone(tz_str);
   /* Initialize PROJ */
-  _PJ_CONTEXT = proj_context_create();
+  proj_initialize();
+  /* Initialize GSL */
+  gsl_initialize();
   return;
 }
 
@@ -473,9 +582,12 @@ meos_finalize(void)
 {
   meos_finalize_timezone();
   /* Finalize PROJ */
-  proj_context_destroy(_PJ_CONTEXT);
+  proj_finalize();
+  /* Finalize GSL */
+  gsl_finalize();
   return;
 }
 
-/*****************************************************************************/
 #endif /* MEOS */
+
+/*****************************************************************************/

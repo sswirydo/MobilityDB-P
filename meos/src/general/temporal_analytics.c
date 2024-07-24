@@ -254,7 +254,7 @@ tsequence_tprecision(const TSequence *seq, const Interval *duration,
           timestamptz_cmp_internal(ininsts[k - 1]->t, upper) < 0)
       {
         tsequence_value_at_timestamptz(seq, upper, false, &value);
-        ininsts[k++] = end = tinstant_make(value, seq->temptype, upper);
+        ininsts[k++] = end = tinstant_make_free(value, seq->temptype, upper);
       }
       seq1 = tsequence_make((const TInstant **) ininsts, k, true, true, interp,
         NORMALIZE);
@@ -300,6 +300,7 @@ tsequence_tprecision(const TSequence *seq, const Interval *duration,
     outinsts[l++] = tinstant_make(value, temptype_out, lower);
     if (! twavg)
       pfree(DatumGetPointer(value));
+    pfree(seq1);
   }
   /* The lower and upper bounds are both true since the tprecision operation
    * amounts to a granularity change */
@@ -1614,7 +1615,7 @@ tsequence_simplify_max_dist(const TSequence *seq, double dist, bool syncdist,
       continue;
     }
   }
-  if (instants[ninsts - 1] != cur)
+  if (ninsts > 0 && instants[ninsts - 1] != cur)
     instants[ninsts++] = cur;
   TSequence *result = tsequence_make(instants, ninsts,
     (ninsts == 1) ? true : seq->period.lower_inc,

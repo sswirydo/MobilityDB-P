@@ -90,6 +90,7 @@
 #define TEMPORAL_WIDTH_THRESHOLD 4096 // Should it be 0x10000 i.e. 64K as before ?
 
 /*
+ * Global variable for extra data for the compute_stats function.
  * While statistic functions are running, we keep a pointer to the extra data
  * here for use by assorted subroutines.  The functions doesn't currently need
  * to be re-entrant, so avoiding this is not worth the extra notational cruft
@@ -236,7 +237,6 @@ temporal_extra_info(VacAttrStats *stats)
 {
   TypeCacheEntry *typentry;
   TemporalAnalyzeExtraData *extra_data;
-  Form_pg_attribute attr = stats->attr;
 
   /* Check attribute data type is a temporal type. */
   if (! temporal_type(oid_type(stats->attrtypid)))
@@ -290,7 +290,11 @@ temporal_extra_info(VacAttrStats *stats)
   extra_data->std_extra_data = stats->extra_data;
   stats->extra_data = extra_data;
 
-  stats->minrows = 300 * attr->attstattarget;
+#if POSTGRESQL_VERSION_NUMBER >= 170000
+  stats->minrows = 300 * stats->attstattarget;
+#else
+  stats->minrows = 300 * stats->attr->attstattarget;
+#endif
   return;
 }
 

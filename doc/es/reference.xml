@@ -359,6 +359,18 @@
 		<sect2>
 			<title>Operaciones de cuadro delimitador</title>
 
+			<itemizedlist>
+				<listitem>
+					<para><link linkend="set_spans"><varname>spans</varname></link>: Devuelve una matriz de rangos a partir de los elementos de un conjunto</para>
+				</listitem>
+			</itemizedlist>
+
+			<itemizedlist>
+				<listitem>
+					<para><link linkend="spanset_spans"><varname>spans</varname></link>: Devuelve una matriz de rangos a partir de los rangos que componen un conjunto de rangos</para>
+				</listitem>
+			</itemizedlist>
+
 			<sect3>
 				<title>Operaciones topológicas</title>
 				<itemizedlist>
@@ -522,6 +534,10 @@
 
 				<listitem>
 					<para><link linkend="xMaxInc"><varname>xMaxInc</varname>, <varname>tMaxInc</varname></link>: Es el máximo valor X/T inclusivo?</para>
+				</listitem>
+
+				<listitem>
+					<para><link linkend="area"><varname>area</varname>, <varname>perimeter</varname></link>: Área o perímetro</para>
 				</listitem>
 			</itemizedlist>
 		</sect2>
@@ -1083,6 +1099,27 @@
 					</listitem>
 				</itemizedlist>
 			</sect3>
+		</sect2>
+
+		<sect2>
+			<title>Operaciones de cuadro delimitador</title>
+			<itemizedlist>
+				<listitem>
+					<para><link linkend="temporal_spans"><varname>spans</varname></link>: Devuelve una matriz de rangos construídos a partir de los instantes o segmentos de un valor temporal</para>
+				</listitem>
+
+				<listitem>
+					<para><link linkend="tnumber_tboxes"><varname>tboxes</varname></link>: Devuelve una matriz de cuadros temporales construídos a partir de los instantes o segmentos de un número temporal</para>
+				</listitem>
+
+				<listitem>
+					<para><link linkend="geo_stboxes"><varname>stboxes</varname></link>: Devuelve una matriz de cuadros espaciales construídos a partir de los segmentos de una línea o multilínea</para>
+				</listitem>
+
+				<listitem>
+					<para><link linkend="tpoint_stboxes"><varname>stboxes</varname></link>: Devuelve una matriz de cuadros espaciotemporales construídos a partir de los instantes o segmentos de un punto temporal</para>
+				</listitem>
+			</itemizedlist>
 		</sect2>
 
 		<sect2>

@@ -36,6 +36,7 @@
 
 /* C */
 #include <assert.h>
+#include <float.h>
 #include <limits.h>
 /* PostgreSQL */
 #include "utils/timestamp.h"
@@ -187,7 +188,7 @@ stbox_out(const STBox *box, int maxdd)
   assert(hasx || hast);
 
   char *str = palloc(size);
-  char srid[13];
+  char srid[18];
   if (hasx && box->srid > 0)
     /* SRID_MAXIMUM is defined by PostGIS as 999999 */
     snprintf(srid, sizeof(srid), "SRID=%d;", box->srid);
@@ -628,15 +629,16 @@ spatialset_to_stbox(const Set *s)
 
 /**
  * @ingroup meos_internal_box_conversion
- * @brief Return a @p GBOX converted to a spatiotemporal box
+ * @brief Set the a spatiotemporal box in the last argument from the @p GBOX
+ ¨and the SRID
  * @param[in] box GBOX
+ * @param[in] srid SRID
+ * @param[out] result Spatiotemporal box
  */
-STBox *
-gbox_to_stbox(const GBOX *box)
+void
+gbox_set_stbox(const GBOX *box, int srid, STBox *result)
 {
   assert(box);
-  /* Note: zero-fill is required here, just as in heap tuples */
-  STBox *result = palloc0(sizeof(STBox));
   bool hasz = (bool) FLAGS_GET_Z(box->flags);
   bool geodetic = (bool) FLAGS_GET_GEODETIC(box->flags);
   MEOS_FLAGS_SET_X(result->flags, true);
@@ -653,6 +655,22 @@ gbox_to_stbox(const GBOX *box)
     result->zmin = box->zmin;
     result->zmax = box->zmax;
   }
+  result->srid = srid;
+  return;
+}
+
+/**
+ * @ingroup meos_internal_box_conversion
+ * @brief Return a @p GBOX converted to a spatiotemporal box
+ * @param[in] box GBOX
+ */
+STBox *
+gbox_to_stbox(const GBOX *box)
+{
+  assert(box);
+  /* Note: zero-fill is required here, just as in heap tuples */
+  STBox *result = palloc0(sizeof(STBox));
+  gbox_set_stbox(box, 0, result);
   return result;
 }
 
@@ -1230,6 +1248,52 @@ stbox_tmax_inc(const STBox *box, bool *result)
     return false;
   *result = box->period.upper_inc;
   return true;
+}
+
+/**
+ * @ingroup meos_box_accessor
+ * @brief Return the area of the spatiotemporal box
+ * @param[in] box Spatiotemporal box
+ * @param[in] spheroid When true, the calculation uses the WGS 84 spheroid,
+ * otherwise it uses a faster spherical calculation
+ * @csqlfn #Stbox_area()
+ */
+double
+stbox_area(const STBox *box, bool spheroid)
+{
+  /* Ensure validity of the arguments */
+  if (! ensure_not_null((void *) box) || ! ensure_has_X_stbox(box))
+    return false;
+
+  if (! MEOS_FLAGS_GET_GEODETIC(box->flags))
+    return (box->xmax - box->xmin) * (box->ymax - box->ymin);
+  
+  GSERIALIZED *geo = stbox_to_geo(box);
+  double result = pgis_geography_area(geo, spheroid);
+  pfree(geo);
+  return result;
+}
+
+/**
+ * @ingroup meos_box_accessor
+ * @brief Return the permieter of the spatiotemporal box
+ * @param[in] box Spatiotemporal box
+ * @param[in] spheroid When true, the calculation uses the WGS 84 spheroid,
+ * otherwise it uses a faster spherical calculation
+ * @csqlfn #Stbox_perimeter()
+ */
+double
+stbox_perimeter(const STBox *box, bool spheroid)
+{
+  /* Ensure validity of the arguments */
+  if (! ensure_not_null((void *) box) || ! ensure_has_X_stbox(box))
+    return false;
+
+  GSERIALIZED *geo = stbox_to_geo(box);
+  double result = MEOS_FLAGS_GET_GEODETIC(box->flags) ?
+    pgis_geography_perimeter(geo, spheroid) : geo_perimeter(geo);
+  pfree(geo);
+  return result;
 }
 
 /*****************************************************************************

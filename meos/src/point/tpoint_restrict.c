@@ -1102,7 +1102,7 @@ tpoint_minus_stbox(const Temporal *temp, const STBox *box, bool border_inc)
 #endif /* MEOS */
 
 /*****************************************************************************
- * Restriction functions for a spatiotemporal box keeping the original 
+ * Restriction functions for a spatiotemporal box keeping the original
  * segments WITHOUT clipping
  *****************************************************************************/
 
@@ -1161,7 +1161,7 @@ tpointseq_at_stbox_segm(const TSequence *seq, const STBox *box,
     {
       /* Keep the segment if intersects the bounding box in BOTH the spatial
        * dimension and the temporal dimension (if any) */
-      if (liangBarskyClip(p1, p2, box, hasz, border_inc, NULL, NULL, NULL, 
+      if (liangBarskyClip(p1, p2, box, hasz, border_inc, NULL, NULL, NULL,
           NULL))
       {
         if (hast)
@@ -1187,7 +1187,7 @@ tpointseq_at_stbox_segm(const TSequence *seq, const STBox *box,
     {
       sequences[nseqs++] = tsequence_make(instants, ninsts, lower_inc_seq,
         upper_inc, LINEAR, NORMALIZE_NO);
-      ninsts = 0;  
+      ninsts = 0;
       lower_inc_seq = lower_inc;
     }
     lower_inc = true;
@@ -1197,6 +1197,7 @@ tpointseq_at_stbox_segm(const TSequence *seq, const STBox *box,
   if (ninsts > 0)
     sequences[nseqs++] = tsequence_make(instants, ninsts, lower_inc_seq,
       upper_inc, LINEAR, NORMALIZE_NO);
+  pfree(instants);
   return tsequenceset_make_free(sequences, nseqs, NORMALIZE);
 }
 
@@ -1607,11 +1608,13 @@ tpointseq_interperiods(const TSequence *seq, GSERIALIZED *gsinter, int *count)
       /* Get the fraction of the start point of the intersecting line */
       LWPOINT *point = lwline_get_lwpoint(line_inter, 0);
       gspoint = geo_serialize((LWGEOM *) point);
+      lwpoint_free(point);
       tpointseq_timestamp_at_value(seq, PointerGetDatum(gspoint), &t1);
       pfree(gspoint);
       /* Get the fraction of the end point of the intersecting line */
       point = lwline_get_lwpoint(line_inter, line_inter->points->npoints - 1);
       gspoint = geo_serialize((LWGEOM *) point);
+      lwpoint_free(point);
       tpointseq_timestamp_at_value(seq, PointerGetDatum(gspoint), &t2);
       pfree(gspoint);
       /* If t1 == t2 and the intersection is not at an exclusive bound */

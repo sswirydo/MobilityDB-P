@@ -596,7 +596,7 @@ extern bool spanset_lower_inc(const SpanSet *ss);
 extern int spanset_num_spans(const SpanSet *ss);
 extern Span *spanset_span(const SpanSet *ss);
 extern Span *spanset_span_n(const SpanSet *ss, int i);
-extern Span **spanset_spans(const SpanSet *ss);
+extern Span **spanset_spanarr(const SpanSet *ss);
 extern Span *spanset_start_span(const SpanSet *ss);
 extern bool spanset_upper_inc(const SpanSet *ss);
 extern text *textset_end_value(const Set *s);
@@ -647,11 +647,13 @@ extern Set *geoset_round(const Set *s, int maxdd);
 extern Set *geoset_set_srid(const Set *s, int32 srid);
 extern Set *geoset_transform(const Set *s, int32 srid);
 extern Set *geoset_transform_pipeline(const Set *s, char *pipelinestr, int32 srid, bool is_forward);
-extern GSERIALIZED *point_transform(const GSERIALIZED *gs, int32 srid);
-extern GSERIALIZED *point_transform_pipeline(const GSERIALIZED *gs, char *pipelinestr, int32 srid, bool is_forward);
 extern Set *intset_shift_scale(const Set *s, int shift, int width, bool hasshift, bool haswidth);
 extern Span *intspan_shift_scale(const Span *s, int shift, int width, bool hasshift, bool haswidth);
 extern SpanSet *intspanset_shift_scale(const SpanSet *ss, int shift, int width, bool hasshift, bool haswidth);
+extern GSERIALIZED *point_transform(const GSERIALIZED *gs, int32 srid);
+extern GSERIALIZED *point_transform_pipeline(const GSERIALIZED *gs, char *pipelinestr, int32 srid, bool is_forward);
+extern Span *set_spans(const Set *s, int max_count, int *count);
+extern Span *spanset_spans(const SpanSet *ss, int max_count, int *count);
 extern Set *textset_initcap(const Set *s);
 extern Set *textset_lower(const Set *s);
 extern Set *textset_upper(const Set *s);
@@ -1158,10 +1160,12 @@ extern STBox *tpoint_to_stbox(const Temporal *temp);
  * Accessor functions for box types
  *****************************************************************************/
 
+extern double stbox_area(const STBox *box, bool spheroid);
 extern bool stbox_hast(const STBox *box);
 extern bool stbox_hasx(const STBox *box);
 extern bool stbox_hasz(const STBox *box);
 extern bool stbox_isgeodetic(const STBox *box);
+extern double stbox_perimeter(const STBox *box, bool spheroid);
 extern int32 stbox_srid(const STBox *box);
 extern bool stbox_tmax(const STBox *box, TimestampTz *result);
 extern bool stbox_tmax_inc(const STBox *box, bool *result);
@@ -1692,6 +1696,12 @@ extern Temporal *tne_ttext_text(const Temporal *temp, const text *txt);
  * Bounding box functions for temporal types
  *****************************************************************************/
 
+/* Boxes function */
+
+extern Span *temporal_spans(const Temporal *temp, int max_count, int *count);
+extern TBox *tnumber_tboxes(const Temporal *temp, int max_count, int *count);
+extern STBox *tpoint_stboxes(const Temporal *temp, int max_count, int *count);
+
 /* Topological functions for temporal types */
 
 extern bool adjacent_numspan_tnumber(const Span *s, const Temporal *temp);
@@ -1936,6 +1946,7 @@ extern GSERIALIZED *shortestline_tpoint_tpoint(const Temporal *temp1, const Temp
 extern bool bearing_point_point(const GSERIALIZED *gs1, const GSERIALIZED *gs2, double *result);
 extern Temporal *bearing_tpoint_point(const Temporal *temp, const GSERIALIZED *gs, bool invert);
 extern Temporal *bearing_tpoint_tpoint(const Temporal *temp1, const Temporal *temp2);
+extern GBOX *geo_gboxes(const GSERIALIZED *gs, int max_count, int *count);
 extern Temporal *tpoint_angular_difference(const Temporal *temp);
 extern Temporal *tpoint_azimuth(const Temporal *temp);
 extern GSERIALIZED *tpoint_convex_hull(const Temporal *temp);
@@ -1948,7 +1959,6 @@ extern bool tpoint_is_simple(const Temporal *temp);
 extern double tpoint_length(const Temporal *temp);
 extern Temporal *tpoint_speed(const Temporal *temp);
 extern int tpoint_srid(const Temporal *temp);
-extern STBox *tpoint_stboxes(const Temporal *temp, int *count);
 extern GSERIALIZED *tpoint_trajectory(const Temporal *temp);
 extern GSERIALIZED *tpoint_twcentroid(const Temporal *temp);
 
