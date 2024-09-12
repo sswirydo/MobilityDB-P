@@ -3,6 +3,16 @@
               It is still in developped in the context of a master thesis.
 */
 
+
+/*****************************************************************************
+ *  TODO TODO TODO MERGE PERIODIC (et al.) BELOW WITH TEMPORAL
+ *  Note that below PERIODIC structures 
+ *  have the same definitions as TEMPORAL structures.
+ *  (so that I could keep my dev. separate and just cast when needed
+ *    without needing to fix merge commits with off. branch)
+ *  But the only difference is at INPUT/OUTPUT so if used they SHOULD be merged.
+*****************************************************************************/
+
 #ifndef __PERIODIC_H__
 #define __PERIODIC_H__
 
@@ -17,10 +27,6 @@
 /* MEOS */
 #include "meos.h"
 #include "general/temporal.h"
-// #include "general/pg_types.h"
-
-// int32 v1_len_; <-- exactly 4 bytes to add at start for variable-length types, do not modify
-
 
 
 
@@ -30,9 +36,9 @@
 
 typedef struct
 {
-  Interval frequency;
-  int32 repetitions;
-  bool keep_pattern;
+  Interval period;
+  int32 repetitions; // optional
+  bool keep_pattern; // optional
   Span anchor;
 } PMode;
 
@@ -44,28 +50,9 @@ typedef struct
 
 extern PMode *pmode_in(const char *str);
 extern PMode *pmode_parse(const char **str);
-extern PMode *pmode_make(Interval *frequency, int32 repetitions, bool keep_pattern, Span *anchor);
-// extern PMode *pmode_make(Interval *frequency, int32 repetitions, TimestampTz start_date, TimestampTz end_date, bool upper_inc, bool keep_pattern);
+extern PMode *pmode_make(Interval *period, int32 repetitions, bool keep_pattern, Span *anchor);
 extern char *pmode_out(const PMode *pmode);
 
-
-/*****************************************************************************
- *  Structure definition
- * 
- *  Note that below Periodic structures have the same definition 
- *  as Temporal structures in order to enable easy casting between them. 
-*****************************************************************************/
-
-/* TODO TODO TODO TODO TODO TODO TODO
- * 
- * MERGE PERIODIC (et al.) BELOW WITH TEMPORAL
- * -> C.F. MASTER THESIS PAPER 
- * 
- * ONLY DIFFERENCE WITH TEMPORAL 
- * IS AT INPUT/OUTPUT
- * 
- * TODO TODO TODO TODO TODO TODO TODO
- */
 
 typedef struct
 {
@@ -141,17 +128,19 @@ typedef struct
 #define PG_RETURN_PSEQUENCE_P(X)     PG_RETURN_POINTER(X)
 #define PG_RETURN_PSEQUENCESET_P(X)  PG_RETURN_POINTER(X)
 
+// todo: perhaps just change perType (output style) automatically
+//       depending on the span of the sequence (?)
 typedef enum
 {
-  P_NONE      = 0,
+  P_NONE      = 0, // (not-periodic)
   P_DEFAULT   = 1,
-  P_DAY       = 2,
-  P_WEEK      = 3,
-  P_INTERVAL  = 4,
-  // P_MONTH     = 5,
-  // P_YEAR      = 6,
+  P_INTERVAL  = 2,
+  P_DAY       = 3,
+  P_WEEK      = 4,
+  // P_MONTH  = 5, // deprecated
+  // P_YEAR   = 6, // deprecated
 } perType;
-// todo: perhaps just change perType (output style) automatically based on the span of the sequence
+
 
 
 /*****************************************************************************
@@ -167,8 +156,6 @@ typedef enum
 #define MEOS_FLAGS_PER_DEFAULT(flags)   ((bool) (MEOS_FLAGS_GET_PERIODIC((flags)) == P_DEFAULT))
 #define MEOS_FLAGS_PER_DAY(flags)       ((bool) (MEOS_FLAGS_GET_PERIODIC((flags)) == P_DAY))
 #define MEOS_FLAGS_PER_WEEK(flags)      ((bool) (MEOS_FLAGS_GET_PERIODIC((flags)) == P_WEEK))
-#define MEOS_FLAGS_PER_MONTH(flags)     ((bool) (MEOS_FLAGS_GET_PERIODIC((flags)) == P_MONTH))
-#define MEOS_FLAGS_PER_YEAR(flags)      ((bool) (MEOS_FLAGS_GET_PERIODIC((flags)) == P_YEAR))
 #define MEOS_FLAGS_PER_INTERVAL(flags)  ((bool) (MEOS_FLAGS_GET_PERIODIC((flags)) == P_INTERVAL))
 
 /*****************************************************************************
@@ -176,8 +163,6 @@ typedef enum
 *****************************************************************************/
 
 Periodic *periodic_in(const char *str, meosType temptype);
-// Periodic *periodic_parse(const char **str, meosType temptype);
-
 
 /*****************************************************************************
  *  Output
@@ -209,62 +194,12 @@ PSequenceSet *psequenceset_copy(const PSequenceSet *pss);
 Periodic *periodic_set_pertype(const Periodic *per, perType ptype);
 char *periodic_get_pertype(const Periodic *per);
 
-/*****************************************************************************
- *  Casting
-*****************************************************************************/
-
-// Periodic *tint_to_pint(Temporal *temp);
-// Temporal *pint_to_tint(Periodic *temp);
-
-
 
 /*****************************************************************************
  *  Other
 *****************************************************************************/
 
 char *format_timestamptz(TimestampTz tstz, const char *fmt);
-
-
-
-/*****************************************************************************
- *  Temporary
-*****************************************************************************/
-
-
-// typedef struct
-// {
-//   int32 vl_len_;        /**< Varlena header (do not touch directly!) */
-//   uint8 temptype;       /**< Temporal type */
-//   uint8 subtype;        /**< Temporal subtype */
-//   int16 flags;          /**< Flags */
-//   int32 count;          /**< Number of TInstant elements */
-//   int32 maxcount;       /**< Maximum number of TInstant elements */
-//   int16 bboxsize;       /**< Size of the bounding box */
-//   char padding[6];      /**< Not used */
-//   Span period;          /**< Time span (24 bytes). All bounding boxes start
-//                              with a period so actually it is also the begining
-//                              of the bounding box. The extra bytes needed for
-//                              the bounding box are added upon creation. */
-//   /* variable-length data follows */
-//   Interval frequency;
-//   int32 repetitions;
-// } RSequence;
-
-// #define RSEQUENCE_BBOX_PTR(seq)      ((void *)(&(seq)->period))
-
-
-// // #define DatumGetPeriodicP(X)       ((RSequence *) DatumGetPointer(X))
-// // #define PG_GETARG_PERIODIC_P(X)    ((RSequence *) PG_GETARG_VARLENA_P(X))
-// // #define PG_GETARG_PINSTANT_P(X)    ((PInstant *) PG_GETARG_VARLENA_P(X))
-// #define PG_GETARG_RSEQUENCE_P(X)    ((RSequence *) PG_GETARG_VARLENA_P(X))
-// // #define PG_GETARG_PSEQUENCESET_P(X)    ((PSequenceSet *) PG_GETARG_VARLENA_P(X))
-
-
-// RSequence *repeat_in(const char *str, meosType temptype);
-// char *repeat_out(const RSequence *per, int maxdd);
-// RSequence *r_distance(const RSequence *per, Datum value);
-
-
 
 
 #endif /* __PERIODIC_H__ */

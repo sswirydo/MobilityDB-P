@@ -101,7 +101,7 @@ CREATE FUNCTION pgeompointSeq(pgeompoint[], text DEFAULT 'linear',
 *****************************************************************************/
 
 -- temp solution so we can avoid copying all foo from temporal to periodic
--- todo make periodic as a flag later
+-- todo make periodic as a flag later (instead of a separate type)
 
 CREATE FUNCTION tgeompoint(pgeompoint)
   RETURNS tgeompoint
@@ -160,17 +160,6 @@ CREATE FUNCTION setPeriodicType(pgeompoint, text)
 /*****************************************************************************
  *  Periodicity
 *****************************************************************************/
-
-
-CREATE FUNCTION anchor_pmode(pint, pmode)
-  RETURNS tint
-  AS 'MODULE_PATHNAME', 'Anchor_pmode'
-  LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;
-
-CREATE FUNCTION anchor_pmode(pgeompoint, pmode)
-  RETURNS tgeompoint
-  AS 'MODULE_PATHNAME', 'Anchor_pmode'
-  LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;
 
 CREATE FUNCTION anchor(pint, tstzspan, interval, boolean)
   RETURNS tint

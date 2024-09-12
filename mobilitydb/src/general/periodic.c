@@ -70,17 +70,12 @@ Datum PMode_constructor(PG_FUNCTION_ARGS)
   if (PG_ARGISNULL(1) && PG_ARGISNULL(3))
     PG_RETURN_NULL();
 
-  // Interval *frequency = PG_ARGISNULL(0) ? NULL : PG_GETARG_INTERVAL_P(0);
-  // int repetitions = PG_ARGISNULL(1) ? -1 : PG_GETARG_INT32(1);
-  // bool keep_pattern = PG_ARGISNULL(2) ? true : PG_GETARG_BOOL(2);
-  // Span *anchor = PG_ARGISNULL(3) ? NULL : PG_GETARG_SPAN_P(3);
-
-  Interval *frequency = PG_GETARG_INTERVAL_P(0);
+  Interval *period = PG_GETARG_INTERVAL_P(0);
   int repetitions = PG_GETARG_INT32(1);
   bool keep_pattern = PG_GETARG_BOOL(2);
   Span *anchor = PG_GETARG_SPAN_P(3);
   
-  PG_RETURN_PMODE_P(pmode_make(frequency, repetitions, keep_pattern, anchor));
+  PG_RETURN_PMODE_P(pmode_make(period, repetitions, keep_pattern, anchor));
 }
 
 
@@ -91,9 +86,7 @@ Datum PMode_constructor(PG_FUNCTION_ARGS)
 
 
 
-// TODO MODIFY WITH OID LOGIC LATER,
-// TODO PERHAPS DO SOME SORT OF MATCHING TO MEOSTYPE
-// TODO -> PROBABLY JUST ADD TYPE AS FLAG INSTEAD
+// TODO MODIFY WITH OID LOGIC LATER (ACTAULLY, JUST MERGE WITH TEMPORAL)
 PGDLLEXPORT Datum Periodic_int_in(PG_FUNCTION_ARGS);
 PG_FUNCTION_INFO_V1(Periodic_int_in);
 Datum Periodic_int_in(PG_FUNCTION_ARGS)
@@ -265,28 +258,15 @@ Datum Temporal_to_periodic(PG_FUNCTION_ARGS)
 *****************************************************************************/
 
 /* PERIODIC ANCHOR */
-PGDLLEXPORT Datum Anchor_pmode(PG_FUNCTION_ARGS);
-PG_FUNCTION_INFO_V1(Anchor_pmode);
-Datum Anchor_pmode(PG_FUNCTION_ARGS)
-{
-  Periodic *per = PG_GETARG_PERIODIC_P(0);
-  PMode *pmode = PG_GETARG_PMODE_P(1);
-  Temporal *result = anchor_pmode(per, pmode);
-  if (! result)
-    PG_RETURN_NULL();
-  PG_RETURN_TEMPORAL_P(result);
-}
-
-
 PGDLLEXPORT Datum Anchor(PG_FUNCTION_ARGS);
 PG_FUNCTION_INFO_V1(Anchor);
 Datum Anchor(PG_FUNCTION_ARGS)
 {
   Periodic *per = PG_GETARG_PERIODIC_P(0);
   Span *ts_anchor = PG_GETARG_SPAN_P(1);
-  Interval *frequency = PG_GETARG_INTERVAL_P(2);
+  Interval *period = PG_GETARG_INTERVAL_P(2);
   bool strict_pattern = PG_GETARG_BOOL(3);
-  Temporal *result = anchor((Temporal*) per, ts_anchor, frequency, strict_pattern);
+  Temporal *result = anchor((Temporal*) per, ts_anchor, period, strict_pattern);
   if (! result)
     PG_RETURN_NULL();
   PG_RETURN_TEMPORAL_P(result);
@@ -299,7 +279,7 @@ Datum Anchor_array(PG_FUNCTION_ARGS)
 {
   Periodic *per = PG_GETARG_PERIODIC_P(0);
   Span *ts_anchor = PG_GETARG_SPAN_P(1);
-  Interval *frequency = PG_GETARG_INTERVAL_P(2);
+  Interval *period = PG_GETARG_INTERVAL_P(2);
   bool strict_pattern = PG_GETARG_BOOL(3);
 
   ArrayType *array = PG_GETARG_ARRAYTYPE_P(4);
@@ -316,7 +296,7 @@ Datum Anchor_array(PG_FUNCTION_ARGS)
   int count;
   Datum *values = datumarr_extract(array, &count);
 
-  Temporal *result = anchor_array((Temporal*) per, ts_anchor, frequency, strict_pattern, values, array_shift, count);
+  Temporal *result = anchor_array((Temporal*) per, ts_anchor, period, strict_pattern, values, array_shift, count);
 
   pfree(values);
   if (! result)
@@ -344,32 +324,16 @@ Datum Periodic_value_at_timestamp(PG_FUNCTION_ARGS)
 {
   Periodic *per = PG_GETARG_PERIODIC_P(0);
   Span *span = PG_GETARG_SPAN_P(1);
-  Interval *frequency = PG_GETARG_INTERVAL_P(2);
+  Interval *period = PG_GETARG_INTERVAL_P(2);
   TimestampTz tstz = PG_GETARG_TIMESTAMPTZ(3);
 
   Datum result;
-  bool found = periodic_value_at_timestamptz(per, span, frequency, tstz, true, &result);
+  bool found = periodic_value_at_timestamptz(per, span, period, tstz, true, &result);
   PG_FREE_IF_COPY(per, 0);
   if (! found)
     PG_RETURN_NULL();
   PG_RETURN_DATUM(result);
 }
-
-// PGDLLEXPORT Datum Periodic_timestamptz_to_relative(PG_FUNCTION_ARGS);
-// PG_FUNCTION_INFO_V1(Periodic_timestamptz_to_relative);
-// Datum Periodic_timestamptz_to_relative(PG_FUNCTION_ARGS)
-// {
-//   Span *span = PG_GETARG_SPAN_P(0);
-//   Interval *frequency = PG_GETARG_INTERVAL_P(1);
-//   TimestampTz tstz = PG_GETARG_TIMESTAMPTZ(2);
-
-//   Timestamp result;
-//   bool found = periodic_timestamptz_to_relative(span, frequency, tstz, &result);
-//   if (! found)
-//     PG_RETURN_NULL();
-//   PG_RETURN_TIMESTAMP(result);
-// }
-
 
 
 /*****************************************************************************
@@ -382,15 +346,9 @@ Datum Quick_test(PG_FUNCTION_ARGS)
 {
   TimestampTz tstz = PG_GETARG_TIMESTAMPTZ(0);
   text *format = PG_GETARG_TEXT_P(1);
-  
   char *fmt_str = text2cstring(format);
-
   char *result_str = format_timestamptz(tstz, fmt_str);
-  // char *result_str = "42";
-  
   text *result = cstring2text(result_str);
-  // pfree(result_str);
-
   PG_RETURN_TEXT_P(result);
 }
 

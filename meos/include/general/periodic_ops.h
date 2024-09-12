@@ -11,16 +11,16 @@
  *  Operations
 *****************************************************************************/
 
-Temporal *anchor_pmode(const Periodic *per, PMode *pmode);
+// Temporal *anchor_pmode(const Periodic *per, PMode *pmode);
 Temporal *anchor(
   const Temporal *periodic, 
   const Span *ts_anchor, 
-  const Interval *frequency, 
+  const Interval *period, 
   const bool strict_pattern);
 Temporal *anchor_array(
   const Temporal *periodic, 
   const Span *ts_anchor, 
-  const Interval *frequency, 
+  const Interval *period, 
   const bool strict_pattern, 
   const Datum *service_array, 
   const int array_shift,
@@ -31,23 +31,14 @@ Periodic *periodic_align(const Periodic *per, const Timestamp ts);
 bool periodic_value_at_timestamptz(
   const Periodic *per, 
   const Span *anchor_ts, 
-  const Interval *frequency,
+  const Interval *period,
   TimestampTz tstz, 
   bool strict, 
   Datum *result);
-// bool periodic_array_value_at_timestamptz(
-//   const Periodic *per, 
-//   const Span *anchor_ts, 
-//   const Interval *frequency,
-//   TimestampTz tstz, 
-//   bool strict,
-//   const Datum *service_array, 
-//   const int array_count,
-//   Datum *result);
 
 Timestamp periodic_timestamptz_to_relative(
   const Timestamp reference_ts, 
-  const Interval *frequency, 
+  const Interval *period, 
   const TimestampTz tstz);
 
 

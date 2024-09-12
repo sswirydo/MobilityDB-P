@@ -46,121 +46,9 @@
  *  Operations
 *****************************************************************************/
 
-/* 
- * TODO 
- * - possible missing edge cases with keep_pattern and sequence/anchor low/up bound inclusion
- */
-Temporal *
-anchor_pmode(const Periodic *per, PMode *pmode) 
-{
-  const Temporal *relative = (Temporal *) per;
-
-  Temporal *result = NULL;
-  Temporal *temp = NULL;
-  Temporal *base_temp = NULL;
-  Temporal *work_temp = NULL;
-
-  if (! per && ! pmode)
-    return NULL;
-  
-  if (MEOS_FLAGS_GET_PERIODIC(per->flags) == P_NONE)
-  {
-    meos_error(ERROR, MEOS_ERR_INVALID_ARG_VALUE,
-    "Anchor(): Temporal is not periodic.");
-    return NULL;
-  }
-
-  const Interval *frequency = &(pmode->frequency);
-  int32 repetitions = pmode->repetitions;
-  const Span *anchor = &(pmode->anchor);
-  const TimestampTz start_tstz = pmode->anchor.lower;
-  TimestampTz end_tstz = pmode->anchor.upper;
-  const bool keep_pattern = pmode->keep_pattern;
-  const uint8 spantype = pmode->anchor.spantype;
-
-  /* Some basic validity checks */
-
-  if (spantype != T_TSTZSPAN)
-    return NULL;
-
-  Interval *duration = temporal_duration(relative, true);
-  if (pg_interval_cmp(duration, frequency) > 0)
-  {
-    meos_error(ERROR, MEOS_ERR_INVALID_ARG_VALUE,
-      "Anchor(): Frequency (%s) must be greater or equal than the time range of the periodic sequence (%s).",
-      pg_interval_out(frequency), pg_interval_out(duration));
-    return NULL;
-  }
-
-  if (repetitions < 0)
-    repetitions = INT32_MAX;
-  
-  if (end_tstz <= start_tstz)
-    end_tstz = INT64_MAX;
-  
-  if (repetitions == INT32_MAX && end_tstz == INT64_MAX)
-  {
-    meos_error(ERROR, MEOS_ERR_INVALID_ARG_VALUE,
-    "Anchor(): Periodic sequence must have either repetitions or end timestamp defined.");
-    return NULL;
-  }
-
-  /* Creates first anchored temporal sequence. */
-  temp = temporal_copy(relative);
-  MEOS_FLAGS_SET_PERIODIC(temp->flags, P_NONE);
-
-  TimestampTz anchor_reference = (TimestampTz) (int64) 0; // 2000 UTC
-
-  Interval *frequency_interval = pg_interval_in("0 days", -1);
-  Interval *anchor_interval = minus_timestamptz_timestamptz(start_tstz, anchor_reference);
-
-  base_temp = (Temporal*) temporal_shift_scale_time(temp, anchor_interval, NULL);
-
-  int32 i;
-  for (i = 0; i < repetitions; i++)
-  {
-    /* Incrementing frequency */
-    frequency_interval = add_interval_interval(frequency_interval, frequency);
-    Interval *shift_interval = add_interval_interval(anchor_interval, frequency_interval);
-
-    /* Shifts new seq accordingly */
-    temp = temporal_copy(relative);
-    MEOS_FLAGS_SET_PERIODIC(temp->flags, P_NONE);
-    temp = (Temporal *) temporal_shift_scale_time(temp, shift_interval, NULL); 
-
-    /* Stop if reached upper anchor bound */
-    if (temporal_end_timestamptz(temp) >= end_tstz)
-    {
-      bool check1 = temporal_end_timestamptz(temp) > end_tstz && keep_pattern;
-      bool check2 = temporal_end_timestamptz(temp) == end_tstz && keep_pattern && (! anchor->upper_inc && temporal_upper_inc(temp)); // i.e., when seq upper bound is inclusive but anchor's is not
-      /* Do not include last pattern occurrence if it does not fit */
-      if (check1 || check2)
-      {
-        pfree(temp);
-        break;
-      }
-      i = repetitions;
-    }
-
-    // Merge new seq and seq.
-    work_temp = base_temp;
-    base_temp = temporal_merge(work_temp, temp);
-    pfree(work_temp);
-    pfree(temp);
-  }
-
-  /* Trim if the trajectory is longer than anchor span */
-  work_temp = base_temp;
-  base_temp = temporal_restrict_tstzspan(base_temp, anchor, REST_AT);
-
-  pfree(work_temp);
-  result = base_temp;
-  return result;
-}
-
 
 Temporal *
-anchor(const Temporal *periodic, const Span *ts_anchor, const Interval *frequency, const bool strict_pattern)
+anchor(const Temporal *periodic, const Span *ts_anchor, const Interval *period, const bool strict_pattern)
 {
   Temporal *result = NULL;
   Temporal *temp = NULL;
@@ -184,8 +72,8 @@ anchor(const Temporal *periodic, const Span *ts_anchor, const Interval *frequenc
     return NULL;
   }
     
-  if (! frequency)
-    frequency = temporal_duration(periodic, true);
+  if (! period)
+    period = temporal_duration(periodic, true);
   
   TimestampTz start_tstz = ts_anchor->lower;
   TimestampTz end_tstz = ts_anchor->upper;
@@ -200,9 +88,9 @@ anchor(const Temporal *periodic, const Span *ts_anchor, const Interval *frequenc
     return NULL;
     
   TimestampTz anchor_reference = (TimestampTz) (int64) 0; // 2000 UTC
-  Interval *frequency_interval = pg_interval_in("0 days", -1);
+  Interval *period_interval = pg_interval_in("0 days", -1);
   Interval *anchor_interval = minus_timestamptz_timestamptz(start_tstz, anchor_reference);
-  Interval *shift_interval = add_interval_interval(anchor_interval, frequency_interval);
+  Interval *shift_interval = add_interval_interval(anchor_interval, period_interval);
 
   bool finished = false;
   do 
@@ -240,11 +128,11 @@ anchor(const Temporal *periodic, const Span *ts_anchor, const Interval *frequenc
       base_temp = temp;
     }
 
-    /* Incrementing frequency */
+    /* Incrementing period */
     if (! finished) 
     {
-      frequency_interval = add_interval_interval(frequency_interval, frequency);
-      shift_interval = add_interval_interval(anchor_interval, frequency_interval);
+      period_interval = add_interval_interval(period_interval, period);
+      shift_interval = add_interval_interval(anchor_interval, period_interval);
     }
   } 
   while (! finished);
@@ -259,14 +147,14 @@ anchor(const Temporal *periodic, const Span *ts_anchor, const Interval *frequenc
   return result;
 }
 
-// todo todo todo 
+
 /*
- * TODO TODO TODO
- * merge with other anchor functions
  * FIXME duplicate code
+ * TODO possibly merge with other anchor function (?)
+ * or rather just split these into smaller reusable functions
  */
 Temporal *
-anchor_array(const Temporal *periodic, const Span *ts_anchor, const Interval *frequency, const bool strict_pattern, const Datum *service_array, const int array_shift, const int array_count)
+anchor_array(const Temporal *periodic, const Span *ts_anchor, const Interval *period, const bool strict_pattern, const Datum *service_array, const int array_shift, const int array_count)
 {
   Temporal *result = NULL;
   Temporal *temp = NULL;
@@ -290,8 +178,8 @@ anchor_array(const Temporal *periodic, const Span *ts_anchor, const Interval *fr
     return NULL;
   }
     
-  if (! frequency)
-    frequency = temporal_duration(periodic, true);
+  if (! period)
+    period = temporal_duration(periodic, true);
   
   TimestampTz start_tstz = ts_anchor->lower;
   TimestampTz end_tstz = ts_anchor->upper;
@@ -306,9 +194,9 @@ anchor_array(const Temporal *periodic, const Span *ts_anchor, const Interval *fr
     return NULL;
     
   TimestampTz anchor_reference = (TimestampTz) (int64) 0; // 2000 UTC
-  Interval *frequency_interval = pg_interval_in("0 days", -1);
+  Interval *period_interval = pg_interval_in("0 days", -1);
   Interval *anchor_interval = minus_timestamptz_timestamptz(start_tstz, anchor_reference);
-  Interval *shift_interval = add_interval_interval(anchor_interval, frequency_interval);
+  Interval *shift_interval = add_interval_interval(anchor_interval, period_interval);
 
   int service_i = array_shift;
   bool finished = false;
@@ -351,11 +239,11 @@ anchor_array(const Temporal *periodic, const Span *ts_anchor, const Interval *fr
     }
     service_i += 1;
 
-    /* Incrementing frequency */
+    /* Incrementing period */
     if (! finished) 
     {
-      frequency_interval = add_interval_interval(frequency_interval, frequency);
-      shift_interval = add_interval_interval(anchor_interval, frequency_interval);
+      period_interval = add_interval_interval(period_interval, period);
+      shift_interval = add_interval_interval(anchor_interval, period_interval);
     }
   }
 
@@ -396,12 +284,12 @@ bool
 periodic_value_at_timestamptz(
   const Periodic *per, 
   const Span *anchor_ts, 
-  const Interval *frequency,
+  const Interval *period,
   TimestampTz tstz, 
   bool strict, 
   Datum *result)
 {
-  assert(per); assert(anchor_ts); assert(frequency); 
+  assert(per); assert(anchor_ts); assert(period); 
   assert(result);
 
   TimestampTz goal_ts;
@@ -413,7 +301,7 @@ periodic_value_at_timestamptz(
     return false;
 
   TimestampTz start_tstz = temporal_start_timestamptz((Temporal*) per);
-  goal_ts = start_tstz + periodic_timestamptz_to_relative(low_bound + start_tstz, frequency, tstz);
+  goal_ts = start_tstz + periodic_timestamptz_to_relative(low_bound + start_tstz, period, tstz);
   
   /* Call temporal value_at_timestamptz() */
   return temporal_value_at_timestamptz((Temporal*) per, goal_ts, strict, result);
@@ -421,39 +309,11 @@ periodic_value_at_timestamptz(
 
 
 
-Timestamp periodic_timestamptz_to_relative(const Timestamp reference_ts, const Interval *frequency, const TimestampTz tstz) 
+Timestamp periodic_timestamptz_to_relative(const Timestamp reference_ts, const Interval *period, const TimestampTz tstz) 
 {
-  int64 ts_freq = (int64) add_timestamptz_interval(reference_ts, frequency);
+  int64 ts_freq = (int64) add_timestamptz_interval(reference_ts, period);
   int64 tstz_norm = tstz - reference_ts;
   int64 freq_norm = ts_freq - reference_ts;
   return (Timestamp) (tstz_norm % freq_norm);
 }
 
-
-/* todo
- * would it be more efficient if we used a simple modulo ? f(tstz mod frequency)
- */
-bool periodic_timestamptz_to_relative_old(const Span *anchor_ts, const Interval *frequency, TimestampTz tstz, Timestamp *result) 
-{
-  assert(anchor_ts); assert(frequency);
-  TimestampTz limit_ts = anchor_ts->upper;
-  TimestampTz search_ts = anchor_ts->lower;
-  TimestampTz previous_ts;
-
-  if (tstz < search_ts || tstz > limit_ts) 
-    return false;
-
-  /* Idea
-   * If in range, tstz should be between previous_ts and search_ts
-   * which delimit the duration of the periodic sequence.
-   * tstz - previous_ts gives the corresponding relative instant
-   */
-  do 
-  {
-    previous_ts = search_ts;
-    search_ts = add_timestamptz_interval(search_ts, frequency);
-  } while (search_ts < tstz);
-  TimestampTz goal_ts = tstz - previous_ts;
-  *result = goal_ts;
-  return true;
-}

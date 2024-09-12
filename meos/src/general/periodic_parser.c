@@ -6,6 +6,8 @@
 
 /**
   NOTE: most of below functions were (temporarily) copied and adapted from Temporal "type_parser.c"
+        and should be merged with corresponding temporal parse functions
+        if the behaviour is accepted. (check differences)
 */
 
 #include "general/periodic.h"
@@ -44,34 +46,6 @@
 #include "point/tpoint_spatialfuncs.h"
 
 
-/*
-
-What about special periodic formats "overflowing" ?
-
--- e.g. should those be possible ?
---  Sat, Sun, Mon, Tue 
---  Nov, Dec, Jan, Feb
---  22h, 23h, 01h, 02h
-
--- or is it sufficient to write them like
---  Mon, Tue, Sat, Sun
---  Jan, Feb, Nov, Dec
---  01h, 02h, 22h, 23h
-
--- what about anchoring them in time ? e.g. October 1st 2024 (Sunday) 
--- (1 time) WEEK
---  Oct 1, Oct 2, Oct 3 (Sun, Mon, Tue)
---  Oct 1, Oct 2, Oct 3, Oct 7 (Sun, Mon, Tue, Sat)
---  Oct 1 (Sun)
--- (in [Oct 1, Oct8])
---  Oct 1, Oct 2, Oct 3, Oct 7, Oct 8 (Sun, Mon, Tue, Sat, Sun)
-
-
-*/
-
-
-
-
 Periodic *
 periodic_parse(const char **str, meosType temptype) 
 {
@@ -99,16 +73,6 @@ periodic_parse(const char **str, meosType temptype)
     *str += 14;
     pertype = P_WEEK;
   }
-  // else if (pg_strncasecmp(*str, "Periodic=Month;", 15) == 0)
-  // {
-  //   *str += 15;
-  //   pertype = P_MONTH;
-  // }
-  // else if (pg_strncasecmp(*str, "Periodic=Year;", 14) == 0)
-  // {
-  //   *str += 14;
-  //   pertype = P_YEAR;
-  // }
   else if (pg_strncasecmp(*str, "Periodic=Interval;", 18) == 0)
   {
     *str += 18;
@@ -117,7 +81,7 @@ periodic_parse(const char **str, meosType temptype)
   p_whitespace(str);
 
 
-  // TODO: Only doing sequences for now. Instants are (probably) not important. Add seqsets later.
+  // TODO: Only doing sequences for now. Add seqsets later.
   if (**str == '[' || **str == '(') {
     PSequence *seq;
     if (! pcontseq_parse(str, temptype, pertype, interp, true, &seq))
@@ -187,21 +151,10 @@ pcontseq_parse(const char **str, meosType temptype, perType pertype, interpType 
   p_cbracket(str);
   p_cparen(str);
 
-  /* TODO
-
-  Somewhere around here (or before)
-  make sure instants are correct with all those different formats
-  and make sure sequence is shifted to 2000 if contains @
-  and ensure sequence is correct if contains #
-  (note: does it neceserrily need to start at 2000 01 01 00:00:00,
-  or can we accept the first one is omitted?)
-  (answer: it does not)
-  
-  */
-
   if (result)
     *result = (PSequence*)tsequence_make_free((TInstant**)instants, count, lower_inc, upper_inc, interp, NORMALIZE); // todo
   
+  // If input contains @ instead of # perhaps shift the sequence s.t. it starts at 2000-01-01 00:00:00
   // if (contains_at) {
   //   *result = normalize_periodic_sequence(*result);
   // }
@@ -216,8 +169,7 @@ bool
 pinstant_parse(const char **str, meosType temptype, perType pertype, bool end, PInstant **result)
 {
   p_whitespace(str);
-  meosType basetype = temptype_basetype(temptype); // todo keep this now, but care for later oid updates
-  /* The next two instructions will throw an exception if they fail */
+  meosType basetype = temptype_basetype(temptype);
   Datum elem;
   if (! periodic_basetype_parse(str, basetype, &elem))
     return false;
@@ -278,14 +230,6 @@ periodic_timestamp_parse(const char **str, perType pertype)
     TimestampTz result2shift = pg_to_timestamp(cstring2text(date2parse), cstring2text("YYYY FMDay HH24:MI:SS.US")); // day_of_week hour:minutes:seconds.microseconds
     result = add_timestamptz_interval(result2shift, week_shift);
   }
-  // else if (pertype == P_MONTH) 
-  // {
-  //   result = pg_to_timestamp(cstring2text(date2parse), cstring2text("YYYY DD HH24:MI:SS")); // day_of_month hour:minutes:seconds
-  // }
-  // else if (pertype == P_YEAR) 
-  // {
-  //   result = pg_to_timestamp(cstring2text(date2parse), cstring2text("YYYY Mon DD HH24:MI:SS")); // month day_of_month hour:minutes:seconds
-  // }
   else if (pertype == P_INTERVAL) 
   {
     Interval *diff = pg_interval_in(str1, -1);
