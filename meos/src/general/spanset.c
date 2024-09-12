@@ -63,13 +63,11 @@
 bool
 ensure_spanset_isof_type(const SpanSet *ss, meosType spansettype)
 {
-  if (ss->spansettype != spansettype)
-  {
-    meos_error(ERROR, MEOS_ERR_INVALID_ARG_TYPE,
-      "The span set value must be of type %s", meostype_name(spansettype));
-    return false;
-  }
-  return true;
+  if (ss->spansettype == spansettype)
+    return true;
+  meos_error(ERROR, MEOS_ERR_INVALID_ARG_TYPE,
+    "The span set value must be of type %s", meostype_name(spansettype));
+  return false;
 }
 
 /**
@@ -78,13 +76,11 @@ ensure_spanset_isof_type(const SpanSet *ss, meosType spansettype)
 bool
 ensure_spanset_isof_basetype(const SpanSet *ss, meosType basetype)
 {
-  if (ss->basetype != basetype)
-  {
-    meos_error(ERROR, MEOS_ERR_INVALID_ARG_TYPE,
-      "Operation on mixed span set and base types");
-    return false;
-  }
-  return true;
+  if (ss->basetype == basetype)
+    return true;
+  meos_error(ERROR, MEOS_ERR_INVALID_ARG_TYPE,
+    "Operation on mixed span set and base types");
+  return false;
 }
 
 /**
@@ -93,13 +89,11 @@ ensure_spanset_isof_basetype(const SpanSet *ss, meosType basetype)
 bool
 ensure_same_spanset_type(const SpanSet *ss1, const SpanSet *ss2)
 {
-  if (ss1->spansettype != ss2->spansettype)
-  {
-    meos_error(ERROR, MEOS_ERR_INVALID_ARG_TYPE,
-      "Operation on mixed span set types");
-    return false;
-  }
-  return true;
+  if (ss1->spansettype == ss2->spansettype)
+    return true;
+  meos_error(ERROR, MEOS_ERR_INVALID_ARG_TYPE,
+    "Operation on mixed span set types");
+  return false;
 }
 
 /**
@@ -108,13 +102,11 @@ ensure_same_spanset_type(const SpanSet *ss1, const SpanSet *ss2)
 bool
 ensure_same_spanset_span_type(const SpanSet *ss, const Span *s)
 {
-  if (ss->spantype != s->spantype)
-  {
-    meos_error(ERROR, MEOS_ERR_INVALID_ARG_TYPE,
-      "Operation on mixed span set and span types");
-    return false;
-  }
-  return true;
+  if (ss->spantype == s->spantype)
+    return true;
+  meos_error(ERROR, MEOS_ERR_INVALID_ARG_TYPE,
+    "Operation on mixed span set and span types");
+  return false;
 }
 
 /*****************************************************************************
@@ -141,7 +133,7 @@ ensure_same_spanset_span_type(const SpanSet *ss, const Span *s)
  * @param[in] ss Span set
  * @param[in] v Value
  * @param[out] loc Location
- * @result Return true if the value is contained in the span set
+ * @return Return true if the value is contained in the span set
  */
 bool
 spanset_find_value(const SpanSet *ss, Datum v, int *loc)
@@ -859,6 +851,7 @@ spanset_mem_size(const SpanSet *ss)
   assert(ss);
   return (int) VARSIZE(DatumGetPointer(ss));
 }
+#endif /* MEOS */
 
 /**
  * @ingroup meos_setspan_accessor
@@ -874,7 +867,6 @@ spanset_span(const SpanSet *ss)
     return NULL;
   return span_cp(&ss->span);
 }
-#endif /* MEOS */
 
 /**
  * @ingroup meos_internal_setspan_accessor
@@ -1278,7 +1270,7 @@ datespanset_end_date(const SpanSet *ss)
  * @param[in] ss Span set
  * @param[in] n Number
  * @param[out] result Date
- * @result Return true if the date is found
+ * @return Return true if the date is found
  * @note It is assumed that n is 1-based
  * @csqlfn #Datespanset_date_n()
  */
@@ -1414,7 +1406,7 @@ tstzspanset_end_timestamptz(const SpanSet *ss)
  * @param[in] ss Span set
  * @param[in] n Number
  * @param[out] result Timestamptz
- * @result Return true if the timestamptz is found
+ * @return Return true if the timestamptz is found
  * @note It is assumed that n is 1-based
  * @csqlfn #Tstzspanset_timestamptz_n()
  */
@@ -1843,55 +1835,152 @@ tstzspanset_shift_scale(const SpanSet *ss, const Interval *shift,
  *****************************************************************************/
 
 /**
+ * @ingroup meos_internal_setspan_comp
+ * @brief Return -1, 0, or 1 depending on whether the size of the first
+ * span is less than, equal, or greater than the second one
+ * @param[in] s1,s2 Spans
+ */
+int
+span_cmp_size(const Span *s1, const Span *s2)
+{
+  assert(s1); assert(s2); assert(s1->spantype == s2->spantype);
+  int result;
+  if (numspan_type(s1->spantype))
+  {
+    Datum d1 = distance_value_value(s1->upper, s1->lower, s1->basetype);
+    Datum d2 = distance_value_value(s2->upper, s2->lower, s2->basetype);
+    result = datum_cmp(d1, d2, s1->basetype);
+  }
+  else /* timespan_type(s1->spantype) */
+  {
+    Interval *dur1 = (s1->spantype == T_DATESPAN) ?
+      datespan_duration(s1) : tstzspan_duration(s1);
+    Interval *dur2 = (s2->spantype == T_DATESPAN) ?
+      datespan_duration(s2) : tstzspan_duration(s2);
+    result = pg_interval_cmp(dur1, dur2);
+    pfree(dur1); pfree(dur2);
+  }
+  return result;
+}
+
+/**
+ * @brief Sort function for comparying spans based on their size
+ */
+void
+spanarr_sort_size(Span *spans, int count)
+{
+  qsort(spans, (size_t) count, sizeof(Span),
+    (qsort_comparator) &span_cmp_size);
+  return;
+}
+
+/**
  * @ingroup meos_setspan_bbox
- * @brief Return an array of spans from the composing spans of a spanset
+ * @brief Return the array of spans of a spanset
  * @param[in] ss Span set
- * @param[in] max_count Maximum number of elements in the output array.
- * If the value is < 1, the result is one span per composing span.
- * @param[out] count Number of elements in the output array
+ * @return On error return @p NULL
+ * @csqlfn #Spanset_spans()
  */
 Span *
-spanset_spans(const SpanSet *ss, int max_count, int *count)
+spanset_spans(const SpanSet *ss)
 {
-  assert(ss); assert(count); assert(spanset_type(ss->spansettype));
-  int nspans = (max_count < 1) ? ss->count : max_count;
-  Span *result = palloc(sizeof(Span) * nspans);
-  if (max_count < 1 || ss->count <= max_count)
+  /* Ensure validity of the arguments */
+  if (! ensure_not_null((void *) ss))
+    return NULL;
+
+  Span *result = palloc(sizeof(Span) * ss->count);
+  /* Output the composing spans */
+  for (int i = 0; i < ss->count; i++)
+    memcpy(&result[i], SPANSET_SP_N(ss, i), sizeof(Span));
+  return result;
+}
+
+/**
+ * @ingroup meos_setspan_bbox
+ * @brief Return an array of N spans from the composing spans of a spanset
+ * @param[in] ss Span set
+ * @param[in] span_count Number of spans
+ * @param[out] count Number of elements in the output array
+ * @return If the number of spans of the spanset is <= `span_count`, the result
+ * contains one span per composing span. On error return @p NULL
+ * @return On error return @p NULL
+ * @csqlfn #Spanset_split_n_spans()
+ */
+Span *
+spanset_split_n_spans(const SpanSet *ss, int span_count, int *count)
+{
+  /* Ensure validity of the arguments */
+  if (! ensure_not_null((void *) ss) || ! ensure_not_null((void *) count) ||
+      ! ensure_positive(span_count))
+    return NULL;
+
+  /* Output the composing spans */
+  if (ss->count <= span_count)
   {
-    /* Output the composing spans */
-    for (int i = 0; i < ss->count; i++)
-      memcpy(&result[i], SPANSET_SP_N(ss, i), sizeof(Span));
     *count = ss->count;
-    return result;
+    return spanset_spans(ss);
   }
-  else
+
+  /* Merge consecutive sequences having the smallest gap */
+  Span *result = palloc(sizeof(Span) * span_count);
+  SpanSet *minus = minus_span_spanset(&ss->span, ss);
+  Span *holes = palloc(sizeof(Span) * minus->count);
+  for (int i = 0; i < minus->count; i++)
+    memcpy(&holes[i], SPANSET_SP_N(minus, i), sizeof(Span));
+  /* Sort the holes in increasing size */
+  spanarr_sort_size(holes, minus->count);
+  /* Number of holes in the original spanset that will be filled */
+  int nfills = minus->count - span_count + 1;
+  /* Sort the holes to fill the original spanset in increasing value/time */
+  spanarr_sort(holes, nfills);
+  SpanSet *tofill = spanset_make_exp(holes, nfills, nfills, NORMALIZE_NO,
+    ORDER_NO);
+  /* Resulting spanset with the holes filed */
+  SpanSet *res = union_spanset_spanset(ss, tofill);
+  assert(res->count == span_count);
+  /* Construct the resulting array of spans */
+  for (int i = 0; i < res->count; i++)
+    memcpy(&result[i], SPANSET_SP_N(res, i), sizeof(Span));
+  /* Clean-up and return */
+  pfree(minus); pfree(holes); pfree(tofill); pfree(res);
+  *count = span_count;
+  return result;
+}
+
+/**
+ * @ingroup meos_setspan_bbox
+ * @brief Return an array of N spans from a spanset obtained by merging
+ * consecutive composing spans 
+ * @param[in] ss Spanset
+ * @param[in] elems_per_span Number of spans merged into an ouput span
+ * @param[out] count Number of elements in the output array
+ * @return On error return @p NULL
+ * @csqlfn #Spanset_split_each_n_spans()
+ */
+Span *
+spanset_split_each_n_spans(const SpanSet *ss, int32 elems_per_span, int *count)
+{
+  /* Ensure validity of the arguments */
+  if (! ensure_not_null((void *) ss) || ! ensure_not_null((void *) count) ||
+      ! ensure_positive(elems_per_span))
+    return NULL;
+
+  int nspans = ceil((double) ss->count / (double) elems_per_span);
+  Span *result = palloc(sizeof(Span) * nspans);
+  int k = 0;
+  for (int i = 0; i < ss->count; ++i)
   {
-    /* Merge consecutive spans to reach the maximum number of span */
-    /* Minimum number of spans merged together in an output span */
-    int size = ss->count / max_count;
-    /* Number of output spans that result from merging (size + 1) spans */
-    int remainder = ss->count % max_count;
-    int i = 0; /* Loop variable for input spans */
-    int k = 0; /* Loop variable for output spans */
-    while (k < max_count)
+    if (i % elems_per_span == 0)
+      result[k++] = *SPANSET_SP_N(ss, i);
+    else
     {
-      int j = i + size - 1;
-      if (k < remainder)
-        j++;
-      if (i < j)
-      {
-        const Span *from = SPANSET_SP_N(ss, i);
-        const Span *to = SPANSET_SP_N(ss, j);
-        span_set(from->lower, to->upper, from->lower_inc, to->upper_inc,
-          from->basetype, to->spantype, &result[k++]);
-        i = j + 1;
-      }
-      else
-        memcpy(&result[k++], SPANSET_SP_N(ss, i++), sizeof(Span));
+      Span span = *SPANSET_SP_N(ss, i);
+      span_expand(&span, &result[k - 1]);
     }
-    *count = max_count;
-    return result;
   }
+  assert(k == nspans);
+  *count = k;
+  return result;
 }
 
 /*****************************************************************************

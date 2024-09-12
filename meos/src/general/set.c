@@ -69,13 +69,11 @@
 bool
 ensure_set_isof_type(const Set *s, meosType settype)
 {
-  if (s->settype != settype)
-  {
-    meos_error(ERROR, MEOS_ERR_INVALID_ARG_TYPE,
-      "The set must be of type %s", meostype_name(settype));
-    return false;
-  }
-  return true;
+  if (s->settype == settype)
+    return true;
+  meos_error(ERROR, MEOS_ERR_INVALID_ARG_TYPE,
+    "The set must be of type %s", meostype_name(settype));
+  return false;
 }
 
 #if MEOS
@@ -85,14 +83,12 @@ ensure_set_isof_type(const Set *s, meosType settype)
 bool
 ensure_set_isof_basetype(const Set *s, meosType basetype)
 {
-  if (s->basetype != basetype)
-  {
-    meos_error(ERROR, MEOS_ERR_INVALID_ARG_TYPE,
-      "Operation on mixed set and base types: %s and %s",
-      meostype_name(s->settype), meostype_name(basetype));
-    return false;
-  }
-  return true;
+  if (s->basetype == basetype)
+    return true;
+  meos_error(ERROR, MEOS_ERR_INVALID_ARG_TYPE,
+    "Operation on mixed set and base types: %s and %s",
+    meostype_name(s->settype), meostype_name(basetype));
+  return false;
 }
 #endif /* MEOS */
 
@@ -103,14 +99,12 @@ ensure_set_isof_basetype(const Set *s, meosType basetype)
 bool
 ensure_same_set_type(const Set *s1, const Set *s2)
 {
-  if (s1->settype != s2->settype)
-  {
-    meos_error(ERROR, MEOS_ERR_INVALID_ARG_TYPE,
-      "Operation on mixed set types: %s and %s",
-      meostype_name(s1->settype), meostype_name(s2->settype));
-    return false;
-  }
-  return true;
+  if (s1->settype == s2->settype)
+    return true;
+  meos_error(ERROR, MEOS_ERR_INVALID_ARG_TYPE,
+    "Operation on mixed set types: %s and %s",
+    meostype_name(s1->settype), meostype_name(s2->settype));
+  return false;
 }
 
 /*****************************************************************************
@@ -136,7 +130,7 @@ ensure_same_set_type(const Set *s1, const Set *s2)
  * @param[in] s Set
  * @param[in] d Value
  * @param[out] loc Location
- * @result Return true if the value is contained in the set
+ * @return Return true if the value is contained in the set
  */
 bool
 set_find_value(const Set *s, Datum d, int *loc)
@@ -162,35 +156,6 @@ set_find_value(const Set *s, Datum d, int *loc)
   *loc = middle;
   return false;
 }
-
-#if 0 /* not used */
-/**
- * @brief Return the location of a value in a ranked set (which is unordered)
- * using sequential search
- * @param[in] s Set
- * @param[in] d Value
- * @param[out] loc Location of the value if found
- * @result Return true if the value is contained in the vecctor
- * @note Contrary to function `set_find_value`, if the value is not found the
- * returned location is always 0.
- */
-bool
-rset_find_value(const Set *s, Datum d, int *loc)
-{
-  assert(s); assert(loc);
-  for (int i = 0; i < s->count; i++)
-  {
-    Datum d1 = SET_VAL_N(s, i);
-    if (datum_eq(d, d1, s->basetype))
-    {
-      *loc = i;
-      return true;
-    }
-  }
-  *loc = 0;
-  return false;
-}
-#endif /* not used */
 
 /*****************************************************************************
  * Input/output functions in string format
@@ -562,8 +527,8 @@ set_bbox_size(meosType settype)
   if (spatialset_type(settype))
     return sizeof(STBox);
   meos_error(ERROR, MEOS_ERR_INTERNAL_TYPE_ERROR,
-    "Unknown set type when determining the size of the bounding box: %d",
-    settype);
+    "Unknown set type when determining the size of the bounding box: %s",
+    meostype_name(settype));
   return SIZE_MAX;
 }
 
@@ -588,7 +553,8 @@ valuearr_compute_bbox(const Datum *values, meosType basetype, int count,
 #endif
   else
     meos_error(ERROR, MEOS_ERR_INTERNAL_TYPE_ERROR,
-      "Unknown set type for computing the bounding box: %d", basetype);
+      "Unknown set type for computing the bounding box: %s",
+      meostype_name(basetype));
   return;
 }
 
@@ -1588,7 +1554,7 @@ geoset_end_value(const Set *s)
  * @param[in] s Set
  * @param[in] n Number
  * @param[out] result Value
- * @result Return true if the value is found
+ * @return Return true if the value is found
  * @note It is assumed that n is 1-based
  * @csqlfn #Set_value_n()
  */
@@ -1611,7 +1577,7 @@ set_value_n(const Set *s, int n, Datum *result)
  * @param[in] s Integer set
  * @param[in] n Number
  * @param[out] result Value
- * @result Return true if the value is found
+ * @return Return true if the value is found
  * @note It is assumed that n is 1-based
  * @csqlfn #Set_value_n()
  */
@@ -1633,7 +1599,7 @@ intset_value_n(const Set *s, int n, int *result)
  * @param[in] s Integer set
  * @param[in] n Number
  * @param[out] result Value
- * @result Return true if the value is found
+ * @return Return true if the value is found
  * @note It is assumed that n is 1-based
  * @csqlfn #Set_value_n()
  */
@@ -1654,7 +1620,7 @@ bigintset_value_n(const Set *s, int n, int64 *result)
  * @param[in] s Float set
  * @param[in] n Number
  * @param[out] result Value
- * @result Return true if the value is found
+ * @return Return true if the value is found
  * @note It is assumed that n is 1-based
  * @csqlfn #Set_value_n()
  */
@@ -1676,7 +1642,7 @@ floatset_value_n(const Set *s, int n, double *result)
  * @param[in] s Text set
  * @param[in] n Number
  * @param[out] result Value
- * @result Return true if the value is found
+ * @return Return true if the value is found
  * @note It is assumed that n is 1-based
  * @csqlfn #Set_value_n()
  */
@@ -1697,7 +1663,7 @@ textset_value_n(const Set *s, int n, text **result)
  * @param[in] s Date set
  * @param[in] n Number
  * @param[out] result Date
- * @result Return true if the date is found
+ * @return Return true if the date is found
  * @note It is assumed that n is 1-based
  * @csqlfn #Set_value_n()
  */
@@ -1719,7 +1685,7 @@ dateset_value_n(const Set *s, int n, DateADT *result)
  * @param[in] s Timestamptz set
  * @param[in] n Number
  * @param[out] result Timestamptz
- * @result Return true if the timestamptz is found
+ * @return Return true if the timestamptz is found
  * @note It is assumed that n is 1-based
  * @csqlfn #Set_value_n()
  */
@@ -1741,7 +1707,7 @@ tstzset_value_n(const Set *s, int n, TimestampTz *result)
  * @param[in] s Geo set
  * @param[in] n Number
  * @param[out] result Value
- * @result Return true if the value is found
+ * @return Return true if the value is found
  * @note It is assumed that n is 1-based
  * @csqlfn #Set_value_n()
  */
@@ -2400,7 +2366,7 @@ set_unnest_state_next(SetUnnestState *state)
 {
   if (! state || state->done)
     return;
-  /* Move to the next bucket */
+  /* Move to the next bin */
   state->i++;
   if (state->i == state->count)
     state->done = true;

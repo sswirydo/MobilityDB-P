@@ -55,6 +55,10 @@
   #include "npoint/tnpoint_static.h"
   #include "npoint/tnpoint_parser.h"
 #endif
+#if POSE
+  #include "pose/tpose_static.h"
+  #include "pose/tpose_parser.h"
+#endif
 
 /*****************************************************************************
  * Comparison functions on datums
@@ -88,14 +92,6 @@ datum_cmp(Datum l, Datum r, meosType type)
       return float8_cmp_internal(DatumGetFloat8(l), DatumGetFloat8(r));
     case T_TEXT:
       return text_cmp(DatumGetTextP(l), DatumGetTextP(r));
-#if 0 /* not used */
-    case T_DOUBLE2:
-      return double2_cmp(DatumGetDouble2P(l), DatumGetDouble2P(r));
-    case T_DOUBLE3:
-      return double3_cmp(DatumGetDouble3P(l), DatumGetDouble3P(r));
-    case T_DOUBLE4:
-      return double4_cmp(DatumGetDouble4P(l), DatumGetDouble4P(r));
-#endif /* not used */
     case T_GEOMETRY:
     case T_GEOGRAPHY:
       return gserialized_cmp(DatumGetGserializedP(l), DatumGetGserializedP(r));
@@ -103,9 +99,13 @@ datum_cmp(Datum l, Datum r, meosType type)
     case T_NPOINT:
       return npoint_cmp(DatumGetNpointP(l), DatumGetNpointP(r));
 #endif
+#if POSE
+    case T_POSE:
+      return pose_cmp(DatumGetPoseP(l), DatumGetPoseP(r));
+#endif
     default: /* Error! */
       meos_error(ERROR, MEOS_ERR_INTERNAL_TYPE_ERROR,
-        "Unknown compare function for base type: %s", meostype_name(type));
+        "Unknown compare function for type: %s", meostype_name(type));
     return INT_MAX;
   }
 }
@@ -185,9 +185,13 @@ datum_eq(Datum l, Datum r, meosType type)
     case T_NPOINT:
       return npoint_eq(DatumGetNpointP(l), DatumGetNpointP(r));
 #endif
+#if POSE
+    case T_POSE:
+      return pose_eq(DatumGetPoseP(l), DatumGetPoseP(r));
+#endif
     default: /* Error! */
     meos_error(ERROR, MEOS_ERR_INTERNAL_TYPE_ERROR,
-      "Unknown equality function for base type: %s", meostype_name(type));
+      "Unknown equality function for type: %s", meostype_name(type));
     return false;
   }
 }
@@ -282,9 +286,12 @@ datum_add(Datum l, Datum r, meosType type)
     case T_DATE:
       /* For dates we ALWAYS add integers */
       return DateADTGetDatum(DatumGetDateADT(l) + DatumGetInt32(r));
+    case T_TIMESTAMPTZ:
+      /* For timestamps we ALWAYS add big integers */
+      return TimestampTzGetDatum(DatumGetTimestampTz(l) + DatumGetInt64(r));
     default: /* Error! */
       meos_error(ERROR, MEOS_ERR_INTERNAL_TYPE_ERROR,
-        "Unknown add function for base type: %s", meostype_name(type));
+        "Unknown add function for type: %s", meostype_name(type));
       return 0;
   }
 }
@@ -308,7 +315,7 @@ datum_sub(Datum l, Datum r, meosType type)
       return DateADTGetDatum(DatumGetDateADT(l) - DatumGetInt32(r));
     default: /* Error! */
       meos_error(ERROR, MEOS_ERR_INTERNAL_TYPE_ERROR,
-        "Unknown subtract function for base type: %s", meostype_name(type));
+        "Unknown subtract function for type: %s", meostype_name(type));
       return 0;
   }
 }
@@ -329,8 +336,7 @@ datum_mult(Datum l, Datum r, meosType type)
       return Float8GetDatum(DatumGetFloat8(l) * DatumGetFloat8(r));
     default: /* Error! */
       meos_error(ERROR, MEOS_ERR_INTERNAL_TYPE_ERROR,
-        "Unknown multiplication function for base type: %s",
-          meostype_name(type));
+        "Unknown multiplication function for type: %s", meostype_name(type));
       return 0;
   }
 }
@@ -351,7 +357,7 @@ datum_div(Datum l, Datum r, meosType type)
       return Float8GetDatum(DatumGetFloat8(l) / DatumGetFloat8(r));
     default: /* Error! */
       meos_error(ERROR, MEOS_ERR_INTERNAL_TYPE_ERROR,
-        "Unknown division function for base type: %s", meostype_name(type));
+        "Unknown division function for type: %s", meostype_name(type));
     return 0;
   }
 }
@@ -393,9 +399,13 @@ datum_hash(Datum d, meosType type)
     case T_NPOINT:
       return npoint_hash(DatumGetNpointP(d));
 #endif
+#if POSE
+    case T_POSE:
+      return pose_hash(DatumGetPoseP(d));
+#endif
     default: /* Error! */
       meos_error(ERROR, MEOS_ERR_INTERNAL_TYPE_ERROR,
-        "Unknown hash function for base type: %d", type);
+        "Unknown hash function for type: %s", meostype_name(type));
       return INT_MAX;
   }
 }
@@ -435,9 +445,13 @@ datum_hash_extended(Datum d, meosType type, uint64 seed)
     case T_NPOINT:
       return npoint_hash_extended(DatumGetNpointP(d), seed);
 #endif
+#if POSE
+    case T_POSE:
+      return pose_hash_extended(DatumGetPoseP(d), seed);
+#endif
     default: /* Error! */
       meos_error(ERROR, MEOS_ERR_INTERNAL_TYPE_ERROR,
-        "Unknown extended hash function for base type: %d", type);
+        "Unknown extended hash function for type: %s", meostype_name(type));
       return INT_MAX;
   }
 }
@@ -484,7 +498,8 @@ datum_double(Datum d, meosType type)
       return (double) DatumGetDateADT(d);
     default: /* Error! */
       meos_error(ERROR, MEOS_ERR_INTERNAL_TYPE_ERROR,
-        "Unknown conversion to double function for base type: %d", type);
+        "Unknown conversion to double function for type: %s",
+        meostype_name(type));
       return DBL_MAX;
   }
 }
@@ -508,7 +523,8 @@ double_datum(double d, meosType type)
       return DateADTGetDatum((DateADT) d);
     default: /* Error! */
       meos_error(ERROR, MEOS_ERR_INTERNAL_TYPE_ERROR,
-        "Unknown conversion to Datum function for base type: %d", type);
+        "Unknown conversion to Datum function for type: %s",
+        meostype_name(type));
       return (Datum) 0;
   }
 }
@@ -583,28 +599,6 @@ timestamparr_sort(TimestampTz *times, int count)
     (qsort_comparator) &timestamp_sort_cmp);
   return;
 }
-
-#if 0 /* Not used */
-/**
- * @brief Sort function for double2
- */
-void
-double2arr_sort(double2 *doubles, int count)
-{
-  qsort(doubles, count, sizeof(double2), (qsort_comparator) &double2_cmp);
-  return;
-}
-
-/**
- * @brief Sort function for double3
- */
-void
-double3arr_sort(double3 *triples, int count)
-{
-  qsort(triples, count, sizeof(double3), (qsort_comparator) &double3_cmp);
-  return;
-}
-#endif
 
 /**
  * @brief Sort function for spans
@@ -823,67 +817,6 @@ hypot3d(double x, double y, double z)
   return x * sqrt(1.0 + (yx * yx) + (zx * zx));
 }
 
-#if 0 /* not used */
-/**
- * @brief Determine the 4D hypotenuse
- * @note The function is a generalization of the 3D case in function #hypot3d
- */
-double
-hypot4d(double x, double y, double z, double m)
-{
-  double yx;
-  double zx;
-  double mx;
-  double temp;
-
-  /* Handle INF and NaN properly */
-  if (isinf(x) || isinf(y) || isinf(z) || isinf(m))
-    return get_float8_infinity();
-
-  if (isnan(x) || isnan(y) || isnan(z) || isnan(m))
-    return get_float8_nan();
-
-  /* Else, drop any minus signs */
-  x = fabs(x);
-  y = fabs(y);
-  z = fabs(z);
-  m = fabs(m);
-
-  /* Swap x, y, z, and m if needed to make x the larger one */
-  if (x < y)
-  {
-    temp = x;
-    x = y;
-    y = temp;
-  }
-  if (x < z)
-  {
-    temp = x;
-    x = z;
-    z = temp;
-  }
-  if (x < m)
-  {
-    temp = x;
-    x = m;
-    m = temp;
-  }
-  /*
-   * If x is zero, the hypotenuse is computed with the 3D case.
-   * This test saves a few cycles in such cases, but more importantly
-   * it also protects against divide-by-zero errors, since now x >= y.
-   */
-  if (x == 0)
-    return hypot3d(y, z, m);
-
-  /* Determine the hypotenuse */
-  yx = y / x;
-  zx = z / x;
-  mx = m / x;
-  return x * sqrt(1.0 + (yx * yx) + (zx * zx) + (mx * mx));
-}
-#endif /* not used */
-
 /*****************************************************************************
  * Input/output PostgreSQL and PostGIS functions
  *****************************************************************************/
@@ -892,7 +825,7 @@ hypot4d(double x, double y, double z, double m)
  * @brief Call input function of the base type
  */
 bool
-#if NPOINT
+#if NPOINT || POSE
 basetype_in(const char *str, meosType type, bool end, Datum *result)
 #else
 basetype_in(const char *str, meosType type,
@@ -984,9 +917,19 @@ basetype_in(const char *str, meosType type,
       return true;
     }
 #endif
+#if POSE
+    case T_POSE:
+    {
+      Pose *pose = pose_parse(&str, end);
+      if (! pose)
+        return false;
+      *result = PointerGetDatum(pose);
+      return true;
+    }
+#endif
     default: /* Error! */
       meos_error(ERROR, MEOS_ERR_INTERNAL_TYPE_ERROR,
-        "Unknown input function for base type: %s", meostype_name(type));
+        "Unknown input function for type: %s", meostype_name(type));
       return false;
   }
 }
@@ -1049,9 +992,13 @@ basetype_out(Datum value, meosType type, int maxdd)
     case T_NPOINT:
       return npoint_out(DatumGetNpointP(value), maxdd);
 #endif
+#if POSE
+    case T_POSE:
+      return pose_out(DatumGetPoseP(value), maxdd);
+#endif
     default: /* Error! */
       meos_error(ERROR, MEOS_ERR_INTERNAL_TYPE_ERROR,
-        "Unknown output function for base type: %s", meostype_name(type));
+        "Unknown output function for type: %s", meostype_name(type));
       return NULL;
   }
 }

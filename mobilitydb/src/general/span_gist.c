@@ -30,8 +30,7 @@
 /**
  * @file
  * @brief R-tree GiST index for span and span set types
- *
- * These functions are based on those in the file `rangetypes_gist.c`.
+ * @note These functions are based on those in the file `rangetypes_gist.c`
  */
 
 #include "pg_general/span_gist.h"
@@ -48,6 +47,7 @@
 #include <meos_internal.h>
 #include "general/set.h"
 #include "general/span.h"
+#include "general/span_index.h"
 #include "general/temporal.h"
 /* MobilityDB */
 #include "pg_general/meos_catalog.h"
@@ -59,118 +59,15 @@
  *****************************************************************************/
 
 /**
- * @brief Leaf-level consistency for span types
- *
- * @param[in] key Element in the index
- * @param[in] query Value being looked up in the index
- * @param[in] strategy Operator of the operator class being applied
- * @note This function is used for both GiST and SP-GiST indexes
- */
-bool
-span_index_consistent_leaf(const Span *key, const Span *query,
-  StrategyNumber strategy)
-{
-  switch (strategy)
-  {
-    case RTOverlapStrategyNumber:
-      return over_span_span(key, query);
-    case RTContainsStrategyNumber:
-      return cont_span_span(key, query);
-    case RTContainedByStrategyNumber:
-      return cont_span_span(query, key);
-    case RTEqualStrategyNumber:
-    case RTSameStrategyNumber:
-      return span_eq(key, query);
-    case RTAdjacentStrategyNumber:
-      return adj_span_span(key, query);
-    case RTLeftStrategyNumber:
-    case RTBeforeStrategyNumber:
-      return lf_span_span(key, query);
-    case RTOverLeftStrategyNumber:
-    case RTOverBeforeStrategyNumber:
-      return ovlf_span_span(key, query);
-    case RTRightStrategyNumber:
-    case RTAfterStrategyNumber:
-      return ri_span_span(key, query);
-    case RTOverRightStrategyNumber:
-    case RTOverAfterStrategyNumber:
-      return ovri_span_span(key, query);
-    default:
-      elog(ERROR, "unrecognized span strategy: %d", strategy);
-      return false;    /* keep compiler quiet */
-  }
-}
-
-/**
- * @brief GiST internal-page consistency for span types
- *
- * @param[in] key Element in the index
- * @param[in] query Value being looked up in the index
- * @param[in] strategy Operator of the operator class being applied
- */
-bool
-span_gist_consistent(const Span *key, const Span *query,
-  StrategyNumber strategy)
-{
-  switch (strategy)
-  {
-    case RTOverlapStrategyNumber:
-    case RTContainedByStrategyNumber:
-      return over_span_span(key, query);
-    case RTContainsStrategyNumber:
-    case RTEqualStrategyNumber:
-    case RTSameStrategyNumber:
-      return cont_span_span(key, query);
-    case RTAdjacentStrategyNumber:
-      return adj_span_span(key, query) || overlaps_span_span(key, query);
-    case RTLeftStrategyNumber:
-    case RTBeforeStrategyNumber:
-      return ! ovri_span_span(key, query);
-    case RTOverLeftStrategyNumber:
-    case RTOverBeforeStrategyNumber:
-      return ! ri_span_span(key, query);
-    case RTRightStrategyNumber:
-    case RTAfterStrategyNumber:
-      return ! ovlf_span_span(key, query);
-    case RTOverRightStrategyNumber:
-    case RTOverAfterStrategyNumber:
-      return ! lf_span_span(key, query);
-    default:
-      elog(ERROR, "unrecognized span strategy: %d", strategy);
-      return false;    /* keep compiler quiet */
-  }
-}
-
-/**
- * @brief Return true if a recheck is necessary depending on the strategy
- */
-bool
-span_index_recheck(StrategyNumber strategy)
-{
-  /* These operators are based on bounding boxes */
-  if (strategy == RTLeftStrategyNumber ||
-      strategy == RTBeforeStrategyNumber ||
-      strategy == RTOverLeftStrategyNumber ||
-      strategy == RTOverBeforeStrategyNumber ||
-      strategy == RTRightStrategyNumber ||
-      strategy == RTAfterStrategyNumber ||
-      strategy == RTOverRightStrategyNumber ||
-      strategy == RTOverAfterStrategyNumber ||
-      strategy == RTKNNSearchStrategyNumber)
-    return false;
-  return true;
-}
-
-/**
  * @brief Transform the query argument into a span
  */
-static bool
+bool
 span_gist_get_span(FunctionCallInfo fcinfo, Span *result, Oid typid)
 {
   meosType type = oid_type(typid);
   if (span_basetype(type))
   {
-    /* Since function span_gist_consistent is strict, value is not NULL */
+    /* Since function span_gist_inner_consistent is strict, value is not NULL */
     Datum value = PG_GETARG_DATUM(1);
     meosType spantype = basetype_spantype(type);
     span_set(value, value, true, true, type, spantype, result);
@@ -231,9 +128,9 @@ Span_gist_consistent(PG_FUNCTION_ARGS)
     PG_RETURN_BOOL(false);
 
   if (GIST_LEAF(entry))
-    result = span_index_consistent_leaf(key, &query, strategy);
+    result = span_index_leaf_consistent(key, &query, strategy);
   else
-    result = span_gist_consistent(key, &query, strategy);
+    result = span_gist_inner_consistent(key, &query, strategy);
 
   PG_RETURN_BOOL(result);
 }
@@ -311,9 +208,8 @@ PGDLLEXPORT Datum Span_gist_penalty(PG_FUNCTION_ARGS);
 PG_FUNCTION_INFO_V1(Span_gist_penalty);
 /**
  * @brief GiST page split penalty function for spans
- *
- * The penalty function has the following goals (in order from most to least
- * important):
+ * @details The penalty function has the following goals (in order from most to
+ * least important):
  * - Avoid broadening (as determined by dist_double_value_value) the original
  *   predicate
  * - Favor adding spans to narrower original predicates
@@ -366,8 +262,8 @@ Span_gist_penalty(PG_FUNCTION_ARGS)
   } while (0)
 
 /**
- * @brief Trivial split: half of entries will be placed on one page
- * and the other half on the other page
+ * @brief Trivial split: half of entries will be placed on one page and the
+ * other half on the other page
  */
 static void
 span_gist_fallback_split(GistEntryVector *entryvec, GIST_SPLITVEC *v)
@@ -398,7 +294,7 @@ span_gist_fallback_split(GistEntryVector *entryvec, GIST_SPLITVEC *v)
 }
 
 /**
- * @brief Structure keeping context for the function span_gist_consider_split
+ * @brief Structure keeping context for the function #span_gist_consider_split
  */
 typedef struct
 {
@@ -834,8 +730,7 @@ PGDLLEXPORT Datum Span_gist_picksplit(PG_FUNCTION_ARGS);
 PG_FUNCTION_INFO_V1(Span_gist_picksplit);
 /**
  * @brief GiST picksplit method for span types
- *
- * It splits a list of spans into quadrants by choosing a central 4D
+ * @details It splits a list of spans into quadrants by choosing a central 4D
  * point as the median of the coordinates of the spans.
  */
 Datum

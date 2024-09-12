@@ -83,7 +83,8 @@ set_expand_bbox(Datum value, meosType basetype, void *box)
   else
   {
     meos_error(ERROR, MEOS_ERR_INTERNAL_TYPE_ERROR,
-      "Unknown set type for expanding bounding box: %d", basetype);
+      "Unknown set type for expanding bounding box: %s",
+      meostype_name(basetype));
   }
   return;
 }
@@ -164,7 +165,7 @@ set_append_value(Set *set, Datum value)
  * @param[in,out] state Current aggregate state
  * @param[in] value Value
  * @param[in] basetype Type of the value
- * @result When the state variable has space for adding the new value, the 
+ * @return When the state variable has space for adding the new value, the 
  * function returns the current state variable. Otherwise, a NEW state 
  * variable is returned and the input state is freed.
  * @note Always use the function to overwrite the existing state as in: 
@@ -279,7 +280,7 @@ text_union_transfn(Set *state, const text *txt)
  * @brief Transition function for set union aggregate of sets
  * @param[in,out] state Current aggregate state
  * @param[in] s Set to aggregate
- * @result When the state variable has space for adding the new set, the 
+ * @return When the state variable has space for adding the new set, the 
  * function returns the current state variable. Otherwise, a NEW state 
  * variable is returned and the input state is freed.
  * @note Always use the function to overwrite the existing state as in: 

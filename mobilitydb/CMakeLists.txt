@@ -43,7 +43,7 @@ endif()
 #-------------------------------------
 
 # Find PostgreSQL
-set(PG_MIN_MAJOR_VERSION "12")
+set(PG_MIN_MAJOR_VERSION "13")
 set(PG_MAX_MAJOR_VERSION "14")
 find_package(POSTGRESQL ${PG_MIN_MAJOR_VERSION} REQUIRED)
 if(NOT POSTGRES_VERSION VERSION_LESS PG_MAX_MAJOR_VERSION)
@@ -116,6 +116,10 @@ if(CMAKE_GENERATOR STREQUAL "Visual Studio 17 2022")
   target_compile_options(pg_general PRIVATE "/W4")
   target_compile_options(pg_point PRIVATE "/W4")
   target_compile_options(pg_npoint PRIVATE "/W4")
+if(POSE)
+  target_compile_options(pose PRIVATE "/W4")
+  target_compile_options(pg_pose PRIVATE "/W4")
+endif()
 endif()
 
 #--------------------------------
@@ -129,6 +133,10 @@ if(NPOINT)
   message(STATUS "Including network points")
   set(PROJECT_OBJECTS ${PROJECT_OBJECTS} "$<TARGET_OBJECTS:npoint>")
 endif()
+if(POSE)
+  message(STATUS "Including geoposes")
+  set(PROJECT_OBJECTS ${PROJECT_OBJECTS} "$<TARGET_OBJECTS:pose>")
+endif()
 
 # Build the library: PostGIS
 set(PROJECT_OBJECTS ${PROJECT_OBJECTS} "$<TARGET_OBJECTS:liblwgeom>")
@@ -140,6 +148,9 @@ set(PROJECT_OBJECTS ${PROJECT_OBJECTS} "$<TARGET_OBJECTS:pg_general>")
 set(PROJECT_OBJECTS ${PROJECT_OBJECTS} "$<TARGET_OBJECTS:pg_point>")
 if(NPOINT)
   set(PROJECT_OBJECTS ${PROJECT_OBJECTS} "$<TARGET_OBJECTS:pg_npoint>")
+endif()
+if(POSE)
+  set(PROJECT_OBJECTS ${PROJECT_OBJECTS} "$<TARGET_OBJECTS:pg_pose>")
 endif()
 
 # Build the library

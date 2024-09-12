@@ -1925,20 +1925,20 @@ geo_as_hexewkb(const GSERIALIZED *gs, const char *endian)
  * @brief Return a geometry/geography from its EWKB representation
  * @details This function parses EWKB (extended form) which also contains SRID
  * info.
- * @param[in] bytea_wkb WKB string
+ * @param[in] wkb WKB bytes
+ * @param[in] wkb_size Number of WKB bytes
  * @param[in] srid SRID
  * @note PostGIS function: @p LWGEOMFromEWKB(wkb, [SRID])
  * @note wkb is in *binary* not hex form
  */
 GSERIALIZED *
-geo_from_ewkb(const bytea *bytea_wkb, int32 srid)
+geo_from_ewkb(const uint8_t *wkb, size_t wkb_size, int32 srid)
 {
   /* Ensure validity of the arguments */
-  if (! ensure_not_null((void *) bytea_wkb))
+  if (! ensure_not_null((void *) wkb))
     return NULL;
 
-  uint8_t *wkb = (uint8_t *) VARDATA(bytea_wkb);
-  LWGEOM *geom = lwgeom_from_wkb(wkb, VARSIZE_ANY_EXHDR(bytea_wkb),
+  LWGEOM *geom = lwgeom_from_wkb(wkb, wkb_size,
     LW_PARSER_CHECK_ALL);
   if (!geom)
   {
@@ -1963,10 +1963,11 @@ geo_from_ewkb(const bytea *bytea_wkb, int32 srid)
  * geometry/geography
  * @param[in] gs Geometry/geography
  * @param[in] endian Endianness
+ * @param[in] size Size of result
  * @note PostGIS function: @p WKBFromLWGEOM(PG_FUNCTION_ARGS)
  */
-bytea *
-geo_as_ewkb(const GSERIALIZED *gs, char *endian)
+uint8_t *
+geo_as_ewkb(const GSERIALIZED *gs, const char *endian, size_t *size)
 {
   /* Ensure validity of the arguments */
   if (! ensure_not_null((void *) gs))
@@ -1986,9 +1987,12 @@ geo_as_ewkb(const GSERIALIZED *gs, char *endian)
   /* Create WKB hex string */
   LWGEOM *geom = lwgeom_from_gserialized(gs);
   lwvarlena_t *wkb = lwgeom_to_wkb_varlena(geom, variant | WKB_EXTENDED);
-  bytea *result = palloc(wkb->size - LWVARHDRSZ);
-  memcpy(result, wkb->data, wkb->size - LWVARHDRSZ);
+
+  size_t data_size = wkb->size - LWVARHDRSZ;
+  uint8_t *result = palloc(data_size);
+  memcpy(result, wkb->data, data_size);
   pfree(geom); pfree(wkb);
+  *size = data_size;
   return result;
 }
 
@@ -2039,7 +2043,7 @@ geo_from_geojson(const char *geojson)
  * @note PostGIS function: @p LWGEOM_asGeoJson(PG_FUNCTION_ARGS)
  */
 char *
-geo_as_geojson(const GSERIALIZED *gs, int option, int precision, char *srs)
+geo_as_geojson(const GSERIALIZED *gs, int option, int precision, const char *srs)
 {
   /* Ensure validity of the arguments */
   if (! ensure_not_null((void *) gs))
@@ -2258,70 +2262,6 @@ pgis_geography_from_binary(const char *wkb_bytea)
   return result;
 }
 #endif /* MEOS */
-
-/*****************************************************************************/
-
-#if 0 /* not used  */
-/**
- * @brief Get a geography from a geometry
- * @note PostGIS function: @p geography_from_geometry(PG_FUNCTION_ARGS)
- */
-GSERIALIZED *
-gserialized_geog_from_geom(GSERIALIZED *geom)
-{
-  LWGEOM *lwgeom = lwgeom_from_gserialized(geom);
-  geography_valid_type(lwgeom_get_type(lwgeom));
-
-  /* Force default SRID */
-  if ( (int) lwgeom->srid <= 0 )
-  {
-    lwgeom->srid = SRID_DEFAULT;
-  }
-
-  /* Error on any SRID != default */
-  // Cannot test this in MobilityDB since we do not have access to PROJ
-  // srid_check_latlong(lwgeom->srid);
-
-  /* Force the geometry to have valid geodetic coordinate range. */
-  lwgeom_nudge_geodetic(lwgeom);
-  if ( lwgeom_force_geodetic(lwgeom) == LW_TRUE )
-  {
-    meos_error(NOTICE, MEOS_ERR_TEXT_INPUT,
-      "Coordinate values were coerced into range [-180 -90, 180 90] for GEOGRAPHY");
-    return NULL;
-  }
-
-  /* force recalculate of box by dropping */
-  lwgeom_drop_bbox(lwgeom);
-
-  lwgeom_set_geodetic(lwgeom, true);
-  /* We are trusting geography_serialize will add a box if needed */
-  GSERIALIZED *result = geo_serialize(lwgeom);
-  lwgeom_free(lwgeom);
-  return result;
-}
-
-/**
- * @brief Get a geometry from a geography
- * @note PostGIS function: @p geometry_from_geography(PG_FUNCTION_ARGS)
- */
-GSERIALIZED *
-gserialized_geom_from_geog(GSERIALIZED *geom)
-{
-  LWGEOM *lwgeom = lwgeom_from_gserialized(geom);
-  /* Recalculate the boxes after re-setting the geodetic bit */
-  lwgeom_set_geodetic(lwgeom, false);
-  lwgeom_refresh_bbox(lwgeom);
-  /* We want "geometry" to think all our "geography" has an SRID, and the
-     implied SRID is the default, so we fill that in if our SRID is actually unknown. */
-  if ( (int)lwgeom->srid <= 0 )
-    lwgeom->srid = SRID_DEFAULT;
-
-  GSERIALIZED *result = geo_serialize(lwgeom);
-  lwgeom_free(lwgeom);
-  return result;
-}
-#endif /* not used  */
 
 /*****************************************************************************
  * Functions adapted from lwgeom_functions_analytic.c

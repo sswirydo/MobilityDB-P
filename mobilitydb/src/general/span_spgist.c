@@ -109,7 +109,7 @@ span_upper_qsort_cmp(const void *a, const void *b)
  * In the beginning, we don't have any restrictions.  We have to
  * initialize the struct to cover the whole 2D space.
  */
-static void
+void
 spannode_init(SpanNode *nodebox, meosType spantype, meosType basetype)
 {
   memset(nodebox, 0, sizeof(SpanNode));
@@ -150,7 +150,7 @@ spannode_init(SpanNode *nodebox, meosType spantype, meosType basetype)
 /**
  * @brief Copy a traversal value
  */
-static SpanNode *
+SpanNode *
 spannode_copy(const SpanNode *orig)
 {
   SpanNode *result = palloc(sizeof(SpanNode));
@@ -172,7 +172,7 @@ spannode_copy(const SpanNode *orig)
  *     2 = (2001-06-13 18:10:00, -infinity)(infinity, 2001-06-13 18:11:00)
  *     3 = (2001-06-13 18:10:00, -infinity)(2001-06-13 18:11:00, infinity)
  */
-static void
+void
 spannode_quadtree_next(const SpanNode *nodebox, const Span *centroid,
   uint8 quadrant, SpanNode *next_nodespan)
 {
@@ -213,7 +213,7 @@ spannode_quadtree_next(const SpanNode *nodebox, const Span *centroid,
  *     0 = (-infinity, -infinity)(2001-06-19 09:07:00+02, infinity)
  *     1 = [2001-06-19 09:07:00+02, -infinity)(infinity, infinity)
  */
-static void
+void
 spannode_kdtree_next(const SpanNode *nodebox, const Span *centroid,
   uint8 node, int level, SpanNode *next_nodespan)
 {
@@ -274,7 +274,7 @@ getQuadrant2D(const Span *centroid, const Span *query)
 /**
  * @brief Can any span from nodebox overlap with the query?
  */
-static bool
+bool
 overlap2D(const SpanNode *nodebox, const Span *query)
 {
   Span s;
@@ -286,7 +286,7 @@ overlap2D(const SpanNode *nodebox, const Span *query)
 /**
  * @brief Can any span from nodebox contain the query?
  */
-static bool
+bool
 contain2D(const SpanNode *nodebox, const Span *query)
 {
   Span s;
@@ -298,7 +298,7 @@ contain2D(const SpanNode *nodebox, const Span *query)
 /**
  * @brief Can any span from nodebox be to the left of the query?
  */
-static bool
+bool
 left2D(const SpanNode *nodebox, const Span *query)
 {
   return lf_span_span(&nodebox->right, query);
@@ -307,7 +307,7 @@ left2D(const SpanNode *nodebox, const Span *query)
 /**
  * @brief Can any span from nodebox does not extend to the right of the query?
  */
-static bool
+bool
 overLeft2D(const SpanNode *nodebox, const Span *query)
 {
   return ovlf_span_span(&nodebox->right, query);
@@ -316,7 +316,7 @@ overLeft2D(const SpanNode *nodebox, const Span *query)
 /**
  * @brief Can any span from nodebox be right the query?
  */
-static bool
+bool
 right2D(const SpanNode *nodebox, const Span *query)
 {
   return ri_span_span(&nodebox->left, query);
@@ -325,16 +325,26 @@ right2D(const SpanNode *nodebox, const Span *query)
 /**
  * @brief Can any span from nodebox does not extend to the left of the query?
  */
-static bool
+bool
 overRight2D(const SpanNode *nodebox, const Span *query)
 {
   return ovri_span_span(&nodebox->left, query);
 }
 
 /**
+ * @brief Can any span from nodebox be to the left of the query?
+ */
+bool
+adjacent2D(const SpanNode *nodebox, const Span *query)
+{
+  return adj_span_span(&nodebox->left, query) ||
+    adj_span_span(&nodebox->right, query);
+}
+
+/**
  * @brief Distance between a query span and a box of spans
  */
-static double
+double
 distance_span_nodespan(Span *query, SpanNode *nodebox)
 {
   /* Determine the maximum span of the nodebox */
@@ -349,7 +359,7 @@ distance_span_nodespan(Span *query, SpanNode *nodebox)
 /**
  * @brief Transform a query argument into a span
  */
-static bool
+bool
 span_spgist_get_span(const ScanKeyData *scankey, Span *result)
 {
   meosType type = oid_type(scankey->sk_subtype);
@@ -834,8 +844,11 @@ Span_spgist_inner_consistent(FunctionCallInfo fcinfo, SPGistIndexType idxtype)
       {
         case RTOverlapStrategyNumber:
         case RTContainedByStrategyNumber:
-        case RTAdjacentStrategyNumber:
           flag = overlap2D(&next_nodespan, &queries[i]);
+          break;
+        case RTAdjacentStrategyNumber:
+          flag = adjacent2D(&next_nodespan, &queries[i]) || 
+            overlap2D(&next_nodespan, &queries[i]);
           break;
         case RTContainsStrategyNumber:
         case RTEqualStrategyNumber:
@@ -919,13 +932,13 @@ Span_kdtree_inner_consistent(PG_FUNCTION_ARGS)
 }
 
 /*****************************************************************************
- * SP-GiST leaf-level consistency function
+ * SP-GiST leaf consistency function
  *****************************************************************************/
 
 PGDLLEXPORT Datum Span_spgist_leaf_consistent(PG_FUNCTION_ARGS);
 PG_FUNCTION_INFO_V1(Span_spgist_leaf_consistent);
 /**
- * @brief SP-GiST leaf-level consistency function for span types
+ * @brief SP-GiST leaf consistency function for span types
  */
 Datum
 Span_spgist_leaf_consistent(PG_FUNCTION_ARGS)
@@ -952,7 +965,7 @@ Span_spgist_leaf_consistent(PG_FUNCTION_ARGS)
 
     /* Convert the query to a span and perform the test */
     span_spgist_get_span(&in->scankeys[i], &span);
-    result = span_index_consistent_leaf(key, &span, strategy);
+    result = span_index_leaf_consistent(key, &span, strategy);
 
     /* If any check is failed, we have found our answer. */
     if (! result)

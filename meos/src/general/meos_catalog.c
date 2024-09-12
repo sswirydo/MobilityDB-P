@@ -40,11 +40,7 @@
 #include <limits.h>
 /* PostgreSQL */
 #include <postgres.h>
-#if POSTGRESQL_VERSION_NUMBER >= 130000
-  #include <common/hashfn.h>
-#else
-  #include <access/hash.h>
-#endif
+#include <common/hashfn.h>
 /* MEOS */
 #include <meos.h>
 #include "general/doublen.h"
@@ -116,6 +112,8 @@ static const char *MEOS_TYPE_NAMES[] =
   [T_NPOINTSET] = "npointset",
   [T_NSEGMENT] = "nsegment",
   [T_TNPOINT] = "tnpoint",
+  [T_POSE] = "pose",
+  [T_TPOSE] = "tpose",
 };
 
 /**
@@ -187,7 +185,7 @@ static const char *MEOS_TEMPSUBTYPE_NAMES[] =
 
 /**
 
- * @brief Global constant array containing the interpolation names 
+ * @brief Global constant array containing the interpolation names
  * corresponding to the enumeration interpType defined in file `meos_catalog.h`
  * @note The names are in lowercase since they are used in error messages
  */
@@ -264,6 +262,7 @@ static const temptype_catalog_struct MEOS_TEMPTYPE_CATALOG[] =
   {T_TGEOMPOINT, T_GEOMETRY},
   {T_TGEOGPOINT, T_GEOGRAPHY},
   {T_TNPOINT,    T_NPOINT},
+  {T_TPOSE,      T_POSE},
 };
 
 /*****************************************************************************/
@@ -343,7 +342,7 @@ tempsubtype_from_string(const char *str, int16 *subtype)
   return false;
 }
 
-#if DEBUG_BUILD
+#ifndef NDEBUG
 /**
  * @brief Ensure that the subtype of a temporal value is valid
  * @note The function is used for the dispatch functions for temporal types
@@ -368,7 +367,7 @@ temptype_subtype_all(tempSubtype subtype)
     return true;
   return false;
 }
-#endif /* DEBUG_BUILD */
+#endif
 
 /*****************************************************************************/
 
@@ -564,21 +563,7 @@ spantype_spansettype(meosType type)
 
 /*****************************************************************************/
 
-#if 0 /* not used */
-/**
- * @brief Determine whether the type is an internal MobilityDB type
- */
-bool
-meostype_internal(meosType type)
-{
-  if (type == T_DOUBLE2 || type == T_DOUBLE3 || type == T_DOUBLE4 ||
-      type == T_TDOUBLE2 || type == T_TDOUBLE3 || type == T_TDOUBLE4)
-    return true;
-  return false;
-}
-#endif /* not used */
-
-#ifdef DEBUG_BUILD
+#ifndef NDEBUG
 /**
  * @brief Return true if the type is a base type of one of the template types,
  * that is, @p Set, @p Span, @p SpanSet, and @p Temporal
@@ -591,8 +576,8 @@ meos_basetype(meosType type)
     type == T_TEXT || type == T_DATE || type == T_TIMESTAMPTZ ||
     /* The doubleX are internal types used for temporal aggregation */
     type == T_DOUBLE2 || type == T_DOUBLE3 || type == T_DOUBLE4 ||
-    type == T_GEOMETRY || type == T_GEOGRAPHY || type == T_NPOINT
-    )
+    type == T_GEOMETRY || type == T_GEOGRAPHY || type == T_NPOINT ||
+    type == T_POSE)
     return true;
   return false;
 }
@@ -618,7 +603,11 @@ bool
 basetype_varlength(meosType type)
 {
   assert(meos_basetype(type));
-  if (type == T_TEXT || type == T_GEOMETRY || type == T_GEOGRAPHY)
+  if (type == T_TEXT || type == T_GEOMETRY || type == T_GEOGRAPHY
+#if POSE
+    || type == T_POSE
+#endif
+    )
     return true;
   return false;
 }
@@ -647,12 +636,16 @@ basetype_length(meosType type)
   if (type == T_NPOINT)
     return sizeof(Npoint);
 #endif
+#if POSE
+  if (type == T_POSE)
+    return -1;
+#endif
   meos_error(ERROR, MEOS_ERR_INTERNAL_TYPE_ERROR,
     "Unknown base type: %s", meostype_name(type));
   return SHRT_MAX;
 }
 
-#ifdef DEBUG_BUILD
+#ifndef NDEBUG
 /**
  * @brief Return true if the type is an alphanumeric base type
  * @note This function is only used in the asserts
@@ -684,7 +677,11 @@ geo_basetype(meosType type)
 bool
 spatial_basetype(meosType type)
 {
-  if (type == T_GEOMETRY || type == T_GEOGRAPHY || type == T_NPOINT)
+  if (type == T_GEOMETRY || type == T_GEOGRAPHY || type == T_NPOINT
+#if POSE
+    || type == T_POSE
+#endif
+    )
     return true;
   return false;
 }
@@ -706,7 +703,7 @@ time_type(meosType type)
 
 /*****************************************************************************/
 
-#ifdef DEBUG_BUILD
+#ifndef NDEBUG
 /**
  * @brief Return true if the type is a base type of a set type
  * @note This function is only used in the asserts
@@ -754,13 +751,11 @@ numset_type(meosType type)
 bool
 ensure_numset_type(meosType type)
 {
-  if (! numset_type(type))
-  {
-    meos_error(ERROR, MEOS_ERR_INVALID_ARG_TYPE,
-      "The set value must be a number or a date set");
-    return false;
-  }
-  return true;
+  if (numset_type(type))
+    return true;
+  meos_error(ERROR, MEOS_ERR_INVALID_ARG_TYPE,
+    "The set value must be a number or a date set");
+  return false;
 }
 
 /**
@@ -773,23 +768,6 @@ timeset_type(meosType type)
     return true;
   return false;
 }
-
-#if 0 /* not used */
-/**
- * @brief Ensure that the type is a number set type
- */
-bool
-ensure_timeset_type(meosType type)
-{
-  if (! timeset_type(type))
-  {
-    meos_error(ERROR, MEOS_ERR_INVALID_ARG_TYPE,
-      "The set value must be a time set");
-    return false;
-  }
-  return true;
-}
-#endif /* not used */
 
 /**
  * @brief Return true if the type is a set type with a span as a bounding box
@@ -809,13 +787,11 @@ set_spantype(meosType type)
 bool
 ensure_set_spantype(meosType type)
 {
-  if (! set_spantype(type))
-  {
-    meos_error(ERROR, MEOS_ERR_INVALID_ARG_TYPE,
-      "The set value must be a number or timestamp set");
-    return false;
-  }
-  return true;
+  if (set_spantype(type))
+    return true;
+  meos_error(ERROR, MEOS_ERR_INVALID_ARG_TYPE,
+    "The set value must be a number or timestamp set");
+  return false;
 }
 
 /**
@@ -847,13 +823,11 @@ geoset_type(meosType type)
 bool
 ensure_geoset_type(meosType type)
 {
-  if (! geoset_type(type))
-  {
-    meos_error(ERROR, MEOS_ERR_INVALID_ARG_TYPE,
-      "The set value must be a geo set");
-    return false;
-  }
-  return true;
+  if (geoset_type(type))
+    return true;
+  meos_error(ERROR, MEOS_ERR_INVALID_ARG_TYPE,
+    "The set value must be a geo set");
+  return false;
 }
 
 /**
@@ -873,13 +847,11 @@ spatialset_type(meosType type)
 bool
 ensure_spatialset_type(meosType type)
 {
-  if (! spatialset_type(type))
-  {
-    meos_error(ERROR, MEOS_ERR_INVALID_ARG_TYPE,
-      "The set value must be a spatial set");
-    return false;
-  }
-  return true;
+  if (spatialset_type(type))
+    return true;
+  meos_error(ERROR, MEOS_ERR_INVALID_ARG_TYPE,
+    "The set value must be a spatial set");
+  return false;
 }
 
 /*****************************************************************************/
@@ -919,7 +891,7 @@ span_type(meosType type)
   return false;
 }
 
-#ifdef DEBUG_BUILD
+#ifndef NDEBUG
 /**
  * @brief Return true if the type is a span type
  * @note This function is only used in the asserts
@@ -964,13 +936,11 @@ numspan_type(meosType type)
 bool
 ensure_numspan_type(meosType type)
 {
-  if (! numspan_type(type))
-  {
-    meos_error(ERROR, MEOS_ERR_INVALID_ARG_TYPE,
-      "The span value must be a number span type");
-    return false;
-  }
-  return true;
+  if (numspan_type(type))
+    return true;
+  meos_error(ERROR, MEOS_ERR_INVALID_ARG_TYPE,
+    "The span value must be a number span type");
+  return false;
 }
 
 /**
@@ -995,23 +965,6 @@ timespan_type(meosType type)
   return false;
 }
 
-#if 0 /* not used */
-/**
- * @brief Ensure that a span is a time span type
- */
-bool
-ensure_timespan_type(meosType type)
-{
-  if (! timespan_type(type))
-  {
-    meos_error(ERROR, MEOS_ERR_INVALID_ARG_TYPE,
-      "The span value must be a time span type");
-    return false;
-  }
-  return true;
-}
-#endif /* not used */
-
 /*****************************************************************************/
 
 /**
@@ -1025,20 +978,6 @@ spanset_type(meosType type)
     return true;
   return false;
 }
-
-#if 0 /* not used */
-/**
- * @brief Return true if the type is a number span type
- */
-bool
-numspanset_type(meosType type)
-{
-  if (type == T_INTSPANSET || type == T_BIGINTSPANSET ||
-      type == T_FLOATSPANSET)
-    return true;
-  return false;
-}
-#endif
 
 /**
  * @brief Return true if the type is a time span type
@@ -1057,13 +996,11 @@ timespanset_type(meosType type)
 bool
 ensure_timespanset_type(meosType type)
 {
-  if (! timespanset_type(type))
-  {
-    meos_error(ERROR, MEOS_ERR_INVALID_ARG_TYPE,
-      "The value must be a time span set type");
-    return false;
-  }
-  return true;
+  if (timespanset_type(type))
+    return true;
+  meos_error(ERROR, MEOS_ERR_INVALID_ARG_TYPE,
+    "The value must be a time span set type");
+  return false;
 }
 
 /*****************************************************************************/
@@ -1082,12 +1019,15 @@ temporal_type(meosType type)
 #if NPOINT
     || type == T_TNPOINT
 #endif
+#if POSE
+    || type == T_TPOSE
+#endif
     )
     return true;
   return false;
 }
 
-#ifdef DEBUG_BUILD
+#ifndef NDEBUG
 /**
  * @brief Return true if the type is a temporal base type
  * @note This function is only used in the asserts
@@ -1101,6 +1041,9 @@ temporal_basetype(meosType type)
     type == T_GEOMETRY || type == T_GEOGRAPHY
 #if NPOINT
     || type == T_NPOINT
+#endif
+#if POSE
+    || type == T_POSE
 #endif
     )
     return true;
@@ -1119,12 +1062,15 @@ temptype_continuous(meosType type)
 #if NPOINT
     || type == T_TNPOINT
 #endif
+#if POSE
+    || type == T_TPOSE
+#endif
     )
     return true;
   return false;
 }
 
-#ifdef DEBUG_BUILD
+#ifndef NDEBUG
 /**
  * @brief Return true if the type is a temporal alphanumeric type
  * @note This function is only used in the asserts
@@ -1151,24 +1097,6 @@ talpha_type(meosType type)
   return false;
 }
 
-#if 0 /* not used */
-/**
- * @brief Ensure that a type is a temporal alpha type (i.e., those whose
- * bounding box is a timestamptz span)
- */
-bool
-ensure_talpha_type(meosType type)
-{
-  if (! talpha_type(type))
-  {
-    meos_error(ERROR, MEOS_ERR_INVALID_ARG_TYPE,
-      "The temporal value must be a temporal alpha type");
-    return false;
-  }
-  return true;
-}
-#endif /* not used */
-
 /**
  * @brief Return true if the type is a temporal number type
  */
@@ -1186,13 +1114,11 @@ tnumber_type(meosType type)
 bool
 ensure_tnumber_type(meosType type)
 {
-  if (! tnumber_type(type))
-  {
-    meos_error(ERROR, MEOS_ERR_INVALID_ARG_TYPE,
-      "The temporal value must be a temporal number");
-    return false;
-  }
-  return true;
+  if (tnumber_type(type))
+    return true;
+  meos_error(ERROR, MEOS_ERR_INVALID_ARG_TYPE,
+    "The temporal value must be a temporal number");
+  return false;
 }
 
 /**
@@ -1212,13 +1138,11 @@ tnumber_basetype(meosType type)
 bool
 ensure_tnumber_basetype(meosType type)
 {
-  if (! tnumber_basetype(type))
-  {
-    meos_error(ERROR, MEOS_ERR_INVALID_ARG_TYPE,
-      "The temporal value must be a base value of temporal number");
-    return false;
-  }
-  return true;
+  if (tnumber_basetype(type))
+    return true;
+  meos_error(ERROR, MEOS_ERR_INVALID_ARG_TYPE,
+    "The temporal value must be a base value of temporal number");
+  return false;
 }
 
 
@@ -1260,6 +1184,9 @@ tspatial_type(meosType type)
 #if NPOINT
       || type == T_TNPOINT
 #endif
+#if POSE
+      || type == T_TPOSE
+#endif
       )
     return true;
   return false;
@@ -1271,13 +1198,11 @@ tspatial_type(meosType type)
 bool
 ensure_tspatial_type(meosType type)
 {
-  if (! tspatial_type(type))
-  {
-    meos_error(ERROR, MEOS_ERR_INVALID_ARG_TYPE,
-      "The temporal value must be a temporal point type");
-    return false;
-  }
-  return true;
+  if (tspatial_type(type))
+    return true;
+  meos_error(ERROR, MEOS_ERR_INVALID_ARG_TYPE,
+    "The temporal value must be a temporal point type");
+  return false;
 }
 
 
@@ -1292,6 +1217,9 @@ tspatial_basetype(meosType type)
   if (type == T_GEOMETRY || type == T_GEOGRAPHY
 #if NPOINT
     || type == T_NPOINT
+#endif
+#if POSE
+    || type == T_POSE
 #endif
     )
     return true;
@@ -1315,13 +1243,11 @@ tgeo_type(meosType type)
 bool
 ensure_tgeo_type(meosType type)
 {
-  if (! tgeo_type(type))
-  {
-    meos_error(ERROR, MEOS_ERR_INVALID_ARG_TYPE,
-      "The temporal value must be a temporal point type");
-    return false;
-  }
-  return true;
+  if (tgeo_type(type))
+    return true;
+  meos_error(ERROR, MEOS_ERR_INVALID_ARG_TYPE,
+    "The temporal value must be a temporal point type");
+  return false;
 }
 
 /**
@@ -1331,13 +1257,11 @@ ensure_tgeo_type(meosType type)
 bool
 ensure_tnumber_tgeo_type(meosType type)
 {
-  if (! tnumber_type(type) && ! tgeo_type(type))
-  {
-    meos_error(ERROR, MEOS_ERR_INVALID_ARG_TYPE,
-      "The temporal value must be a temporal number or a temporal point type");
-    return false;
-  }
-  return true;
+  if (tnumber_type(type) || tgeo_type(type))
+    return true;
+  meos_error(ERROR, MEOS_ERR_INVALID_ARG_TYPE,
+    "The temporal value must be a temporal number or a temporal point type");
+  return false;
 }
 
 /*****************************************************************************/

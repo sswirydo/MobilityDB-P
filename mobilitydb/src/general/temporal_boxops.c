@@ -80,16 +80,58 @@ PGDLLEXPORT Datum Temporal_spans(PG_FUNCTION_ARGS);
 PG_FUNCTION_INFO_V1(Temporal_spans);
 /**
  * @ingroup mobilitydb_temporal_bbox
- * @brief Return an array of maximum n spans from a temporal value
+ * @brief Return an array of spans from a temporal value
  * @sqlfn spans()
  */
 Datum
 Temporal_spans(PG_FUNCTION_ARGS)
 {
   Temporal *temp = PG_GETARG_TEMPORAL_P(0);
+  int count;
+  Span *spans = temporal_spans(temp, &count);
+  ArrayType *result = spanarr_to_array(spans, count);
+  pfree(spans);
+  PG_FREE_IF_COPY(temp, 0);
+  PG_RETURN_ARRAYTYPE_P(result);
+}
+
+PGDLLEXPORT Datum Tnumber_tboxes(PG_FUNCTION_ARGS);
+PG_FUNCTION_INFO_V1(Tnumber_tboxes);
+/**
+ * @ingroup mobilitydb_temporal_bbox
+ * @brief Return an array of temporal boxes from a temporal number
+ * @sqlfn tboxes()
+ */
+Datum
+Tnumber_tboxes(PG_FUNCTION_ARGS)
+{
+  Temporal *temp = PG_GETARG_TEMPORAL_P(0);
+  int count;
+  TBox *boxes = tnumber_tboxes(temp, &count);
+  ArrayType *result = tboxarr_to_array(boxes, count);
+  pfree(boxes);
+  PG_FREE_IF_COPY(temp, 0);
+  PG_RETURN_ARRAYTYPE_P(result);
+}
+
+/*****************************************************************************/
+
+PGDLLEXPORT Datum Temporal_split_n_spans(PG_FUNCTION_ARGS);
+PG_FUNCTION_INFO_V1(Temporal_split_n_spans);
+/**
+ * @ingroup mobilitydb_temporal_bbox
+ * @brief Return an array of N spans from the instants or segments of a
+ * temporal value, where the choice between instants or segments depends,
+ * respectively, on whether the interpolation is discrete or continuous
+ * @sqlfn splitNSpans()
+ */
+Datum
+Temporal_split_n_spans(PG_FUNCTION_ARGS)
+{
+  Temporal *temp = PG_GETARG_TEMPORAL_P(0);
   int max_count = PG_GETARG_INT32(1);
   int count;
-  Span *spans = temporal_spans(temp, max_count, &count);
+  Span *spans = temporal_split_n_spans(temp, max_count, &count);
   PG_FREE_IF_COPY(temp, 0);
   if (! spans)
     PG_RETURN_NULL();
@@ -98,20 +140,72 @@ Temporal_spans(PG_FUNCTION_ARGS)
   PG_RETURN_ARRAYTYPE_P(result);
 }
 
-PGDLLEXPORT Datum Tnumber_tboxes(PG_FUNCTION_ARGS);
-PG_FUNCTION_INFO_V1(Tnumber_tboxes);
+PGDLLEXPORT Datum Tnumber_split_n_tboxes(PG_FUNCTION_ARGS);
+PG_FUNCTION_INFO_V1(Tnumber_split_n_tboxes);
 /**
  * @ingroup mobilitydb_temporal_bbox
- * @brief Return an array of maximum n temporal boxes from a temporal number
- * @sqlfn tboxes()
+ * @brief Return an array of N temporal boxes from the instants or segments of
+ * a temporal number, where the choice between instants or segments depends,
+ * respectively, on whether the interpolation is discrete or continuous
+ * @sqlfn splitNTboxes()
  */
 Datum
-Tnumber_tboxes(PG_FUNCTION_ARGS)
+Tnumber_split_n_tboxes(PG_FUNCTION_ARGS)
 {
   Temporal *temp = PG_GETARG_TEMPORAL_P(0);
   int max_count = PG_GETARG_INT32(1);
   int count;
-  TBox *boxes = tnumber_tboxes(temp, max_count, &count);
+  TBox *boxes = tnumber_split_n_tboxes(temp, max_count, &count);
+  PG_FREE_IF_COPY(temp, 0);
+  if (! boxes)
+    PG_RETURN_NULL();
+  ArrayType *result = tboxarr_to_array(boxes, count);
+  pfree(boxes);
+  PG_RETURN_ARRAYTYPE_P(result);
+}
+
+/*****************************************************************************/
+
+PGDLLEXPORT Datum Temporal_split_each_n_spans(PG_FUNCTION_ARGS);
+PG_FUNCTION_INFO_V1(Temporal_split_each_n_spans);
+/**
+ * @ingroup mobilitydb_temporal_bbox
+ * @brief Return an array of spans from the instants or segments of a
+ * temporal value, where the choice between instants or segments depends,
+ * respectively, on whether the interpolation is discrete or continuous
+ * @sqlfn splitEachNSpans()
+ */
+Datum
+Temporal_split_each_n_spans(PG_FUNCTION_ARGS)
+{
+  Temporal *temp = PG_GETARG_TEMPORAL_P(0);
+  int max_count = PG_GETARG_INT32(1);
+  int count;
+  Span *spans = temporal_split_each_n_spans(temp, max_count, &count);
+  PG_FREE_IF_COPY(temp, 0);
+  if (! spans)
+    PG_RETURN_NULL();
+  ArrayType *result = spanarr_to_array(spans, count);
+  pfree(spans);
+  PG_RETURN_ARRAYTYPE_P(result);
+}
+
+PGDLLEXPORT Datum Tnumber_split_each_n_tboxes(PG_FUNCTION_ARGS);
+PG_FUNCTION_INFO_V1(Tnumber_split_each_n_tboxes);
+/**
+ * @ingroup mobilitydb_temporal_bbox
+ * @brief Return an array of temporal boxes from the instants or segments of a
+ * temporal number, where the choice between instants or segments depends,
+ * respectively, on whether the interpolation is discrete or continuous
+ * @sqlfn splitEachNTboxes()
+ */
+Datum
+Tnumber_split_each_n_tboxes(PG_FUNCTION_ARGS)
+{
+  Temporal *temp = PG_GETARG_TEMPORAL_P(0);
+  int max_count = PG_GETARG_INT32(1);
+  int count;
+  TBox *boxes = tnumber_split_each_n_tboxes(temp, max_count, &count);
   PG_FREE_IF_COPY(temp, 0);
   if (! boxes)
     PG_RETURN_NULL();
@@ -459,7 +553,7 @@ Boxop_tbox_tnumber(FunctionCallInfo fcinfo,
   TBox *box = PG_GETARG_TBOX_P(0);
   Temporal *temp = PG_GETARG_TEMPORAL_P(1);
   TBox box1;
-  temporal_set_bbox(temp, &box1);
+  tnumber_set_tbox(temp, &box1);
   bool result = boxop_tnumber_tbox(temp, box, func, INVERT);
   PG_FREE_IF_COPY(temp, 1);
   PG_RETURN_BOOL(result);

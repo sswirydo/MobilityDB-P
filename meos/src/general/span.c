@@ -41,11 +41,7 @@
 #include <limits.h>
 /* PostgreSQL */
 #include <utils/timestamp.h>
-#if POSTGRESQL_VERSION_NUMBER >= 130000
-  #include <common/hashfn.h>
-#else
-  #include <access/hash.h>
-#endif
+#include <common/hashfn.h>
 /* MEOS */
 #include <meos.h>
 #include <meos_internal.h>
@@ -66,13 +62,11 @@
 bool
 ensure_span_isof_type(const Span *s, meosType spantype)
 {
-  if (s->spantype != spantype)
-  {
-    meos_error(ERROR, MEOS_ERR_INVALID_ARG_TYPE,
-      "The span must be of type %s", meostype_name(spantype));
-    return false;
-  }
-  return true;
+  if (s->spantype == spantype)
+    return true;
+  meos_error(ERROR, MEOS_ERR_INVALID_ARG_TYPE,
+    "The span must be of type %s", meostype_name(spantype));
+  return false;
 }
 
 /**
@@ -81,14 +75,12 @@ ensure_span_isof_type(const Span *s, meosType spantype)
 bool
 ensure_span_isof_basetype(const Span *s, meosType basetype)
 {
-  if (s->basetype != basetype)
-  {
-    meos_error(ERROR, MEOS_ERR_INVALID_ARG_TYPE,
-      "Operation on mixed span and base types: %s and %s",
-      meostype_name(s->spantype), meostype_name(basetype));
-    return false;
-  }
-  return true;
+  if (s->basetype == basetype)
+    return true;
+  meos_error(ERROR, MEOS_ERR_INVALID_ARG_TYPE,
+    "Operation on mixed span and base types: %s and %s",
+    meostype_name(s->spantype), meostype_name(basetype));
+  return false;
 }
 
 /**
@@ -97,14 +89,12 @@ ensure_span_isof_basetype(const Span *s, meosType basetype)
 bool
 ensure_same_span_type(const Span *s1, const Span *s2)
 {
-  if (s1->spantype != s2->spantype)
-  {
-    meos_error(ERROR, MEOS_ERR_INVALID_ARG_TYPE,
-      "Operation on mixed span types: %s and %s",
-      meostype_name(s1->spantype), meostype_name(s2->spantype));
-    return false;
-  }
-  return true;
+  if (s1->spantype == s2->spantype)
+    return true;
+  meos_error(ERROR, MEOS_ERR_INVALID_ARG_TYPE,
+    "Operation on mixed span types: %s and %s",
+    meostype_name(s1->spantype), meostype_name(s2->spantype));
+  return false;
 }
 
 /*****************************************************************************
@@ -1876,54 +1866,107 @@ tstzspan_shift_scale(const Span *s, const Interval *shift,
 
 /**
  * @ingroup meos_setspan_bbox
- * @brief Return an array of spans from the composing values of a set
+ * @brief Return an array of spans from the values of a set
  * @param[in] s Set
- * @param[in] max_count Maximum number of elements in the output array.
- * If the value is < 1, the result is one span per element.
- * @param[out] count Number of elements in the output array
+ * @return On error return @p NULL
+ * @csqlfn #Set_spans()
  */
 Span *
-set_spans(const Set *s, int max_count, int *count)
+set_spans(const Set *s)
 {
-  assert(s); assert(count); assert(set_type(s->settype));
-  int nvalues = (max_count < 1) ? s->count : max_count;
-  Span *result = palloc(sizeof(Span) * nvalues);
-  if (max_count < 1 || s->count <= max_count)
+  /* Ensure validity of the arguments */
+  if (! ensure_not_null((void *) s))
+    return NULL;
+
+  /* Output the composing spans */
+  Span *result = palloc(sizeof(Span) * s->count);
+  for (int i = 0; i < s->count; i++)
+    set_set_subspan(s, i, i, &result[i]);
+  return result;
+}
+
+/**
+ * @ingroup meos_setspan_bbox
+ * @brief Return an array of N spans from the values of a set
+ * @param[in] s Set
+ * @param[in] span_count Number of spans
+ * @param[out] count Number of elements in the output array
+ * @return On error return @p NULL
+ * @csqlfn #Set_split_n_spans()
+ */
+Span *
+set_split_n_spans(const Set *s, int span_count, int *count)
+{
+  /* Ensure validity of the arguments */
+  if (! ensure_not_null((void *) s) || ! ensure_not_null((void *) count) ||
+      ! ensure_numset_type(s->settype) || ! ensure_positive(span_count))
+    return NULL;
+
+  Span *result = palloc(sizeof(Span) * s->count);
+
+  /* Output the composing spans */
+  if (s->count <= span_count)
   {
-    /* Output the composing spans */
     for (int i = 0; i < s->count; i++)
       set_set_subspan(s, i, i, &result[i]);
     *count = s->count;
     return result;
   }
-  else
+
+  /* Merge consecutive values to reach the maximum number of span */
+  /* Minimum number of values merged together in an output span */
+  int size = s->count / span_count;
+  /* Number of output spans that result from merging (size + 1) values */
+  int remainder = s->count % span_count;
+  int i = 0; /* Loop variable for input values */
+  for (int k = 0; k < span_count; k++)
   {
-    /* Merge consecutive values to reach the maximum number of span */
-    /* Minimum number of values merged together in an output span */
-    int size = s->count / max_count;
-    /* Number of output spans that result from merging (size + 1) values */
-    int remainder = s->count % max_count;
-    int i = 0; /* Loop variable for input values */
-    int k = 0; /* Loop variable for output spans */
-    while (k < max_count)
-    {
-      int j = i + size - 1;
-      if (k < remainder)
-        j++;
-      if (i < j)
-      {
-        set_set_subspan(s, i, j, &result[k++]);
-        i = j + 1;
-      }
-      else
-      {
-        set_set_subspan(s, i, i, &result[k++]);
-        i++;
-      }
-    }
-    *count = max_count;
-    return result;
+    int j = i + size;
+    if (k < remainder)
+      j++;
+    set_set_subspan(s, i, j - 1, &result[k]);
+    i = j;
   }
+  assert(i == s->count);
+  *count = span_count;
+  return result;
+}
+
+/**
+ * @ingroup meos_setspan_bbox
+ * @brief Return an array of spans from a set obtained by merging consecutive
+ * elements
+ * @param[in] s Set
+ * @param[in] elems_per_span Number of elements merge into an ouput span
+ * @param[out] count Number of elements in the output array
+ * @return On error return @p NULL
+ * @csqlfn #Set_split_each_n_spans()
+ */
+Span *
+set_split_each_n_spans(const Set *s, int32 elems_per_span, int *count)
+{
+  /* Ensure validity of the arguments */
+  if (! ensure_not_null((void *) s) || ! ensure_not_null((void *) count) ||
+      ! ensure_numset_type(s->settype) || ! ensure_positive(elems_per_span))
+    return NULL;
+
+  int nspans = ceil((double) s->count / (double) elems_per_span);
+  Span *result = palloc(sizeof(Span) * nspans);
+  int k = 0;
+  for (int i = 0; i < s->count; ++i)
+  {
+    if (i % elems_per_span == 0)
+      value_set_span(SET_VAL_N(s, i), s->basetype, &result[k++]);
+    else
+    {
+      Span span;
+      value_set_span(SET_VAL_N(s, i), s->basetype, &span);
+      span_expand(&span, &result[k - 1]);
+    }
+  }
+  assert(k == nspans);
+  *count = k;
+  return result;
 }
 
 /*****************************************************************************
@@ -1978,7 +2021,7 @@ span_ne(const Span *s1, const Span *s2)
  * @ingroup meos_internal_setspan_comp
  * @brief Return -1, 0, or 1 depending on whether the first span is less than,
  * equal, or greater than the second one
- * @param[in] s1,s2 Sets
+ * @param[in] s1,s2 Spans
  */
 int
 span_cmp_int(const Span *s1, const Span *s2)

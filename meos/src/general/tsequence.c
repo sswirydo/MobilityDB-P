@@ -41,11 +41,7 @@
 #include <postgres.h>
 #include <utils/float.h>
 #include <utils/timestamp.h>
-#if POSTGRESQL_VERSION_NUMBER >= 130000
-  #include <common/hashfn.h>
-#else
-  #include "general/pg_types.h"
-#endif
+#include <common/hashfn.h>
 #if POSTGRESQL_VERSION_NUMBER >= 160000
   #include "varatt.h"
 #endif
@@ -64,6 +60,10 @@
 #include "point/tpoint_spatialfuncs.h"
 #if NPOINT
   #include "npoint/tnpoint_spatialfuncs.h"
+#endif
+#if POSE
+  #include "pose/tpose_static.h"
+  #include "pose/tpose_spatialfuncs.h"
 #endif
 
 /*****************************************************************************
@@ -196,8 +196,13 @@ datum_collinear(Datum value1, Datum value2, Datum value3, meosType basetype,
     return npoint_collinear(DatumGetNpointP(value1), DatumGetNpointP(value2),
       DatumGetNpointP(value3), ratio);
 #endif
+#if POSE
+  if (basetype == T_POSE)
+    return pose_collinear(DatumGetPoseP(value1), DatumGetPoseP(value2),
+      DatumGetPoseP(value3), ratio);
+#endif
   meos_error(ERROR, MEOS_ERR_INTERNAL_TYPE_ERROR,
-    "Unknown collinear operation for base type: %d", basetype);
+    "Unknown collinear function for type: %s", meostype_name(basetype));
   return false;
 }
 
@@ -243,7 +248,7 @@ tsequence_norm_test(Datum value1, Datum value2, Datum value3, meosType basetype,
  * @param[in] interp Interpolation
  * @param[in] count Number of elements in the input array
  * @param[out] newcount Number of elements in the output array
- * @result Array of normalized temporal instants
+ * @return Array of normalized temporal instants
  * @pre The input array has at least two elements
  * @note The function does not create new instants, it creates an array of
  * pointers to a subset of the input instants
@@ -292,7 +297,7 @@ tinstarr_normalize(const TInstant **instants, interpType interp, int count,
  * @param[in] seq1,seq2 Input sequences
  * @param[out] removelast,removefirst State the instants to remove if the
  * sequences can be joined
- * @result True when the input sequences can be joined
+ * @return True when the input sequences can be joined
  * @pre Both sequences are normalized
  */
 bool
@@ -442,7 +447,7 @@ tsequence_join(const TSequence *seq1, const TSequence *seq2,
  *
  * @param[in] seq Temporal continuous sequence
  * @param[in] t Timestamp
- * @result Return -1 if the timestamp is not contained in a temporal sequence
+ * @return Return -1 if the timestamp is not contained in a temporal sequence
  */
 int
 tcontseq_find_timestamptz(const TSequence *seq, TimestampTz t)
@@ -490,7 +495,7 @@ tcontseq_find_timestamptz(const TSequence *seq, TimestampTz t)
  *
  * @param[in] seq Temporal discrete sequence
  * @param[in] t Timestamp
- * @result Return true if the timestamp is contained in the discrete sequence
+ * @return Return true if the timestamp is contained in the discrete sequence
  */
 int
 tdiscseq_find_timestamptz(const TSequence *seq, TimestampTz t)
@@ -1651,7 +1656,6 @@ tstepseq_to_linear(const TSequence *seq)
   assert(seq);
   TSequence **sequences = palloc(sizeof(TSequence *) * seq->count);
   int count = tstepseq_to_linear_iter(seq, sequences);
-  /* We are sure that count > 0 */
   return tsequenceset_make_free(sequences, count, NORMALIZE);
 }
 
@@ -1836,7 +1840,7 @@ tsequence_shift_scale_time(const TSequence *seq, const Interval *shift,
  * sequence
  * @param[in] seq Temporal sequence
  * @param[out] count Number of values in the resulting array
- * @result Array of values
+ * @return Array of values
  * @csqlfn #Temporal_valueset()
  */
 Datum *
@@ -2326,9 +2330,18 @@ tsegment_value_at_timestamptz(const TInstant *inst1, const TInstant *inst2,
     return PointerGetDatum(result);
   }
 #endif
+#if POSE
+  if (inst1->temptype == T_TPOSE)
+  {
+    Pose *pose1 = DatumGetPoseP(value1);
+    Pose *pose2 = DatumGetPoseP(value2);
+    Pose *result = pose_interpolate(pose1, pose2, ratio);
+    return PointerGetDatum(result);
+  }
+#endif
   meos_error(ERROR, MEOS_ERR_INTERNAL_TYPE_ERROR,
-    "Unknown interpolation function for continuous temporal type: %d",
-    inst1->temptype);
+    "Unknown interpolation function for type: %s",
+    meostype_name(inst1->temptype));
   return 0;
 }
 
@@ -2340,7 +2353,7 @@ tsegment_value_at_timestamptz(const TInstant *inst1, const TInstant *inst2,
  * @param[in] t Timestamp
  * @param[in] strict True if inclusive/exclusive bounds are taken into account
  * @param[out] result Result
- * @result Return true if the timestamp is contained in the temporal sequence
+ * @return Return true if the timestamp is contained in the temporal sequence
  * @csqlfn #Temporal_value_at_timestamptz()
  */
 bool
@@ -2405,7 +2418,7 @@ tsequence_value_at_timestamptz(const TSequence *seq, TimestampTz t, bool strict,
  * @param[in] seq1,seq2 Input values
  * @param[in] crossings True if turning points are added in the segments
  * @param[out] sync1,sync2 Output values
- * @result Return false if the input values do not overlap on time
+ * @return Return false if the input values do not overlap on time
  */
 bool
 synchronize_tsequence_tsequence(const TSequence *seq1, const TSequence *seq2,
@@ -2542,7 +2555,7 @@ synchronize_tsequence_tsequence(const TSequence *seq1, const TSequence *seq2,
  * @brief Temporally intersect two temporal discrete sequences
  * @param[in] seq1,seq2 Input values
  * @param[out] inter1, inter2 Output values
- * @result Return false if the input values do not overlap on time
+ * @return Return false if the input values do not overlap on time
  */
 bool
 intersection_tdiscseq_tdiscseq(const TSequence *seq1, const TSequence *seq2,
@@ -2592,7 +2605,7 @@ intersection_tdiscseq_tdiscseq(const TSequence *seq1, const TSequence *seq2,
  * @brief Temporally intersect two temporal sequences
  * @param[in] seq1,seq2 Input values
  * @param[out] inter1, inter2 Output values
- * @result Return false if the input values do not overlap on time.
+ * @return Return false if the input values do not overlap on time.
  */
 bool
 intersection_tcontseq_tdiscseq(const TSequence *seq1, const TSequence *seq2,
@@ -2636,7 +2649,7 @@ intersection_tcontseq_tdiscseq(const TSequence *seq1, const TSequence *seq2,
  * @brief Temporally intersect two temporal values
  * @param[in] seq1,seq2 Temporal values
  * @param[out] inter1,inter2 Output values
- * @result Return false if the input values do not overlap on time.
+ * @return Return false if the input values do not overlap on time.
  */
 bool
 intersection_tdiscseq_tcontseq(const TSequence *seq1, const TSequence *seq2,
@@ -2733,11 +2746,15 @@ tlinearsegm_intersection_value(const TInstant *inst1, const TInstant *inst2,
   else if (inst1->temptype == T_TNPOINT)
     result = tnpointsegm_intersection_value(inst1, inst2, value, t);
 #endif
+#if POSE
+  else if (inst1->temptype == T_TPOSE)
+    result = tposesegm_intersection_value(inst1, inst2, value, t);
+#endif
   else
   {
     meos_error(ERROR, MEOS_ERR_INTERNAL_TYPE_ERROR,
-      "Unknown intersection function for continuous temporal type: %d",
-      inst1->temptype);
+      "Unknown intersection function for type: %s",
+      meostype_name(inst1->temptype));
     return NULL;
   }
 
@@ -2894,7 +2911,7 @@ tsegment_intersection(const TInstant *start1, const TInstant *end1,
  * @brief Temporally intersect two temporal sequences
  * @param[in] seq,inst Input values
  * @param[out] inter1, inter2 Output values
- * @result Return false if the input values do not overlap on time.
+ * @return Return false if the input values do not overlap on time.
  */
 bool
 intersection_tsequence_tinstant(const TSequence *seq, const TInstant *inst,
@@ -2915,7 +2932,7 @@ intersection_tsequence_tinstant(const TSequence *seq, const TInstant *inst,
  * @brief Temporally intersect two temporal values
  * @param[in] inst,seq Temporal values
  * @param[out] inter1, inter2 Output values
- * @result Return false if the input values do not overlap on time.
+ * @return Return false if the input values do not overlap on time.
  */
 bool
 intersection_tinstant_tsequence(const TInstant *inst, const TSequence *seq,
@@ -2972,10 +2989,11 @@ tnumberseq_integral(const TSequence *seq)
  * @param[in] seq Temporal sequence
  */
 double
-tnumberdiscseq_twavg(const TSequence *seq)
+tnumberseq_disc_twavg(const TSequence *seq)
 {
-  assert(seq);
-  assert(tnumber_type(seq->temptype));
+  assert(seq); assert(tnumber_type(seq->temptype));
+  assert(MEOS_FLAGS_GET_INTERP(seq->flags) == DISCRETE);
+
   meosType basetype = temptype_basetype(seq->temptype);
   double result = 0.0;
   for (int i = 0; i < seq->count; i++)
@@ -2987,10 +3005,11 @@ tnumberdiscseq_twavg(const TSequence *seq)
  * @brief Return the time-weighted average of a temporal sequence number
  */
 double
-tnumbercontseq_twavg(const TSequence *seq)
+tnumberseq_cont_twavg(const TSequence *seq)
 {
-  assert(seq);
-  assert(tnumber_type(seq->temptype));
+  assert(seq); assert(tnumber_type(seq->temptype));
+  assert(MEOS_FLAGS_GET_INTERP(seq->flags) != DISCRETE);
+
   double duration = (double) (DatumGetTimestampTz(seq->period.upper) -
     DatumGetTimestampTz(seq->period.lower));
   if (duration == 0.0)
@@ -3012,7 +3031,7 @@ tnumberseq_twavg(const TSequence *seq)
 {
   assert(seq); assert(tnumber_type(seq->temptype));
   return MEOS_FLAGS_DISCRETE_INTERP(seq->flags) ?
-    tnumberdiscseq_twavg(seq) : tnumbercontseq_twavg(seq);
+    tnumberseq_disc_twavg(seq) : tnumberseq_cont_twavg(seq);
 }
 
 /*****************************************************************************
@@ -3032,6 +3051,7 @@ tsequence_eq(const TSequence *seq1, const TSequence *seq2)
 {
   assert(seq1); assert(seq2);
   assert(seq1->temptype == seq2->temptype);
+
   /* If number of sequences, flags, or periods are not equal */
   if (seq1->count != seq2->count || seq1->flags != seq2->flags ||
       ! span_eq(&seq1->period, &seq2->period))

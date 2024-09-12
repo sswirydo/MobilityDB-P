@@ -60,6 +60,9 @@
 #if NPOINT
   #include "npoint/tnpoint_boxops.h"
 #endif
+#if POSE
+  #include "pose/tpose_boxops.h"
+#endif
 
 /*****************************************************************************
  * Functions on generic bounding boxes of temporal types
@@ -128,7 +131,8 @@ temporal_bbox_eq(const void *box1, const void *box2, meosType temptype)
     // a problem still remains (result != 0) even with the _cmp function
     return stbox_cmp((STBox *) box1, (STBox *) box2) == 0;
   meos_error(ERROR, MEOS_ERR_INTERNAL_TYPE_ERROR,
-    "Unknown temporal type for bounding box function: %d", temptype);
+    "Unknown temporal type for bounding box function: %s",
+    meostype_name(temptype));
   return false;
 }
 
@@ -150,7 +154,8 @@ temporal_bbox_cmp(const void *box1, const void *box2, meosType temptype)
   if (tspatial_type(temptype))
     return stbox_cmp((STBox *) box1, (STBox *) box2);
   meos_error(ERROR, MEOS_ERR_INTERNAL_TYPE_ERROR,
-    "Unknown temporal type for bounding box function: %d", temptype);
+    "Unknown temporal type for bounding box function: %s",
+    meostype_name(temptype));
   return INT_MAX;
 }
 
@@ -172,7 +177,8 @@ temporal_bbox_size(meosType temptype)
   if (tspatial_type(temptype))
     return sizeof(STBox);
   meos_error(ERROR, MEOS_ERR_INTERNAL_TYPE_ERROR,
-    "Unknown temporal type for bounding box function: %d", temptype);
+    "Unknown temporal type for bounding box function: %s",
+    meostype_name(temptype));
   return SIZE_MAX; /* make compiler quiet */
 }
 
@@ -223,9 +229,14 @@ tinstant_set_bbox(const TInstant *inst, void *box)
   else if (inst->temptype == T_TNPOINT)
     tnpointinst_set_stbox(inst, (STBox *) box);
 #endif
+#if POSE
+  else if (inst->temptype == T_TPOSE)
+    tposeinst_set_stbox(inst, (STBox *) box);
+#endif
   else
     meos_error(ERROR, MEOS_ERR_INTERNAL_TYPE_ERROR,
-      "Unknown temporal type for bounding box function: %d", inst->temptype);
+      "Unknown temporal type for bounding box function: %s",
+      meostype_name(inst->temptype));
   return;
 }
 
@@ -410,10 +421,15 @@ tinstarr_compute_bbox(const TInstant **instants, int count, bool lower_inc,
   else if (temptype == T_TNPOINT)
     tnpointinstarr_set_stbox(instants, count, interp, (STBox *) box);
 #endif
+#if POSE
+  else if (temptype == T_TPOSE)
+    tposeinstarr_set_stbox(instants, count, (STBox *) box);
+#endif
   else
   {
     meos_error(ERROR, MEOS_ERR_INTERNAL_TYPE_ERROR,
-      "Unknown temporal type for bounding box function: %d", temptype);
+      "Unknown temporal type for bounding box function: %s",
+      meostype_name(temptype));
     return;
   }
   /* Set the lower_inc and upper_inc bounds of the period at the beginning
@@ -433,7 +449,7 @@ static void
 tnumberseq_expand_tbox(TSequence *seq, const TInstant *inst)
 {
   TBox box;
-  tinstant_set_bbox(inst, &box);
+  tnumberinst_set_tbox(inst, &box);
   tbox_expand(&box, (TBox *) TSEQUENCE_BBOX_PTR(seq));
   return;
 }
@@ -461,9 +477,14 @@ tsequence_expand_bbox(TSequence *seq, const TInstant *inst)
   else if (seq->temptype == T_TNPOINT)
     tnpointseq_expand_stbox(seq, inst);
 #endif
+#if POSE
+  else if (seq->temptype == T_TPOSE)
+    tposeseq_expand_stbox(seq, inst);
+#endif
   else
     meos_error(ERROR, MEOS_ERR_INTERNAL_TYPE_ERROR,
-      "Unknown temporal type for bounding box function: %d", seq->temptype);
+      "Unknown temporal type for bounding box function: %s",
+      meostype_name(seq->temptype));
   return;
 }
 
@@ -489,7 +510,8 @@ tsequenceset_expand_bbox(TSequenceSet *ss, const TSequence *seq)
       (STBox *) TSEQUENCE_BBOX_PTR(ss));
   else
     meos_error(ERROR, MEOS_ERR_INTERNAL_TYPE_ERROR,
-      "Unknown temporal type for bounding box function: %d", ss->temptype);
+      "Unknown temporal type for bounding box function: %s",
+      meostype_name(ss->temptype));
   return;
 }
 
@@ -545,8 +567,8 @@ tseqarr_compute_bbox(const TSequence **sequences, int count, void *box)
     tpointseqarr_set_stbox(sequences, count, (STBox *) box);
   else
     meos_error(ERROR, MEOS_ERR_INTERNAL_TYPE_ERROR,
-      "Unknown temporal type for bounding box function: %d",
-      sequences[0]->temptype);
+      "Unknown temporal type for bounding box function: %s",
+      meostype_name(sequences[0]->temptype));
   return;
 }
 
@@ -590,8 +612,7 @@ tsequenceset_compute_bbox(TSequenceSet *ss)
 
 /*****************************************************************************
  * Spans functions for temporal values
- * These functions can be used for defining Multi-Entry Search Trees (a.k.a.
- * VODKA) indexes
+ * These functions can be used for defining Multi-Entry Search Trees indexes
  * https://www.pgcon.org/2014/schedule/events/696.en.html
  * https://github.com/MobilityDB/mest
  *****************************************************************************/
@@ -605,182 +626,98 @@ static void
 tinstant_set_span(const TInstant *inst, Span *result)
 {
   assert(inst); assert(result);
-  span_set(TimestampTzGetDatum(inst->t), TimestampTzGetDatum(inst->t), 
+  span_set(TimestampTzGetDatum(inst->t), TimestampTzGetDatum(inst->t),
     true, true, T_TIMESTAMPTZ, T_TSTZSPAN, result);
   return;
 }
 
 /**
  * @ingroup meos_internal_temporal_bbox
- * @brief Return an array of maximum n spans from a temporal instant
- * @param[in] inst Temporal value
- * @param[out] count Number of elements in the output array
+ * @brief Return a singleton array of spans from a temporal instant
+ * @param[in] inst Temporal instant
  */
 Span *
-tinstant_spans(const TInstant *inst, int *count)
+tinstant_spans(const TInstant *inst)
 {
   assert(inst);
   Span *result = palloc(sizeof(Span));
   tinstant_set_span(inst, result);
-  *count = 1;
   return result;
 }
 
-
 /**
- * @brief Return an array of maximum n spans from the instants of a
- * temporal sequence with discrete interpolation (iterator function)
+ * @brief Return an array of spans from the instants of a temporal sequence
+ * with discrete interpolation
  * @param[in] seq Temporal value
- * @param[in] max_count Maximum number of elements in the output array
- * If the value is < 1, the result is one span per segment
- * @param[out] result Temporal span
- * @return Number of elements in the array
  */
-static int
-tdiscseq_spans_iter(const TSequence *seq, int max_count, Span *result)
+static Span *
+tdiscseq_spans(const TSequence *seq)
 {
-  assert(MEOS_FLAGS_GET_INTERP(seq->flags) == DISCRETE); 
-  assert(seq->count > 1);
-  /* Temporal sequence has at least 2 instants */
-  int nsegs = seq->count - 1;
-  if (max_count < 1 || nsegs <= max_count)
-  {
-    /* One bounding span per instant */
-    for (int i = 0; i < seq->count; i++)
-      tinstant_set_span(TSEQUENCE_INST_N(seq, i), &result[i]);
-    return nsegs;
-  }
-  else
-  {
-    /* One bounding span per several consecutive instants */
-    /* Minimum number of input instants merged together in an output span */
-    int size = nsegs / max_count;
-    /* Number of output boxes that result from merging (size + 1) instants */
-    int remainder = nsegs % max_count;
-    int i = 0; /* Loop variable for input instants */
-    int k = 0; /* Loop variable for output boxes */
-    while (k < max_count)
-    {
-      int j = i + size;
-      if (k < remainder)
-        j++;
-      assert(i < j);
-      tinstant_set_span(TSEQUENCE_INST_N(seq, i), &result[k]);
-      for (int l = i + 1; l <= j; l++)
-      {
-        const TInstant *inst = TSEQUENCE_INST_N(seq, l);
-        Span span;
-        tinstant_set_span(inst, &span);
-        span_expand(&span, &result[k]);
-      }
-      k++;
-      i = j;
-    }
-    return max_count;
-  }
+  assert(seq); assert(MEOS_FLAGS_GET_INTERP(seq->flags) == DISCRETE);
+  /* One bounding span per instant */
+  Span *result = palloc(sizeof(Span) * seq->count);
+  for (int i = 0; i < seq->count; i++)
+    tinstant_set_span(TSEQUENCE_INST_N(seq, i), &result[i]);
+  return result;
 }
 
 /**
- * @brief Return an array of maximum n spans from the segments of a
- * temporal sequence with continuous interpolation (iterator function)
+ * @brief Return an array of spans from the segments of a temporal sequence
+ * with continuous interpolation (iterator function)
  * @param[in] seq Temporal value
- * @param[in] max_count Maximum number of elements in the output array
- * If the value is < 1, the result is one span per segment
  * @param[out] result Temporal span
  * @return Number of elements in the array
  */
 static int
-tcontseq_spans_iter(const TSequence *seq, int max_count, Span *result)
+tcontseq_spans_iter(const TSequence *seq, Span *result)
 {
-  assert(MEOS_FLAGS_GET_INTERP(seq->flags) != DISCRETE); 
-  assert(seq->count > 1);
-  /* Temporal sequence has at least 2 instants */
-  int nsegs = seq->count - 1;
-  if (max_count < 1 || nsegs <= max_count)
-  {
-    /* One bounding span per segment */
-    const TInstant *inst1 = TSEQUENCE_INST_N(seq, 0);
-    for (int i = 0; i < seq->count - 1; i++)
-    {
-      tinstant_set_span(inst1, &result[i]);
-      const TInstant *inst2 = TSEQUENCE_INST_N(seq, i + 1);
-      Span span;
-      tinstant_set_span(inst2, &span);
-      span_expand(&span, &result[i]);
-      inst1 = inst2;
-    }
-    return nsegs;
-  }
-  else
-  {
-    /* One bounding span per several consecutive segments */
-    /* Minimum number of input segments merged together in an output span */
-    int size = nsegs / max_count;
-    /* Number of output boxes that result from merging (size + 1) segments */
-    int remainder = nsegs % max_count;
-    int i = 0; /* Loop variable for input segments */
-    int k = 0; /* Loop variable for output boxes */
-    while (k < max_count)
-    {
-      int j = i + size;
-      if (k < remainder)
-        j++;
-      assert(i < j);
-      tinstant_set_span(TSEQUENCE_INST_N(seq, i), &result[k]);
-      for (int l = i + 1; l <= j; l++)
-      {
-        const TInstant *inst = TSEQUENCE_INST_N(seq, l);
-        Span span;
-        tinstant_set_span(inst, &span);
-        span_expand(&span, &result[k]);
-      }
-      k++;
-      i = j;
-    }
-    return max_count;
-  }
-}
+  assert(seq); assert(result);
+  assert(MEOS_FLAGS_GET_INTERP(seq->flags) != DISCRETE);
 
-/**
- * @brief Return an array of maximum n spans from the instants or
- * segments of a temporal sequence (iterator function)
- * @param[in] seq Temporal value
- * @param[in] max_count Maximum number of elements in the output array
- * If the value is < 1, the result is one span per segment
- * @param[out] result Temporal span
- * @return Number of elements in the array
- */
-static int
-tsequence_spans_iter(const TSequence *seq, int max_count, Span *result)
-{
   /* Instantaneous sequence */
   if (seq->count == 1)
   {
     tinstant_set_span(TSEQUENCE_INST_N(seq, 0), &result[0]);
     return 1;
   }
-  return (MEOS_FLAGS_GET_INTERP(seq->flags) == DISCRETE) ?
-    tdiscseq_spans_iter(seq, max_count, result) :
-    tcontseq_spans_iter(seq, max_count, result);
+
+  /* One bounding span per segment */
+  const TInstant *inst = TSEQUENCE_INST_N(seq, 0);
+  for (int i = 0; i < seq->count - 1; i++)
+  {
+    tinstant_set_span(inst, &result[i]);
+    inst = TSEQUENCE_INST_N(seq, i + 1);
+    Span span;
+    tinstant_set_span(inst, &span);
+    span_expand(&span, &result[i]);
+  }
+  return seq->count - 1;
 }
 
 /**
  * @ingroup meos_internal_temporal_bbox
- * @brief Return an array of maximum n spans from the segments
- * of a temporal number sequence
+ * @brief Return an array of spans from the instants or segments of a temporal
+ * sequence, where the choice between instants or segments depends,
+ * respectively, on whether the interpolation is discrete or continuous
  * @param[in] seq Temporal sequence
- * @param[in] max_count Maximum number of elements in the output array
- * If the value is < 1, the result is one span per segment
  * @param[out] count Number of elements in the output array
  */
 Span *
-tsequence_spans(const TSequence *seq, int max_count, int *count)
+tsequence_spans(const TSequence *seq, int *count)
 {
   assert(seq); assert(count);
-  int nboxes = (max_count < 1) ?
-    ( seq->count == 1 ? 1 : seq->count - 1 ) : max_count;
-  Span *result = palloc(sizeof(Span) * nboxes);
-  *count = tsequence_spans_iter(seq, max_count, result);
+
+  /* Discrete case */
+  if (MEOS_FLAGS_GET_INTERP(seq->flags) == DISCRETE)
+  {
+    *count = seq->count;
+    return tdiscseq_spans(seq);
+  }
+
+  /* Continuous case */
+  int nspans = (seq->count == 1) ? 1 : seq->count - 1;
+  Span *result = palloc(sizeof(Span) * nspans);
+  *count = tcontseq_spans_iter(seq, result);
   return result;
 }
 
@@ -788,380 +725,592 @@ tsequence_spans(const TSequence *seq, int max_count, int *count)
  * @ingroup meos_internal_temporal_bbox
  * @brief Return an array of spans from the segments of a temporal sequence set
  * @param[in] ss Temporal sequence set
- * @param[in] max_count Maximum number of elements in the output array
- * If the value is < 1, the result is one span per segment
  * @param[out] count Number of elements in the output array
  */
 Span *
-tsequenceset_spans(const TSequenceSet *ss, int max_count, int *count)
+tsequenceset_spans(const TSequenceSet *ss, int *count)
 {
   assert(ss); assert(count);
-  int nboxes = (max_count < 1) ? ss->totalcount : max_count;
-  Span *result = palloc(sizeof(Span) * nboxes);
-  int nboxes1;
-  if (max_count < 1 || ss->totalcount <= max_count)
-  {
-    /* One bounding span per segment */
-    nboxes1 = 0;
-    for (int i = 0; i < ss->count; i++)
-      nboxes1 += tsequence_spans_iter(TSEQUENCESET_SEQ_N(ss, i),
-        max_count, &result[nboxes1]);
-    *count = nboxes1;
-    return result;
-  }
-  else if (ss->count <= max_count)
-  {
-    /* Amount of bounding boxes per composing sequence determined from the
-     * proportion of seq->count and ss->totalcount */
-    nboxes1 = 0;
-    for (int i = 0; i < ss->count; i++)
-    {
-      const TSequence *seq = TSEQUENCESET_SEQ_N(ss, i);
-      int nboxes_seq = (int) (max_count * seq->count * 1.0 / ss->totalcount);
-      if (! nboxes_seq)
-        nboxes_seq = 1;
-      nboxes1 += tsequence_spans_iter(seq, nboxes_seq,
-        &result[nboxes1]);
-    }
-    *count = nboxes1;
-    return result;
-  }
-  else
-  {
-    /* Merge consecutive sequences to reach the maximum number of boxes */
-    /* Minimum number of sequences merged together in an output span */
-    int size = ss->count / max_count;
-    /* Number of output boxes that result from merging (size + 1) sequences */
-    int remainder = ss->count % max_count;
-    int i = 0; /* Loop variable for input sequences */
-    int k = 0; /* Loop variable for output boxes */
-    while (k < max_count)
-    {
-      int j = i + size - 1;
-      if (k < remainder)
-        j++;
-      if (i < j)
-      {
-        tsequence_spans_iter(TSEQUENCESET_SEQ_N(ss, i), 1,
-          &result[k]);
-        for (int l = i + 1; l <= j; l++)
-        {
-          Span span;
-          tsequence_spans_iter(TSEQUENCESET_SEQ_N(ss, l), 1, &span);
-          span_expand(&span, &result[k]);
-        }
-        i = j + 1;
-        k++;
-      }
-      else
-        tsequence_spans_iter(TSEQUENCESET_SEQ_N(ss, i++), 1,
-          &result[k++]);
-    }
-    *count = max_count;
-    return result;
-  }
+  /* One bounding span per segment */
+  Span *result = palloc(sizeof(Span) * ss->totalcount);
+  int nboxes = 0;
+  for (int i = 0; i < ss->count; i++)
+    nboxes += tcontseq_spans_iter(TSEQUENCESET_SEQ_N(ss, i), &result[nboxes]);
+  assert(nboxes <= ss->totalcount);
+  *count = nboxes;
+  return result;
 }
 
 /**
  * @ingroup meos_temporal_bbox
- * @brief Return an array of spans from the segments of a temporal value
+ * @brief Return an array of spans from the instants or segments of a temporal
+ * value, where the choice between instants or segments depends, respectively,
+ * on whether the interpolation is discrete or continuous
  * @param[in] temp Temporal value
- * @param[in] max_count Maximum number of elements in the output array.
- * If the value is < 1, the result is one span per segment
  * @param[out] count Number of values of the output array
  * @return On error return @p NULL
  * @csqlfn #Temporal_spans()
  */
 Span *
-temporal_spans(const Temporal *temp, int max_count, int *count)
+temporal_spans(const Temporal *temp, int *count)
 {
   /* Ensure validity of the arguments */
   if (! ensure_not_null((void *) temp) || ! ensure_not_null((void *) count))
     return NULL;
 
   assert(temptype_subtype(temp->subtype));
-  if (temp->subtype == TINSTANT)
-    return tinstant_spans((TInstant *) temp, count);
-  else if (temp->subtype == TSEQUENCE)
-    return tsequence_spans((TSequence *) temp, max_count, count);
-  else /* TSEQUENCESET */
-    return tsequenceset_spans((TSequenceSet *) temp, max_count, count);
+  switch (temp->subtype)
+  {
+    case TINSTANT:
+      *count = 1;
+      return tinstant_spans((TInstant *) temp);
+    case TSEQUENCE:
+      return tsequence_spans((TSequence *) temp, count);
+    default: /* TSEQUENCESET */
+      return tsequenceset_spans((TSequenceSet *) temp, count);
+  }
+}
+
+/*****************************************************************************/
+
+/**
+ * @brief Return an array of N spans from the instants of a temporal sequence
+ * with discrete interpolation
+ * @param[in] seq Temporal sequence
+ * @param[in] span_count Number of spans
+ * @param[out] count Number of elements in the output array
+ * @return If the number of instants in the sequence is <= `span_count`, the
+ * result contains one span per instant. Otherwise, consecutive instants are 
+ * combined into a single span in the result to reach the number of spans.
+ */
+static Span *
+tdiscseq_split_n_spans(const TSequence *seq, int span_count, int *count)
+{
+  assert(seq); assert(count); assert(span_count > 0);
+  assert(MEOS_FLAGS_GET_INTERP(seq->flags) == DISCRETE);
+
+  /* One bounding span per instant */
+  if (seq->count <= span_count)
+  {
+    *count = seq->count;
+    return tdiscseq_spans(seq);
+  }
+
+  /* One bounding span per several consecutive instants */
+  Span *result = palloc(sizeof(Span) * seq->count);
+  /* Minimum number of input instants merged together in an output span */
+  int size = seq->count / span_count;
+  /* Number of output boxes that result from merging (size + 1) instants */
+  int remainder = seq->count % span_count;
+  int i = 0; /* Loop variable for input instants */
+  for (int k = 0; k < span_count; k++)
+  {
+    int j = i + size;
+    if (k < remainder)
+      j++;
+    tinstant_set_span(TSEQUENCE_INST_N(seq, i), &result[k]);
+    if (i < j - 1)
+    {
+      Span span;
+      tinstant_set_span(TSEQUENCE_INST_N(seq, j - 1), &span);
+      span_expand(&span, &result[k]);
+    }
+    i = j;
+  }
+  assert(i == seq->count);
+  *count = span_count;
+  return result;
+}
+
+/**
+ * @brief Return an array of N spans from the segments of a temporal sequence
+ * with continuous interpolation (iterator function)
+ * @param[in] seq Temporal sequence
+ * @param[in] span_count Number of spans
+ * @param[in] result Array of spans. If the number of segments in the sequence
+ * is <= `span_count`, the result contains one span per segment. Otherwise, 
+ * consecutive segments are combined into a single span in the result to reach 
+ * the number of spans.
+ * @return Number of elements in the output array
+ */
+static int
+tcontseq_split_n_spans_iter(const TSequence *seq, int span_count, Span *result)
+{
+  assert(seq); assert(result); assert(span_count > 0);
+  assert(MEOS_FLAGS_GET_INTERP(seq->flags) != DISCRETE);
+
+  /* Instantaneous sequence */
+  if (seq->count == 1)
+  {
+    tinstant_set_span(TSEQUENCE_INST_N(seq, 0), &result[0]);
+    return 1;
+  }
+
+  /* One bounding span per segment */
+  int nsegs = seq->count - 1;
+  if (nsegs <= span_count)
+    return tcontseq_spans_iter(seq, result);
+
+  /* One bounding span per several consecutive segments */
+  /* Minimum number of input segments merged together in an output span */
+  int size = nsegs / span_count;
+  /* Number of output boxes that result from merging (size + 1) segments */
+  int remainder = nsegs % span_count;
+  int i = 0; /* Loop variable for input segments */
+  for (int k = 0; k < span_count; k++)
+  {
+    int j = i + size;
+    if (k < remainder)
+      j++;
+    tinstant_set_span(TSEQUENCE_INST_N(seq, i), &result[k]);
+    Span span;
+    tinstant_set_span(TSEQUENCE_INST_N(seq, j), &span);
+    span_expand(&span, &result[k]);
+    i = j;
+  }
+  assert(i == nsegs);
+  return span_count;
+}
+
+/**
+ * @ingroup meos_internal_temporal_bbox
+ * @brief Return an array of N spans from the instants or segments of a
+ * temporal sequence, where the choice between instants or segments depends,
+ * respectively, on whether the interpolation is discrete or continuous
+ * @param[in] seq Temporal sequence
+ * @param[in] span_count Number of spans
+ * @param[out] count Number of elements in the output array
+ * @return If the number of instants or segments in the sequence is <= 
+ * `span_count`, the result contains one span per instant or segment.
+ * Otherwise, consecutive instants or segments are combined into a single span 
+ * in the result to reach the number of spans.
+ */
+Span *
+tsequence_split_n_spans(const TSequence *seq, int span_count, int *count)
+{
+  assert(seq); assert(count); assert(span_count > 0);
+
+  /* Discrete case */
+  if (MEOS_FLAGS_GET_INTERP(seq->flags) == DISCRETE)
+    return tdiscseq_split_n_spans(seq, span_count, count);
+
+  /* Continuous case */
+  int nspans = (seq->count - 1 <= span_count) ?
+    (seq->count == 1 ? 1 : seq->count - 1) : span_count;
+  Span *result = palloc(sizeof(Span) * nspans);
+  *count = tcontseq_split_n_spans_iter(seq, span_count, result);
+  return result;
+}
+
+/**
+ * @ingroup meos_internal_temporal_bbox
+ * @brief Return an array of N spans from the segments of a temporal sequence
+ * set
+ * @param[in] ss Temporal sequence set
+ * @param[in] span_count Number of spans
+ * @param[out] count Number of elements in the output array
+ * @return If the number of segments in the temporal sequence set is <=
+ * `span_count`, the result contains one span per segment. Otherwise,
+ * consecutive segments are combined into a single span in the result to reach
+ * the number of spans.
+ */
+Span *
+tsequenceset_split_n_spans(const TSequenceSet *ss, int span_count, int *count)
+{
+  assert(ss); assert(count); assert(span_count > 0);
+
+  /* One bounding span per segment */
+  int nspans = (ss->totalcount <= span_count) ? ss->totalcount : span_count;
+  Span *result = palloc(sizeof(Span) * nspans);
+  if (ss->totalcount <= span_count)
+    return tsequenceset_spans(ss, count);
+
+  /* Number of spans per composing sequence determined from the proportion of
+   * seq->count and ss->totalcount */
+  if (ss->count <= span_count)
+  {
+    int nspans1 = 0;
+    for (int i = 0; i < ss->count; i++)
+    {
+      const TSequence *seq = TSEQUENCESET_SEQ_N(ss, i);
+      int nspans_seq = (int) (span_count * seq->count * 1.0 / ss->totalcount);
+      if (! nspans_seq)
+        nspans_seq = 1;
+      nspans1 += tcontseq_split_n_spans_iter(seq, nspans_seq,
+        &result[nspans1]);
+    }
+    assert(nspans1 <= span_count);
+    *count = nspans1;
+    return result;
+  }
+
+  /* Merge consecutive sequences to reach the maximum number of spans */
+  /* Minimum number of sequences merged together in an output span */
+  int size = ss->count / span_count;
+  /* Number of output spans that result from merging (size + 1) sequences */
+  int remainder = ss->count % span_count;
+  int i = 0; /* Loop variable for input sequences */
+  for (int k = 0; k < span_count; k++)
+  {
+    int j = i + size;
+    if (k < remainder)
+      j++;
+    tcontseq_split_n_spans_iter(TSEQUENCESET_SEQ_N(ss, i), 1, &result[k]);
+    if (i < j - 1)
+    {
+      Span span;
+      tcontseq_split_n_spans_iter(TSEQUENCESET_SEQ_N(ss, j - 1), 1, &span);
+      span_expand(&span, &result[k]);
+    }
+    i = j;
+  }
+  assert(i == ss->count);
+  *count = span_count;
+  return result;
+}
+
+/**
+ * @ingroup meos_temporal_bbox
+ * @brief Return an array of N spans from the instants or segments of a 
+ * temporal value, where the choice between instants or segments depends, 
+ * respectively, on whether the interpolation is discrete or continuous
+ * @param[in] temp Temporal value
+ * @param[in] span_count Number of spans
+ * @param[out] count Number of values of the output array
+ * @return If the number of instants or segments is <= `span_count`, the result
+ * contains one span per instant or segment. Otherwise, consecutive instants or
+ * segments are combined into a single span in the result to reach the number
+ * of spans. On error return @p NULL
+ * @csqlfn #Temporal_split_n_spans()
+ */
+Span *
+temporal_split_n_spans(const Temporal *temp, int span_count, int *count)
+{
+  /* Ensure validity of the arguments */
+  if (! ensure_not_null((void *) temp) || ! ensure_not_null((void *) count) ||
+      ! ensure_positive(span_count))
+    return NULL;
+
+  assert(temptype_subtype(temp->subtype));
+  switch (temp->subtype)
+  {
+    case TINSTANT:
+      *count = 1;
+      return tinstant_spans((TInstant *) temp);
+    case TSEQUENCE:
+      return tsequence_split_n_spans((TSequence *) temp, span_count, count);
+    default: /* TSEQUENCESET */
+      return tsequenceset_split_n_spans((TSequenceSet *) temp, span_count,
+        count);
+  }
+}
+
+/*****************************************************************************
+ * Split_each_n_spans functions
+ *****************************************************************************/
+
+/**
+ * @brief Return an array of spans obtained by merging consecutive instants
+ * from a temporal number sequence with discrete interpolation 
+ * @param[in] seq Temporal sequence
+ * @param[in] elems_per_span Number of instants merged into an output span
+ * @param[out] count Number of elements in the output array
+ */
+static Span *
+tdiscseq_split_each_n_spans(const TSequence *seq, int elems_per_span,
+  int *count)
+{
+  assert(seq); assert(count); assert(elems_per_span > 0);
+  assert(MEOS_FLAGS_GET_INTERP(seq->flags) == DISCRETE);
+
+  int nspans = ceil((double) seq->count / (double) elems_per_span);
+  Span *result = palloc(sizeof(Span) * nspans);
+  int k = 0;
+  for (int i = 0; i < seq->count; ++i)
+  {
+    if (i % elems_per_span == 0)
+      tinstant_set_span(TSEQUENCE_INST_N(seq, i), &result[k++]);
+    else
+    {
+      Span span;
+      tinstant_set_span(TSEQUENCE_INST_N(seq, i), &span);
+      span_expand(&span, &result[k - 1]);
+    }
+  }
+  assert(k == nspans);
+  *count = k;
+  return result;
+}
+
+/**
+ * @brief Return an array of spans of a temporal number sequence with 
+ * continuous interpolation obtained by merging consecutive segments
+ * (iterator function)
+ * @param[in] seq Temporal value
+ * @param[in] elems_per_span Number of segments merged into an output span
+ * @param[out] result Array of spans
+ * @return Number of elements in the output array
+ */
+static int
+tcontseq_split_each_n_spans_iter(const TSequence *seq, int elems_per_span,
+  Span *result)
+{
+  assert(seq); assert(result); assert(elems_per_span > 0);
+  assert(MEOS_FLAGS_GET_INTERP(seq->flags) != DISCRETE);
+
+  /* Instantaneous sequence */
+  if (seq->count == 1)
+  {
+    tsequence_set_tstzspan(seq, &result[0]);
+    return 1;
+  }
+
+  /* General case */
+  int k = 0;
+  tinstant_set_span(TSEQUENCE_INST_N(seq, 0), &result[k]);
+  for (int i = 1; i < seq->count; ++i)
+  {
+    Span span;
+    tinstant_set_span(TSEQUENCE_INST_N(seq, i), &span);
+    span_expand(&span, &result[k]);
+    if ((i % elems_per_span == 0) && (i < seq->count - 1))
+      result[++k] = span;
+  }
+  int nspans = ceil((double) (seq->count - 1) / (double) elems_per_span);
+  assert(k + 1 == nspans);
+  return nspans;
+}
+
+/**
+ * @ingroup meos_internal_temporal_bbox
+ * @brief Return an array of spans of a temporal number sequence obtained
+ * by merging consecutive instants or segments, where the choice between
+ * instants or segments depends, respectively, on whether the interpolation
+ * is discrete or continuous
+ * @param[in] seq Temporal sequence
+ * @param[in] elems_per_span Number of segments merged into an output span
+ * @param[out] count Number of elements in the output array
+ */
+static Span *
+tsequence_split_each_n_spans(const TSequence *seq, int elems_per_span,
+  int *count)
+{
+  assert(seq); assert(count); assert(elems_per_span > 0);
+
+  if (MEOS_FLAGS_GET_INTERP(seq->flags) == DISCRETE)
+    return tdiscseq_split_each_n_spans(seq, elems_per_span, count);
+
+  /* Number of instants or segments */
+  int nelems = (seq->count == 1) ? 1 : seq->count - 1;
+  int nspans = ceil((double) nelems / (double) elems_per_span);
+  Span *result = palloc(sizeof(Span) * nspans);
+  *count = tcontseq_split_each_n_spans_iter(seq, elems_per_span, result);
+  return result;
+}
+
+/**
+ * @ingroup meos_internal_temporal_bbox
+ * @brief Return an array of spans of a temporal number sequence set
+ * obtained by merging consecutive segments
+ * @param[in] ss Temporal sequence set
+ * @param[in] elems_per_span Number of segments merged into an output span
+ * @param[out] count Number of elements in the output array
+ */
+static Span *
+tsequenceset_split_each_n_spans(const TSequenceSet *ss, int elems_per_span,
+  int *count)
+{
+  assert(ss); assert(count); assert(elems_per_span > 0);
+
+  /* Singleton sequence set */
+  if (ss->count == 1)
+    return tsequence_split_each_n_spans(TSEQUENCESET_SEQ_N(ss, 0),
+      elems_per_span, count);
+
+  /* Iterate for every composing sequence */
+  int nspans = 0;
+  Span *result = palloc(sizeof(Span) * ss->totalcount);
+  for (int i = 0; i < ss->count; ++i)
+    nspans += tcontseq_split_each_n_spans_iter(TSEQUENCESET_SEQ_N(ss, i),
+      elems_per_span, &result[nspans]);
+  *count = nspans;
+  return result;
+}
+
+/**
+ * @ingroup meos_temporal_bbox
+ * @brief Return an array of spans from the instants or segments of a temporal
+ * value, where the choice between instants or segments depends, respectively,
+ * on whether the interpolation is discrete or continuous
+ * @param[in] temp Temporal value
+ * @param[in] elems_per_span Number of input instants or segments merged into an
+ * output span
+ * @param[out] count Number of spans of the output array
+ * @return If the number of instants or segments is <= `elems_per_span`, the
+ * result contains a single span. Otherwise, the number consecutive input
+ * instants or segments are combined into a single output span in the result.
+ * On error return @p NULL
+ * @csqlfn #Temporal_split_each_n_spans()
+ */
+Span *
+temporal_split_each_n_spans(const Temporal *temp, int elems_per_span,
+  int *count)
+{
+  /* Ensure validity of the arguments */
+  if (! ensure_not_null((void *) temp) || ! ensure_not_null((void *) count) ||
+      ! ensure_positive(elems_per_span))
+    return NULL;
+
+  assert(temptype_subtype(temp->subtype));
+  switch (temp->subtype)
+  {
+    case TINSTANT:
+      *count = 1;
+      return tinstant_spans((TInstant *) temp);
+    case TSEQUENCE:
+      return tsequence_split_each_n_spans((TSequence *) temp, elems_per_span,
+        count);
+    default: /* TSEQUENCESET */
+      return tsequenceset_split_each_n_spans((TSequenceSet *) temp,
+        elems_per_span, count);
+  }
 }
 
 /*****************************************************************************
  * Boxes functions
- * These functions can be used for defining Multi-Entry Search Trees (a.k.a.
- * VODKA) indexes
+ * These functions can be used for defining Multi-Entry Search Trees indexes
  * https://www.pgcon.org/2014/schedule/events/696.en.html
  * https://github.com/MobilityDB/mest
  *****************************************************************************/
 
 /**
  * @ingroup meos_internal_temporal_bbox
- * @brief Return an array of maximum n temporal boxes from a temporal number
+ * @brief Return a singleton array of temporal boxes from a temporal number
  * instant
  * @param[in] inst Temporal value
- * @param[out] count Number of elements in the output array
  */
 TBox *
-tnumberinst_tboxes(const TInstant *inst, int *count)
+tnumberinst_tboxes(const TInstant *inst)
 {
   assert(inst); assert(tnumber_type(inst->temptype));
   TBox *result = palloc(sizeof(TBox));
   tnumberinst_set_tbox(inst, &result[0]);
-  *count = 1;
   return result;
 }
 
 /**
- * @brief Return an array of maximum n temporal boxes from the instants of a
- * temporal number sequence with discrete interpolation (iterator function)
- * @param[in] seq Temporal value
- * @param[in] max_count Maximum number of elements in the output array
- * If the value is < 1, the result is one box per segment
- * @param[out] result Temporal box
- * @return Number of elements in the array
+ * @brief Return an array of temporal boxes from the instants of a temporal
+ * number sequence with discrete interpolation
+ * @param[in] seq Temporal sequence
  */
-static int
-tnumberseq_disc_tboxes_iter(const TSequence *seq, int max_count, TBox *result)
+static TBox *
+tnumberseq_disc_tboxes(const TSequence *seq)
 {
-  assert(MEOS_FLAGS_LINEAR_INTERP(seq->flags) == DISCRETE); 
-  assert(seq->count > 1);
-  /* Temporal sequence has at least 2 instants */
-  int nsegs = seq->count - 1;
-  if (max_count < 1 || nsegs <= max_count)
-  {
-    /* One bounding box per instant */
-    for (int i = 0; i < seq->count; i++)
-      tnumberinst_set_tbox(TSEQUENCE_INST_N(seq, i), &result[i]);
-    return nsegs;
-  }
-  else
-  {
-    /* One bounding box per several consecutive instants */
-    /* Minimum number of input instants merged together in an output box */
-    int size = nsegs / max_count;
-    /* Number of output boxes that result from merging (size + 1) instants */
-    int remainder = nsegs % max_count;
-    int i = 0; /* Loop variable for input instants */
-    int k = 0; /* Loop variable for output boxes */
-    while (k < max_count)
-    {
-      int j = i + size;
-      if (k < remainder)
-        j++;
-      assert(i < j);
-      tnumberinst_set_tbox(TSEQUENCE_INST_N(seq, i), &result[k]);
-      for (int l = i + 1; l <= j; l++)
-      {
-        const TInstant *inst = TSEQUENCE_INST_N(seq, l);
-        TBox box;
-        tnumberinst_set_tbox(inst, &box);
-        tbox_expand(&box, &result[k]);
-      }
-      k++;
-      i = j;
-    }
-    return max_count;
-  }
+  assert(seq); assert(tnumber_type(seq->temptype));
+  assert(MEOS_FLAGS_GET_INTERP(seq->flags) == DISCRETE);
+  /* One bounding box per instant */
+  TBox *result = palloc(sizeof(TBox) * seq->count);
+  for (int i = 0; i < seq->count; i++)
+    tnumberinst_set_tbox(TSEQUENCE_INST_N(seq, i), &result[i]);
+  return result;
 }
 
 /**
- * @brief Return an array of maximum n temporal boxes from the segments of a
- * temporal number sequence with continuous interpolation (iterator function)
+ * @brief Return an array of temporal boxes from the segments of a temporal
+ * number sequence with continuous interpolation (iterator function)
  * @param[in] seq Temporal value
- * @param[in] max_count Maximum number of elements in the output array
- * If the value is < 1, the result is one box per segment
  * @param[out] result Temporal box
  * @return Number of elements in the array
  */
 static int
-tnumberseq_cont_tboxes_iter(const TSequence *seq, int max_count, TBox *result)
+tnumberseq_cont_tboxes_iter(const TSequence *seq, TBox *result)
 {
-  assert(MEOS_FLAGS_GET_INTERP(seq->flags) != DISCRETE); assert(seq->count > 1);
-  /* Temporal sequence has at least 2 instants */
-  int nsegs = seq->count - 1;
-  if (max_count < 1 || nsegs <= max_count)
-  {
-    /* One bounding box per segment */
-    const TInstant *inst1 = TSEQUENCE_INST_N(seq, 0);
-    for (int i = 0; i < seq->count - 1; i++)
-    {
-      tnumberinst_set_tbox(inst1, &result[i]);
-      const TInstant *inst2 = TSEQUENCE_INST_N(seq, i + 1);
-      TBox box;
-      tnumberinst_set_tbox(inst2, &box);
-      tbox_expand(&box, &result[i]);
-      inst1 = inst2;
-    }
-    return nsegs;
-  }
-  else
-  {
-    /* One bounding box per several consecutive segments */
-    /* Minimum number of input segments merged together in an output box */
-    int size = nsegs / max_count;
-    /* Number of output boxes that result from merging (size + 1) segments */
-    int remainder = nsegs % max_count;
-    int i = 0; /* Loop variable for input segments */
-    int k = 0; /* Loop variable for output boxes */
-    while (k < max_count)
-    {
-      int j = i + size;
-      if (k < remainder)
-        j++;
-      assert(i < j);
-      tnumberinst_set_tbox(TSEQUENCE_INST_N(seq, i), &result[k]);
-      for (int l = i + 1; l <= j; l++)
-      {
-        const TInstant *inst = TSEQUENCE_INST_N(seq, l);
-        TBox box;
-        tnumberinst_set_tbox(inst, &box);
-        tbox_expand(&box, &result[k]);
-      }
-      k++;
-      i = j;
-    }
-    return max_count;
-  }
-}
+  assert(seq); assert(result); assert(tnumber_type(seq->temptype));
+  assert(MEOS_FLAGS_GET_INTERP(seq->flags) != DISCRETE);
 
-/**
- * @brief Return an array of maximum n temporal boxes from the instants or
- * segments of a temporal number sequence (iterator function)
- * @param[in] seq Temporal value
- * @param[in] max_count Maximum number of elements in the output array
- * If the value is < 1, the result is one box per segment
- * @param[out] result Temporal box
- * @return Number of elements in the array
- */
-static int
-tnumberseq_tboxes_iter(const TSequence *seq, int max_count, TBox *result)
-{
   /* Instantaneous sequence */
   if (seq->count == 1)
   {
     tnumberinst_set_tbox(TSEQUENCE_INST_N(seq, 0), &result[0]);
     return 1;
   }
-  return (MEOS_FLAGS_GET_INTERP(seq->flags) == DISCRETE) ?
-    tnumberseq_disc_tboxes_iter(seq, max_count, result) :
-    tnumberseq_cont_tboxes_iter(seq, max_count, result);
+
+  /* One bounding box per segment */
+  const TInstant *inst = TSEQUENCE_INST_N(seq, 0);
+  for (int i = 0; i < seq->count - 1; i++)
+  {
+    tnumberinst_set_tbox(inst, &result[i]);
+    inst = TSEQUENCE_INST_N(seq, i + 1);
+    TBox box;
+    tnumberinst_set_tbox(inst, &box);
+    tbox_expand(&box, &result[i]);
+  }
+  return seq->count - 1;
 }
 
 /**
  * @ingroup meos_internal_temporal_bbox
- * @brief Return an array of maximum n temporal boxes from the segments
- * of a temporal number sequence
+ * @brief Return an array of temporal boxes from the instants or segments of a
+ * temporal number sequence, where the choice between instants or segments
+ * depends, respectively, on whether the interpolation is discrete or
+ * continuous
  * @param[in] seq Temporal sequence
- * @param[in] max_count Maximum number of elements in the output array
- * If the value is < 1, the result is one box per segment
  * @param[out] count Number of elements in the output array
  */
 TBox *
-tnumberseq_tboxes(const TSequence *seq, int max_count, int *count)
+tnumberseq_tboxes(const TSequence *seq, int *count)
 {
   assert(seq); assert(count); assert(tnumber_type(seq->temptype));
-  int nboxes = (max_count < 1) ?
-    ( seq->count == 1 ? 1 : seq->count - 1 ) : max_count;
+
+  /* Discrete case */
+  if (MEOS_FLAGS_GET_INTERP(seq->flags) == DISCRETE)
+  {
+    *count = seq->count;
+    return tnumberseq_disc_tboxes(seq);
+  }
+
+  /* Continuous case */
+  int nboxes = (seq->count == 1) ? 1 : seq->count - 1;
   TBox *result = palloc(sizeof(TBox) * nboxes);
-  *count = tnumberseq_tboxes_iter(seq, max_count, result);
+  *count = tnumberseq_cont_tboxes_iter(seq, result);
   return result;
 }
 
 /**
  * @ingroup meos_internal_temporal_bbox
- * @brief Return an array of temporal boxes from the segments of a
- * temporal number sequence set
+ * @brief Return an array of temporal boxes from the segments of a temporal
+ * number sequence set
  * @param[in] ss Temporal sequence set
- * @param[in] max_count Maximum number of elements in the output array
- * If the value is < 1, the result is one box per segment
  * @param[out] count Number of elements in the output array
  */
 TBox *
-tnumberseqset_tboxes(const TSequenceSet *ss, int max_count, int *count)
+tnumberseqset_tboxes(const TSequenceSet *ss, int *count)
 {
   assert(ss); assert(count); assert(tnumber_type(ss->temptype));
   assert(MEOS_FLAGS_LINEAR_INTERP(ss->flags));
-  int nboxes = (max_count < 1) ? ss->totalcount : max_count;
-  TBox *result = palloc(sizeof(TBox) * nboxes);
-  int nboxes1;
-  if (max_count < 1 || ss->totalcount <= max_count)
-  {
-    /* One bounding box per segment */
-    nboxes1 = 0;
-    for (int i = 0; i < ss->count; i++)
-      nboxes1 += tnumberseq_tboxes_iter(TSEQUENCESET_SEQ_N(ss, i),
-        max_count, &result[nboxes1]);
-    *count = nboxes1;
-    return result;
-  }
-  else if (ss->count <= max_count)
-  {
-    /* Amount of bounding boxes per composing sequence determined from the
-     * proportion of seq->count and ss->totalcount */
-    nboxes1 = 0;
-    for (int i = 0; i < ss->count; i++)
-    {
-      const TSequence *seq = TSEQUENCESET_SEQ_N(ss, i);
-      int nboxes_seq = (int) (max_count * seq->count * 1.0 / ss->totalcount);
-      if (! nboxes_seq)
-        nboxes_seq = 1;
-      nboxes1 += tnumberseq_tboxes_iter(seq, nboxes_seq,
-        &result[nboxes1]);
-    }
-    *count = nboxes1;
-    return result;
-  }
-  else
-  {
-    /* Merge consecutive sequences to reach the maximum number of boxes */
-    /* Minimum number of sequences merged together in an output box */
-    int size = ss->count / max_count;
-    /* Number of output boxes that result from merging (size + 1) sequences */
-    int remainder = ss->count % max_count;
-    int i = 0; /* Loop variable for input sequences */
-    int k = 0; /* Loop variable for output boxes */
-    while (k < max_count)
-    {
-      int j = i + size - 1;
-      if (k < remainder)
-        j++;
-      if (i < j)
-      {
-        tnumberseq_tboxes_iter(TSEQUENCESET_SEQ_N(ss, i), 1,
-          &result[k]);
-        for (int l = i + 1; l <= j; l++)
-        {
-          TBox box;
-          tnumberseq_tboxes_iter(TSEQUENCESET_SEQ_N(ss, l), 1, &box);
-          tbox_expand(&box, &result[k]);
-        }
-        i = j + 1;
-        k++;
-      }
-      else
-        tnumberseq_tboxes_iter(TSEQUENCESET_SEQ_N(ss, i++), 1,
-          &result[k++]);
-    }
-    *count = max_count;
-    return result;
-  }
+  /* One bounding box per segment */
+  TBox *result = palloc(sizeof(TBox) * ss->totalcount);
+  int nboxes = 0;
+  for (int i = 0; i < ss->count; i++)
+    nboxes += tnumberseq_cont_tboxes_iter(TSEQUENCESET_SEQ_N(ss, i),
+      &result[nboxes]);
+  assert(nboxes <= ss->totalcount);
+  *count = nboxes;
+  return result;
 }
 
 /**
  * @ingroup meos_temporal_bbox
- * @brief Return an array of temporal boxes from the segments of a
- * temporal number
+ * @brief Return an array of temporal boxes from the instants or segments of a
+ * temporal number, where the choice between instants or segments depends on
+ * whether the interpolation is discrete or continuous
  * @param[in] temp Temporal value
- * @param[in] max_count Maximum number of elements in the output array.
- * If the value is < 1, the result is one box per segment
- * @param[out] count Number of values of the output array
+ * @param[out] count Number of elements in the output array
  * @return On error return @p NULL
  * @csqlfn #Tnumber_tboxes()
  */
 TBox *
-tnumber_tboxes(const Temporal *temp, int max_count, int *count)
+tnumber_tboxes(const Temporal *temp, int *count)
 {
   /* Ensure validity of the arguments */
   if (! ensure_not_null((void *) temp) || ! ensure_not_null((void *) count) ||
@@ -1169,12 +1318,436 @@ tnumber_tboxes(const Temporal *temp, int max_count, int *count)
     return NULL;
 
   assert(temptype_subtype(temp->subtype));
-  if (temp->subtype == TINSTANT)
-    return tnumberinst_tboxes((TInstant *) temp, count);
-  else if (temp->subtype == TSEQUENCE)
-    return tnumberseq_tboxes((TSequence *) temp, max_count, count);
-  else /* TSEQUENCESET */
-    return tnumberseqset_tboxes((TSequenceSet *) temp, max_count, count);
+  switch (temp->subtype)
+  {
+    case TINSTANT:
+      *count = 1;
+      return tnumberinst_tboxes((TInstant *) temp);
+    case TSEQUENCE:
+      return tnumberseq_tboxes((TSequence *) temp, count);
+    default: /* TSEQUENCESET */
+      return tnumberseqset_tboxes((TSequenceSet *) temp, count);
+  }
+}
+
+/*****************************************************************************/
+
+/**
+ * @brief Return an array of N temporal boxes from the instants of a temporal
+ * number sequence with discrete interpolation
+ * @param[in] seq Temporal sequence
+ * @param[in] box_count Number of elements in the output array
+ * @param[out] count Number of elements in the array
+ * @return If the number of instants is <= `box_count`, the result contains one
+ * box per instant
+ */
+static TBox *
+tnumberseq_disc_split_n_tboxes(const TSequence *seq, int box_count, int *count)
+{
+  assert(seq); assert(count); assert(tnumber_type(seq->temptype));
+  assert(MEOS_FLAGS_GET_INTERP(seq->flags) == DISCRETE);
+  assert(box_count > 0);
+
+  /* One bounding box per instant */
+  if (seq->count <= box_count)
+  {
+    *count = seq->count;
+    return tnumberseq_disc_tboxes(seq);
+  }
+
+  /* One bounding box per several consecutive instants */
+  TBox *result = palloc(sizeof(TBox) * seq->count);
+  /* Minimum number of input instants merged together in an output box */
+  int size = seq->count / box_count;
+  /* Number of output boxes that result from merging (size + 1) instants */
+  int remainder = seq->count % box_count;
+  int i = 0; /* Loop variable for input instants */
+  for (int k = 0; k < box_count; k++)
+  {
+    int j = i + size;
+    if (k < remainder)
+      j++;
+    tnumberinst_set_tbox(TSEQUENCE_INST_N(seq, i), &result[k]);
+    for (int l = i + 1; l < j; l++)
+    {
+      TBox box;
+      tnumberinst_set_tbox(TSEQUENCE_INST_N(seq, l), &box);
+      tbox_expand(&box, &result[k]);
+    }
+    i = j;
+  }
+  assert(i == seq->count);
+  *count = box_count;
+  return result;
+}
+
+/**
+ * @brief Return an array of N temporal boxes from the segments of a temporal
+ * number sequence with continuous interpolation (iterator function)
+ * @param[in] seq Temporal value
+ * @param[in] box_count Number of elements in the output array
+ * @param[out] result If the number of segments is <= `box_count`, the result
+ * contains one box per segment. Otherwise, consecutive segments are combined
+ * into a single box in the result to reach the given number of boxes.
+ * @return Number of elements in the output array
+ */
+static int
+tnumberseq_cont_split_n_tboxes_iter(const TSequence *seq, int box_count,
+  TBox *result)
+{
+  assert(seq); assert(result); assert(tnumber_type(seq->temptype));
+  assert(MEOS_FLAGS_GET_INTERP(seq->flags) != DISCRETE);;
+  assert(box_count > 0);
+
+  /* Instantaneous sequence */
+  if (seq->count == 1)
+  {
+    tnumberinst_set_tbox(TSEQUENCE_INST_N(seq, 0), &result[0]);
+    return 1;
+  }
+
+  /* One bounding box per segment */
+  int nsegs = seq->count - 1;
+  if (nsegs <= box_count)
+    return tnumberseq_cont_tboxes_iter(seq, result);
+
+  /* One bounding box per several consecutive segments */
+  /* Minimum number of input segments merged together in an output box */
+  int size = nsegs / box_count;
+  /* Number of output boxes that result from merging (size + 1) segments */
+  int remainder = nsegs % box_count;
+  int i = 0; /* Loop variable for input segments */
+  for (int k = 0; k < box_count; k++)
+  {
+    int j = i + size;
+    if (k < remainder)
+      j++;
+    tnumberinst_set_tbox(TSEQUENCE_INST_N(seq, i), &result[k]);
+    for (int l = i + 1; l <= j; l++)
+    {
+      TBox box;
+      tnumberinst_set_tbox(TSEQUENCE_INST_N(seq, l), &box);
+      tbox_expand(&box, &result[k]);
+    }
+    i = j;
+  }
+  assert(i == nsegs);
+  return box_count;
+}
+
+/**
+ * @ingroup meos_internal_temporal_bbox
+ * @brief Return an array of N temporal boxes from the instants or segments of
+ * a temporal number sequence, where the choice between instants or segments
+ * depends, respectively, on whether the interpolation is discrete or
+ * continuous
+ * @param[in] seq Temporal sequence
+ * @param[in] box_count Number of elements in the output array
+ * @param[out] count Number of elements in the output array
+ * @return If the number of instants or segments is <= `box_count`, the result
+ * contains one box per instant or segment. Otherwise, consecutive instants or
+ * segments are combined into a single box in the result to reach the given
+ * number of boxes.
+ */
+TBox *
+tnumberseq_split_n_tboxes(const TSequence *seq, int box_count, int *count)
+{
+  assert(seq); assert(count); assert(tnumber_type(seq->temptype));
+  assert(box_count > 0); 
+
+  /* Discrete case */
+  if (MEOS_FLAGS_GET_INTERP(seq->flags) == DISCRETE)
+    return tnumberseq_disc_split_n_tboxes(seq, box_count, count);
+
+  /* Continuous case */
+  int nboxes = (seq->count <= box_count) ?
+    (seq->count == 1 ? 1 : seq->count - 1) : box_count;
+  TBox *result = palloc(sizeof(TBox) * nboxes);
+  *count = tnumberseq_cont_split_n_tboxes_iter(seq, box_count, result);
+  return result;
+}
+
+/**
+ * @ingroup meos_internal_temporal_bbox
+ * @brief Return an array of N temporal boxes from the segments of a temporal
+ * number sequence set
+ * @param[in] ss Temporal sequence set
+ * @param[in] box_count Number of elements in the output array
+ * @param[out] count Number of elements in the output array
+ * @return If the number of segments is <= `box_count`, the result contains one
+ * box per segment. Otherwise, consecutive segments are combined into a single
+ * box in the result to reach the given number of boxes.
+ */
+TBox *
+tnumberseqset_split_n_tboxes(const TSequenceSet *ss, int box_count, int *count)
+{
+  assert(ss); assert(count); assert(tnumber_type(ss->temptype));
+  assert(box_count > 0);
+
+  /* One bounding box per segment */
+  int nboxes = (ss->totalcount <= box_count) ? ss->totalcount : box_count;
+  TBox *result = palloc(sizeof(TBox) * nboxes);
+  if (ss->totalcount <= box_count)
+    return tnumberseqset_tboxes(ss, count);
+
+  /* Number of bounding boxes per composing sequence determined from the
+   * proportion of seq->count and ss->totalcount */
+  if (ss->count <= box_count)
+  {
+    int nboxes1 = 0;
+    for (int i = 0; i < ss->count; i++)
+    {
+      bool end = false;
+      const TSequence *seq = TSEQUENCESET_SEQ_N(ss, i);
+      int nboxes_seq = (int) (box_count * seq->count * 1.0 / ss->totalcount);
+      if (! nboxes_seq)
+        nboxes_seq = 1;
+      if (nboxes_seq + nboxes1 >= box_count)
+      {
+        end = true;
+        nboxes_seq = box_count - nboxes1;
+      }
+      nboxes1 += tnumberseq_cont_split_n_tboxes_iter(seq, nboxes_seq,
+        &result[nboxes1]);
+      if (end)
+        break;
+    }
+    assert(nboxes1 <= box_count);
+    *count = nboxes1;
+    return result;
+  }
+
+  /* Merge consecutive sequences to reach the maximum number of boxes */
+  /* Minimum number of sequences merged together in an output box */
+  int size = ss->count / box_count;
+  /* Number of output boxes that result from merging (size + 1) sequences */
+  int remainder = ss->count % box_count;
+  int i = 0; /* Loop variable for input sequences */
+  for (int k = 0; k < box_count; k++)
+  {
+    int j = i + size;
+    if (k < remainder)
+      j++;
+    tnumberseq_cont_split_n_tboxes_iter(TSEQUENCESET_SEQ_N(ss, i), 1,
+      &result[k]);
+    for (int l = i + 1; l < j; l++)
+    {
+      TBox box;
+      tnumberseq_cont_split_n_tboxes_iter(TSEQUENCESET_SEQ_N(ss, l), 1, &box);
+      tbox_expand(&box, &result[k]);
+    }
+    i = j;
+  }
+  assert(i == ss->count);
+  *count = box_count;
+  return result;
+}
+
+/**
+ * @ingroup meos_temporal_bbox
+ * @brief Return an array of N temporal boxes from the instants or segments of
+ * a temporal number, where the choice between instants or segments depends,
+ * respectively, on whether the interpolation is discrete or continuous
+ * @param[in] temp Temporal number
+ * @param[in] box_count Number of boxes
+ * @param[out] count Number of values of the output array
+ * @return On error return @p NULL
+ * @csqlfn #Tnumber_split_n_tboxes()
+ */
+TBox *
+tnumber_split_n_tboxes(const Temporal *temp, int box_count, int *count)
+{
+  /* Ensure validity of the arguments */
+  if (! ensure_not_null((void *) temp) || ! ensure_not_null((void *) count) ||
+      ! ensure_tnumber_type(temp->temptype) || ! ensure_positive(box_count))
+    return NULL;
+
+  assert(temptype_subtype(temp->subtype));
+  switch (temp->subtype)
+  {
+    case TINSTANT:
+      *count = 1;
+      return tnumberinst_tboxes((TInstant *) temp);
+    case TSEQUENCE:
+      return tnumberseq_split_n_tboxes((TSequence *) temp, box_count, count);
+    default: /* TSEQUENCESET */
+      return tnumberseqset_split_n_tboxes((TSequenceSet *) temp, box_count,
+        count);
+  }
+}
+
+/*****************************************************************************
+ * split_each_n_tboxes function
+ *****************************************************************************/
+
+/**
+ * @brief Return an array of temporal boxes obtained by merging consecutive
+ * instants of a temporal number sequence with discrete interpolation 
+ * @param[in] seq Temporal sequence
+ * @param[in] elems_per_box Number of instants merged into an output box
+ * @param[out] count Number of elements in the output array
+ */
+static TBox *
+tnumberseq_disc_split_each_n_tboxes(const TSequence *seq, int elems_per_box,
+  int *count)
+{
+  assert(seq); assert(count); assert(tnumber_type(seq->temptype));
+  assert(MEOS_FLAGS_GET_INTERP(seq->flags) == DISCRETE);
+  assert(elems_per_box > 0);
+
+  int nboxes = ceil((double) seq->count / (double) elems_per_box);
+  TBox *result = palloc(sizeof(TBox) * nboxes);
+  int k = 0;
+  for (int i = 0; i < seq->count; ++i)
+  {
+    if (i % elems_per_box == 0)
+      tnumberinst_set_tbox(TSEQUENCE_INST_N(seq, i), &result[k++]);
+    else
+    {
+      TBox box;
+      tnumberinst_set_tbox(TSEQUENCE_INST_N(seq, i), &box);
+      tbox_expand(&box, &result[k - 1]);
+    }
+  }
+  assert(k == nboxes);
+  *count = k;
+  return result;
+}
+
+/**
+ * @brief Return an array of temporal boxes obtained by merging consecutive
+ * segments of a temporal number sequence with continuous interpolation 
+ * (iterator function)
+ * @param[in] seq Temporal sequence
+ * @param[in] elems_per_box Number of segments merged into an output box
+ * @param[out] result Array of temporal boxes
+ * @return Number of elements in the output array
+ */
+static int
+tnumberseq_cont_split_each_n_tboxes_iter(const TSequence *seq,
+  int elems_per_box, TBox *result)
+{
+  assert(seq); assert(result); assert(tnumber_type(seq->temptype));
+  assert(MEOS_FLAGS_GET_INTERP(seq->flags) != DISCRETE);
+  assert(elems_per_box > 0);
+
+  /* Instantaneous sequence */
+  if (seq->count == 1)
+  {
+    tnumberseq_set_tbox(seq, &result[0]);
+    return 1;
+  }
+
+  /* General case */
+  int k = 0;
+  tnumberinst_set_tbox(TSEQUENCE_INST_N(seq, 0), &result[k]);
+  for (int i = 1; i < seq->count; ++i)
+  {
+    TBox box;
+    tnumberinst_set_tbox(TSEQUENCE_INST_N(seq, i), &box);
+    tbox_expand(&box, &result[k]);
+    if ((i % elems_per_box == 0) && (i < seq->count - 1))
+      result[++k] = box;
+  }
+  int nboxes = ceil((double) (seq->count - 1) / (double) elems_per_box);
+  assert(k + 1 == nboxes);
+  return nboxes;
+}
+
+/**
+ * @ingroup meos_internal_temporal_bbox
+ * @brief Return an array of temporal boxes obtained by merging consecutive
+ * instants or segments of a temporal number sequence, where the choice between
+ * instants or segments depends, respectively, on whether the interpolation
+ * is discrete or continuous
+ * @param[in] seq Temporal sequence
+ * @param[in] elems_per_box Number of segments merged into an output box
+ * @param[out] count Number of elements in the output array
+ */
+
+static TBox *
+tnumberseq_split_each_n_tboxes(const TSequence *seq, int elems_per_box,
+  int *count)
+{
+  assert(seq); assert(count); assert(tnumber_type(seq->temptype));
+  assert(elems_per_box > 0);
+
+  if (MEOS_FLAGS_GET_INTERP(seq->flags) == DISCRETE)
+    return tnumberseq_disc_split_each_n_tboxes(seq, elems_per_box, count);
+
+  /* The number of instants or segments */
+  int nelems = (seq->count == 1) ? 1 : seq->count - 1;
+  int nboxes = ceil((double) nelems / (double) elems_per_box);
+  TBox *result = palloc(sizeof(TBox) * nboxes);
+  *count = tnumberseq_cont_split_each_n_tboxes_iter(seq, elems_per_box,
+    result);
+  return result;
+}
+
+/**
+ * @ingroup meos_internal_temporal_bbox
+ * @brief Return an array of temporal boxes obtained by merging consecutive
+ * segments of a temporal number sequence set
+ * @param[in] ss Temporal sequence set
+ * @param[in] elems_per_box Number of segments merged into an output box
+ * @param[out] count Number of elements in the output array
+ */
+static TBox *
+tnumberseqset_split_each_n_tboxes(const TSequenceSet *ss, int elems_per_box,
+  int *count)
+{
+  assert(ss); assert(count); assert(tnumber_type(ss->temptype));
+  assert(elems_per_box > 0);
+
+  /* Singleton sequence set */
+  if (ss->count == 1)
+    return tnumberseq_split_each_n_tboxes(TSEQUENCESET_SEQ_N(ss, 0),
+      elems_per_box, count);
+
+  /* Iterate for every composing sequence */
+  int nboxes = 0;
+  TBox *result = palloc(sizeof(TBox) * ss->totalcount);
+  for (int i = 0; i < ss->count; ++i)
+    nboxes += tnumberseq_cont_split_each_n_tboxes_iter(
+      TSEQUENCESET_SEQ_N(ss, i), elems_per_box, &result[nboxes]);
+  *count = nboxes;
+  return result;
+}
+
+/**
+ * @ingroup meos_temporal_bbox
+ * @brief Return an array of temporal boxes obtained by merging consecutive 
+ * instants or segments of a temporal number, where the choice between instants
+ * or segments depends, respectively, on whether the interpolation is discrete
+ * or continuous
+ * @param[in] temp Temporal number
+ * @param[in] elems_per_box Number of input elements merged in an output box
+ * @param[out] count Number of values of the output array
+ * @return On error return @p NULL
+ * @csqlfn #Tnumber_split_each_n_tboxes()
+ */
+TBox *
+tnumber_split_each_n_tboxes(const Temporal *temp, int elems_per_box, int *count)
+{
+  /* Ensure validity of the arguments */
+  if (! ensure_not_null((void *) temp) || ! ensure_not_null((void *) count) ||
+      ! ensure_tnumber_type(temp->temptype) || 
+      ! ensure_positive(elems_per_box))
+    return NULL;
+
+  assert(temptype_subtype(temp->subtype));
+  switch (temp->subtype)
+  {
+    case TINSTANT:
+      *count = 1;
+      return tnumberinst_tboxes((TInstant *) temp);
+    case TSEQUENCE:
+      return tnumberseq_split_each_n_tboxes((TSequence *) temp, elems_per_box,
+        count);
+    default: /* TSEQUENCESET */
+      return tnumberseqset_split_each_n_tboxes((TSequenceSet *) temp,
+        elems_per_box, count);
+  }
 }
 
 /*****************************************************************************
@@ -1234,7 +1807,7 @@ boxop_tnumber_tbox(const Temporal *temp, const TBox *box,
   bool (*func)(const TBox *, const TBox *), bool invert)
 {
   TBox box1;
-  temporal_set_bbox(temp, &box1);
+  tnumber_set_tbox(temp, &box1);
   return invert ? func(box, &box1) : func(&box1, box);
 }
 
@@ -1246,8 +1819,8 @@ boxop_tnumber_tnumber(const Temporal *temp1, const Temporal *temp2,
   bool (*func)(const TBox *, const TBox *))
 {
   TBox box1, box2;
-  temporal_set_bbox(temp1, &box1);
-  temporal_set_bbox(temp2, &box2);
+  tnumber_set_tbox(temp1, &box1);
+  tnumber_set_tbox(temp2, &box2);
   return func(&box1, &box2);
 }
 

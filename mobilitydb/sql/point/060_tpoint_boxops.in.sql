@@ -70,31 +70,87 @@ CREATE FUNCTION expandSpace(tgeogpoint, float)
 
 /*****************************************************************************/
 
-CREATE FUNCTION spans(tgeompoint, int DEFAULT 0)
+CREATE FUNCTION spans(tgeompoint)
   RETURNS tstzspan[]
   AS 'MODULE_PATHNAME', 'Temporal_spans'
   LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;
-CREATE FUNCTION spans(tgeogpoint, int DEFAULT 0)
+CREATE FUNCTION spans(tgeogpoint)
   RETURNS tstzspan[]
   AS 'MODULE_PATHNAME', 'Temporal_spans'
   LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;
 
-CREATE FUNCTION stboxes(tgeompoint, int DEFAULT 0)
+CREATE FUNCTION stboxes(tgeompoint)
   RETURNS stbox[]
   AS 'MODULE_PATHNAME', 'Tpoint_stboxes'
   LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;
-CREATE FUNCTION stboxes(tgeogpoint, int DEFAULT 0)
+CREATE FUNCTION stboxes(tgeogpoint)
   RETURNS stbox[]
   AS 'MODULE_PATHNAME', 'Tpoint_stboxes'
   LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;
 
-CREATE FUNCTION stboxes(geometry, int DEFAULT 0)
+CREATE FUNCTION stboxes(geometry)
   RETURNS stbox[]
   AS 'MODULE_PATHNAME', 'Geo_stboxes'
   LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;
-CREATE FUNCTION stboxes(geography, int DEFAULT 0)
+CREATE FUNCTION stboxes(geography)
   RETURNS stbox[]
   AS 'MODULE_PATHNAME', 'Geo_stboxes'
+  LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;
+
+/*****************************************************************************/
+
+CREATE FUNCTION splitNSpans(tgeompoint, integer)
+  RETURNS tstzspan[]
+  AS 'MODULE_PATHNAME', 'Temporal_split_n_spans'
+  LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;
+CREATE FUNCTION splitNSpans(tgeogpoint, integer)
+  RETURNS tstzspan[]
+  AS 'MODULE_PATHNAME', 'Temporal_split_n_spans'
+  LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;
+
+CREATE FUNCTION splitEachNSpans(tgeompoint, integer)
+  RETURNS tstzspan[]
+  AS 'MODULE_PATHNAME', 'Temporal_split_each_n_spans'
+  LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;
+CREATE FUNCTION splitEachNSpans(tgeogpoint, integer)
+  RETURNS tstzspan[]
+  AS 'MODULE_PATHNAME', 'Temporal_split_each_n_spans'
+  LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;
+
+CREATE FUNCTION splitNStboxes(tgeompoint, integer)
+  RETURNS stbox[]
+  AS 'MODULE_PATHNAME', 'Tpoint_split_n_stboxes'
+  LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;
+CREATE FUNCTION splitNStboxes(tgeogpoint, integer)
+  RETURNS stbox[]
+  AS 'MODULE_PATHNAME', 'Tpoint_split_n_stboxes'
+  LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;
+
+CREATE FUNCTION splitEachNStboxes(tgeompoint, integer)
+  RETURNS stbox[]
+  AS 'MODULE_PATHNAME', 'Tpoint_split_each_n_stboxes'
+  LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;
+CREATE FUNCTION splitEachNStboxes(tgeogpoint, integer)
+  RETURNS stbox[]
+  AS 'MODULE_PATHNAME', 'Tpoint_split_each_n_stboxes'
+  LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;
+
+CREATE FUNCTION splitNStboxes(geometry, integer)
+  RETURNS stbox[]
+  AS 'MODULE_PATHNAME', 'Geo_split_n_stboxes'
+  LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;
+CREATE FUNCTION splitNStboxes(geography, integer)
+  RETURNS stbox[]
+  AS 'MODULE_PATHNAME', 'Geo_split_n_stboxes'
+  LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;
+
+CREATE FUNCTION splitEachNStboxes(geometry, integer)
+  RETURNS stbox[]
+  AS 'MODULE_PATHNAME', 'Geo_split_each_n_stboxes'
+  LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;
+CREATE FUNCTION splitEachNStboxes(geography, integer)
+  RETURNS stbox[]
+  AS 'MODULE_PATHNAME', 'Geo_split_each_n_stboxes'
   LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;
 
 /*****************************************************************************

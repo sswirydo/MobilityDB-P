@@ -839,25 +839,67 @@ CREATE FUNCTION round(floatspanset, integer DEFAULT 0)
 
 /*****************************************************************************/
 
-CREATE FUNCTION spans(intspanset, int DEFAULT 0)
+CREATE FUNCTION spans(intspanset)
   RETURNS intspan[]
   AS 'MODULE_PATHNAME', 'Spanset_spans'
   LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;
-CREATE FUNCTION spans(bigintspanset, int DEFAULT 0)
+CREATE FUNCTION spans(bigintspanset)
   RETURNS bigintspan[]
   AS 'MODULE_PATHNAME', 'Spanset_spans'
   LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;
-CREATE FUNCTION spans(floatspanset, int DEFAULT 0)
+CREATE FUNCTION spans(floatspanset)
   RETURNS floatspan[]
   AS 'MODULE_PATHNAME', 'Spanset_spans'
   LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;
-CREATE FUNCTION spans(datespanset, int DEFAULT 0)
+CREATE FUNCTION spans(datespanset)
   RETURNS datespan[]
   AS 'MODULE_PATHNAME', 'Spanset_spans'
   LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;
-CREATE FUNCTION spans(tstzspanset, int DEFAULT 0)
+CREATE FUNCTION spans(tstzspanset)
   RETURNS tstzspan[]
   AS 'MODULE_PATHNAME', 'Spanset_spans'
+  LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;
+
+CREATE FUNCTION splitNSpans(intspanset, integer)
+  RETURNS intspan[]
+  AS 'MODULE_PATHNAME', 'Spanset_split_n_spans'
+  LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;
+CREATE FUNCTION splitNSpans(bigintspanset, integer)
+  RETURNS bigintspan[]
+  AS 'MODULE_PATHNAME', 'Spanset_split_n_spans'
+  LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;
+CREATE FUNCTION splitNSpans(floatspanset, integer)
+  RETURNS floatspan[]
+  AS 'MODULE_PATHNAME', 'Spanset_split_n_spans'
+  LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;
+CREATE FUNCTION splitNSpans(datespanset, integer)
+  RETURNS datespan[]
+  AS 'MODULE_PATHNAME', 'Spanset_split_n_spans'
+  LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;
+CREATE FUNCTION splitNSpans(tstzspanset, integer)
+  RETURNS tstzspan[]
+  AS 'MODULE_PATHNAME', 'Spanset_split_n_spans'
+  LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;
+
+CREATE FUNCTION splitEachNSpans(intspanset, integer)
+  RETURNS intspan[]
+  AS 'MODULE_PATHNAME', 'Spanset_split_each_n_spans'
+  LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;
+CREATE FUNCTION splitEachNSpans(bigintspanset, integer)
+  RETURNS bigintspan[]
+  AS 'MODULE_PATHNAME', 'Spanset_split_each_n_spans'
+  LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;
+CREATE FUNCTION splitEachNSpans(floatspanset, integer)
+  RETURNS floatspan[]
+  AS 'MODULE_PATHNAME', 'Spanset_split_each_n_spans'
+  LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;
+CREATE FUNCTION splitEachNSpans(datespanset, integer)
+  RETURNS datespan[]
+  AS 'MODULE_PATHNAME', 'Spanset_split_each_n_spans'
+  LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;
+CREATE FUNCTION splitEachNSpans(tstzspanset, integer)
+  RETURNS tstzspan[]
+  AS 'MODULE_PATHNAME', 'Spanset_split_each_n_spans'
   LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;
 
 /******************************************************************************

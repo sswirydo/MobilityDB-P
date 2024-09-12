@@ -41,10 +41,10 @@
 #include <utils/lsyscache.h>
 #include <catalog/pg_type_d.h>
 #include <utils/array.h>
+#include <utils/rangetypes.h>
 #if POSTGRESQL_VERSION_NUMBER >= 140000
   #include <utils/multirangetypes.h>
 #endif /* POSTGRESQL_VERSION_NUMBER >= 140000 */
-#include <utils/rangetypes.h>
 /* MEOS */
 #include <meos.h>
 #include <meos_internal.h>
@@ -52,6 +52,9 @@
 /* MobilityDB */
 #include "pg_general/meos_catalog.h"
 #include "pg_general/doublen.h"
+
+extern Datum range_out(PG_FUNCTION_ARGS);
+extern Datum multirange_out(PG_FUNCTION_ARGS);
 
 /*****************************************************************************
  * Call PostgreSQL functions
@@ -72,7 +75,8 @@ call_recv(meosType type, StringInfo buf)
 
   Oid typid = type_oid(type);
   if (typid == 0)
-    elog(ERROR, "Unknown type when calling receive function: %d", type);
+    elog(ERROR, "Unknown type when calling receive function: %s",
+      meostype_name(type));
   Oid recvfunc;
   Oid basetypid;
   FmgrInfo recvfuncinfo;
@@ -96,7 +100,8 @@ call_send(meosType type, Datum value)
 
   Oid typid = type_oid(type);
   if (typid == 0)
-    elog(ERROR, "Unknown type when calling send function: %d", type);
+    elog(ERROR, "Unknown type when calling send function: %s",
+      meostype_name(type));
   Oid sendfunc;
   bool isvarlena;
   FmgrInfo sendfuncinfo;
@@ -212,6 +217,21 @@ spanarr_extract(ArrayType *array, int *count)
 }
 
 /**
+ * @brief Extract a C array from a PostgreSQL array containing spatiotemporal
+ * boxes
+ */
+STBox *
+stboxarr_extract(ArrayType *array, int *count)
+{
+  STBox **boxes = (STBox **) datumarr_extract(array, count);
+  STBox *result = palloc(sizeof(STBox) * *count);
+  for (int i = 0; i < *count; i++)
+    result[i] = *boxes[i];
+  pfree(boxes);
+  return result;
+}
+
+/**
  * @brief Extract a C array from a PostgreSQL array containing temporal values
  */
 Temporal **
@@ -253,21 +273,6 @@ int64arr_to_array(int64 *values, int count)
     dvalues[i] = Int64GetDatum(values[i]);
   ArrayType *result = construct_array(dvalues, count, INT8OID, 8, true, 'd');
   pfree(dvalues); pfree(values);
-  return result;
-}
-
-/**
- * @brief Return a C array of dates converted into a PostgreSQL array
- */
-ArrayType *
-datearr_to_array(DateADT *dates, int count)
-{
-  assert(count > 0);
-  Datum *values = palloc(sizeof(Datum) * count);
-  for (int i = 0; i < count; i++)
-    values[i] = DateADTGetDatum(dates[i]);
-  ArrayType *result = construct_array(values, count, DATEOID, 4, true, 'i');
-  pfree(values); pfree(dates);
   return result;
 }
 
@@ -447,5 +452,33 @@ multirange_make(const SpanSet *ss)
   return result;
 }
 #endif /* POSTGRESQL_VERSION_NUMBER >= 140000 */
+
+#if DEBUG_BUILD
+/**
+ * @ingroup meos_pg_types
+ * @brief Return a range converted to a string
+ * @param[in] r Timestamp
+ * @note PostgreSQL function: @p range_out(PG_FUNCTION_ARGS)
+ */
+char *
+pg_range_out(RangeType *r)
+{
+  Datum d = PointerGetDatum(r);
+  return DatumGetCString(call_function1(range_out, d));
+}
+
+/**
+ * @ingroup meos_pg_types
+ * @brief Return a multirange converted to a string
+ * @param[in] r Timestamp
+ * @note PostgreSQL function: @p range_out(PG_FUNCTION_ARGS)
+ */
+char *
+pg_multirange_out(MultirangeType *mr)
+{
+  Datum d = PointerGetDatum(mr);
+  return DatumGetCString(call_function1(multirange_out, d));
+}
+#endif /* DEBUG_BUILD */
 
 /*****************************************************************************/

@@ -114,7 +114,7 @@ tnumber_const_to_span_tstzspan(const Node *other, Span **s, Span **p)
   {
     const Temporal *temp = DatumGetTemporalP(((Const *) other)->constvalue);
     TBox box;
-    temporal_set_bbox(temp, &box);
+    tnumber_set_tbox(temp, &box);
     *s = span_cp(&box.span);
     *p = span_cp(&box.period);
   }
@@ -145,7 +145,7 @@ tpoint_const_to_stbox(Node *other, STBox *box)
   else if (type == T_STBOX)
     memcpy(box, DatumGetSTboxP(constvalue), sizeof(STBox));
   else if (tspatial_type(type))
-    temporal_set_bbox(DatumGetTemporalP(constvalue), box);
+    tspatial_set_stbox(DatumGetTemporalP(constvalue), box);
   else
   {
     /* Error */
@@ -468,13 +468,8 @@ temporal_sel_tstzspan(VariableStatData *vardata, Span *s, meosOper oper)
   if (oper == SAME_OP)
   {
     Oid operid = oper_oid(EQ_OP, T_TSTZSPAN, T_TSTZSPAN);
-#if POSTGRESQL_VERSION_NUMBER < 130000
-    selec = var_eq_const(vardata, operid, SpanPGetDatum(s),
-      false, false, false);
-#else
     selec = var_eq_const(vardata, operid, DEFAULT_COLLATION_OID,
       SpanPGetDatum(s), false, false, false);
-#endif
   }
   else if (oper == OVERLAPS_OP || oper == CONTAINS_OP ||
     oper == CONTAINED_OP ||  oper == ADJACENT_OP ||
@@ -525,25 +520,15 @@ tnumber_sel_span_tstzspan(VariableStatData *vardata, Span *span, Span *period,
     if (span != NULL)
     {
       Oid value_oprid = oper_oid(EQ_OP, span->spantype, span->spantype);
-#if POSTGRESQL_VERSION_NUMBER < 130000
-      selec *= var_eq_const(vardata, value_oprid, PointerGetDatum(span),
-        false, false, false);
-#else
       selec *= var_eq_const(vardata, value_oprid, DEFAULT_COLLATION_OID,
         PointerGetDatum(span), false, false, false);
-#endif
     }
     /* Selectivity for the time dimension */
     if (period != NULL)
     {
       Oid tstzspan_oprid = oper_oid(EQ_OP, period->spantype, period->spantype);
-#if POSTGRESQL_VERSION_NUMBER < 130000
-      selec *= var_eq_const(vardata, tstzspan_oprid, SpanPGetDatum(period),
-        false, false, false);
-#else
       selec *= var_eq_const(vardata, tstzspan_oprid, DEFAULT_COLLATION_OID,
         SpanPGetDatum(period), false, false, false);
-#endif
     }
   }
   else if (oper == OVERLAPS_OP || oper == CONTAINS_OP ||

@@ -36,6 +36,12 @@ if(DEBUG_EXPAND)
   message(STATUS "Showing debug messages for expandable data structures")
 endif()
 
+#-----------------------------------------------------------------------------
+# Install directories
+#-----------------------------------------------------------------------------
+
+include(GNUInstallDirs)
+
 #-----------------------------------------
 # Set default PostgreSQL Version for MEOS
 #-----------------------------------------
@@ -138,6 +144,10 @@ if(NPOINT)
   message(STATUS "Including network points")
   set(PROJECT_OBJECTS ${PROJECT_OBJECTS} "$<TARGET_OBJECTS:npoint>")
 endif()
+if(POSE)
+  message(STATUS "Including geoposes")
+  set(PROJECT_OBJECTS ${PROJECT_OBJECTS} "$<TARGET_OBJECTS:pose>")
+endif()
 
 # PostgreSQL
 set(PROJECT_OBJECTS ${PROJECT_OBJECTS} "$<TARGET_OBJECTS:common>")
@@ -170,43 +180,49 @@ target_link_libraries(${MEOS_LIB_NAME} ${GSL_CBLAS_LIBRARY})
 # Belongs to MEOS
 #--------------------------------
 
-if(APPLE AND ${CMAKE_SYSTEM_PROCESSOR} MATCHES "arm")
-  install(FILES "${CMAKE_BINARY_DIR}/meos_export.h"
-    DESTINATION "/opt/homebrew/include"
-    RENAME "meos.h")
-  install(
-    FILES "${CMAKE_BINARY_DIR}/meos_internal_export.h"
-    DESTINATION "/opt/homebrew/include"
-    RENAME "meos_internal.h")
-  install(
-    FILES "${CMAKE_SOURCE_DIR}/meos/include/general/meos_catalog.h"
-    DESTINATION "/opt/homebrew/include")
-  install(TARGETS ${MEOS_LIB_NAME} DESTINATION "/opt/homebrew/lib")
-  message(STATUS "Building MEOS:")
-  message(STATUS "  Library file: '/opt/homebrew/lib'")
-  message(STATUS "  Include file: '/opt/homebrew/include'")
+install(FILES "${CMAKE_BINARY_DIR}/meos_export.h"
+  DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}"
+  RENAME "meos.h")
+install(
+  FILES "${CMAKE_BINARY_DIR}/meos_internal_export.h"
+  DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}"
+  RENAME "meos_internal.h")
+install(
+  FILES "${CMAKE_SOURCE_DIR}/meos/include/general/meos_catalog.h"
+  DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}")
+install(TARGETS ${MEOS_LIB_NAME} DESTINATION "${CMAKE_INSTALL_LIBDIR}")
+message(STATUS "Building MEOS:")
+message(STATUS "  Install prefix: '${CMAKE_INSTALL_PREFIX}'")
+message(STATUS "  Library file: '${CMAKE_INSTALL_LIBDIR}'")
+message(STATUS "  Include file: '${CMAKE_INSTALL_INCLUDEDIR}'")
+
+#-----------------------------------------------------------------------------
+# Configure pkg-config file meos.pc
+#-----------------------------------------------------------------------------
+
+# Consider CMAKE_INSTALL_PREFIX with spaces
+string(REPLACE " " "\\ " prefix ${CMAKE_INSTALL_PREFIX})
+set(exec_prefix "$\{prefix\}")
+if(IS_ABSOLUTE "${CMAKE_INSTALL_INCLUDEDIR}")
+  set(includedir "${CMAKE_INSTALL_INCLUDEDIR}")
 else()
-  install(
-    FILES "${CMAKE_BINARY_DIR}/meos_export.h"
-    DESTINATION "/usr/local/include"
-    RENAME "meos.h")
-  install(
-    FILES "${CMAKE_BINARY_DIR}/meos_internal_export.h"
-    DESTINATION "/usr/local/include"
-    RENAME "meos_internal.h")
-  install(
-    FILES "${CMAKE_SOURCE_DIR}/meos/include/general/meos_catalog.h"
-    DESTINATION "/usr/local/include")
-  install(TARGETS ${MEOS_LIB_NAME} DESTINATION "/usr/local/lib")
-  message(STATUS "Building MEOS:")
-  message(STATUS "  Library file: '/usr/local/lib'")
-  message(STATUS "  Include file: '/usr/local/include'")
+  set(includedir "$\{prefix\}/${CMAKE_INSTALL_INCLUDEDIR}")
 endif()
+if(IS_ABSOLUTE "${CMAKE_INSTALL_LIBDIR}")
+  set(libdir "${CMAKE_INSTALL_LIBDIR}")
+else()
+  set(libdir "$\{exec_prefix\}/${CMAKE_INSTALL_LIBDIR}")
+endif()
+set(VERSION ${MEOS_LIB_VERSION})
 
-#-----------------------------------------------------------------------------
-# Documentation
-#-----------------------------------------------------------------------------
+configure_file(
+  ${CMAKE_SOURCE_DIR}/tools/meos.pc.in
+  ${CMAKE_BINARY_DIR}/meos.pc
+  @ONLY)
 
+install(
+  FILES ${CMAKE_BINARY_DIR}/meos.pc
+  DESTINATION ${CMAKE_INSTALL_LIBDIR}/pkgconfig)
 
 #-----------------------------------------------------------------------------
 # The End
