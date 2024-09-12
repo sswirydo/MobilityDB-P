@@ -57,7 +57,7 @@ pmode_in(const char *str)
 }
 
 PMode *
-pmode_parse(const char **str) // possibly deprecated
+pmode_parse(const char **str)
 {
   Interval* period = NULL;
   int32 repetitions = 0;
@@ -101,14 +101,14 @@ pmode_parse(const char **str) // possibly deprecated
   while (**str != ';' && **str != '\0') (*str)++;
   if (**str == ';') (*str)++;
 
-  // Span - bool span_parse(const char **str, meosType spantype, bool end, Span *span);
-  Span *anchor_span = NULL;
-  span_parse(str, T_TSTZRANGE, true, anchor_span);
+  /* Anchor span */
+  Span anchor_span;
+  span_parse(str, T_TSTZSPAN, true, &anchor_span); // TODO: add dates, tsspan etc.
 
   ensure_end_input(str, "periodic mode");
   pfree(str1);
 
-  return pmode_make(period, repetitions, keep_pattern, anchor_span);
+  return pmode_make(period, repetitions, keep_pattern, &anchor_span);
 }
 
 PMode *
@@ -125,11 +125,13 @@ pmode_make(Interval *period, int32 repetitions, bool keep_pattern, Span *anchor)
 char *
 pmode_out(const PMode *pmode)
 {
-  const Interval *freq_iv = &(pmode->period);
-  char *freq_str = pg_interval_out(freq_iv); 
+  const Interval *period_iv = &(pmode->period);
+  char *period_str = pg_interval_out(period_iv); 
   char *rep_str = int4_out(pmode->repetitions);
-  char *result = palloc(sizeof(char)*63 + strlen(freq_str) + strlen(rep_str));
-  sprintf(result, "Interval: %s; Repetitions: %s", freq_str, rep_str);
+  char *strict_str = bool_out(pmode->keep_pattern);
+  char *anchor_str = span_out(&pmode->anchor, 0);
+  char *result = palloc(sizeof(char)*63 + strlen(period_str) + strlen(rep_str) + strlen(strict_str) + strlen(anchor_str));
+  sprintf(result, "%s; %s; %s; %s", period_str, rep_str, strict_str, anchor_str);
   return result;
 }
 

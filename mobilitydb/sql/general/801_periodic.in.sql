@@ -31,6 +31,7 @@ CREATE TYPE pmode (
     alignment       = double
 );
 
+-- TODO: add or replace by pmode(interval, tstzspan)
 CREATE FUNCTION pmode(interval, integer, boolean, tstzspan) 
   RETURNS pmode
   AS 'MODULE_PATHNAME', 'PMode_constructor'
